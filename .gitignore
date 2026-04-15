@@ -21,6 +21,7 @@ streamlit_user/.venv/
 backend/.env
 streamlit_admin/.env
 streamlit_user/.env
+streamlit_admin/config.yaml
 
 # Local databases
 *.db

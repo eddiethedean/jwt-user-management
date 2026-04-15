@@ -30,6 +30,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+cp config.example.yaml config.yaml
 streamlit run app.py
 ```
 

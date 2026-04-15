@@ -10,7 +10,7 @@ credentials:
       first_name: Admin
       last_name: User
       logged_in: false
-      password: admin
+      password: CHANGE_ME
       roles:
       - admin
 pre-authorized:
