@@ -69,21 +69,23 @@ def test_renders_main_sections(monkeypatch):
     assert not at.exception
     assert at.title[0].value == "User management"
     assert any(s.value == "Users" for s in at.subheader)
-    assert any(s.value == "Add user" for s in at.subheader)
-    assert any(s.value == "Send invite" for s in at.subheader)
+    assert any(s.value == "Add user (send invite email)" for s in at.subheader)
+    assert any(s.value.startswith("Send invite") for s in at.subheader)
 
 
-def test_create_user_happy_path(monkeypatch):
+def test_add_user_sends_invite(monkeypatch):
     # Users table load
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data=[]))
     monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    created_payload = {}
+    invite_payload = {}
 
     def fake_post(url, headers=None, json=None, timeout=None):
-        assert url.endswith("/users")
-        created_payload.update(json or {})
-        return _Resp(ok=True, json_data={"id": 123, **(json or {})})
+        assert url.endswith("/invites")
+        invite_payload.update(json or {})
+        return _Resp(
+            ok=True, json_data={"ok": True, "invite_url": "http://x/inv?token=abc"}
+        )
 
     monkeypatch.setattr(requests, "post", fake_post)
 
@@ -92,16 +94,14 @@ def test_create_user_happy_path(monkeypatch):
 
     _input_text(at, "Email", "new@test.local")
     _input_text(at, "Full name", "New Person")
-    _input_text(at, "Temporary password", "TempPass123!")
     # This label appears multiple times; occurrence 1 is the "Add user" form field.
     _input_text(at, "Permissions (comma-separated)", "p1,p2", occurrence=1)
-    _click_button(at, "Create")
+    _click_button(at, "Send invite")
     at.run()
 
-    assert created_payload["email"] == "new@test.local"
-    assert created_payload["full_name"] == "New Person"
-    assert created_payload["password"] == "TempPass123!"
-    assert created_payload["permissions"] == ["p1", "p2"]
+    assert invite_payload["email"] == "new@test.local"
+    assert invite_payload["full_name"] == "New Person"
+    assert invite_payload["permissions"] == ["p1", "p2"]
 
 
 def test_shows_warning_when_admin_key_missing(monkeypatch):

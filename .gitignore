@@ -13,12 +13,14 @@ __pycache__/
 venv/
 env/
 backend/.venv/
-streamlit_app/.venv/
+streamlit_admin/.venv/
+streamlit_user/.venv/
 
 # Env files / secrets
 .env
 backend/.env
-streamlit_app/.env
+streamlit_admin/.env
+streamlit_user/.env
 
 # Local databases
 *.db

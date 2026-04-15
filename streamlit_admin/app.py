@@ -66,7 +66,7 @@ if st.session_state.get("authentication_status"):
 
     if not ADMIN_API_KEY:
         st.warning(
-            "Set `BACKEND_ADMIN_API_KEY` in `streamlit_app/.env` to enable admin API calls."
+            "Set `BACKEND_ADMIN_API_KEY` in `streamlit_admin/.env` to enable admin API calls."
         )
         st.stop()
 
@@ -115,31 +115,30 @@ if st.session_state.get("authentication_status"):
                 st.error(f"Update failed: {r.status_code} {r.text}")
 
     with col2:
-        st.subheader("Add user")
+        st.subheader("Add user (send invite email)")
         with st.form("add_user"):
             email = st.text_input("Email")
             full_name = st.text_input("Full name")
-            temp_password = st.text_input("Temporary password", value="ChangeMe123!")
             new_is_admin = st.checkbox("Admin", value=False)
             perms = st.text_input("Permissions (comma-separated)")
-            submitted = st.form_submit_button("Create")
+            submitted = st.form_submit_button("Send invite")
         if submitted:
             payload = {
                 "email": email,
                 "full_name": full_name or None,
-                "password": temp_password,
                 "is_admin": new_is_admin,
                 "permissions": [p.strip() for p in perms.split(",") if p.strip()],
             }
-            r = backend_post("/users", json=payload)
+            r = backend_post("/invites", json=payload)
             if r.ok:
-                st.success("User created")
-                st.rerun()
+                data = r.json()
+                st.success("Invite sent")
+                st.code(data.get("invite_url", ""), language="text")
             else:
-                st.error(f"Create failed: {r.status_code} {r.text}")
+                st.error(f"Invite failed: {r.status_code} {r.text}")
 
         st.divider()
-        st.subheader("Send invite")
+        st.subheader("Send invite (manual)")
         with st.form("send_invite"):
             invite_email = st.text_input("Invite email")
             invite_name = st.text_input("Invitee name (optional)")

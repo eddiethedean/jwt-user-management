@@ -3,19 +3,24 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Form, Header, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
+from starlette.requests import Request
 
 from app.api.deps import get_db, get_optional_admin, require_admin_api_key
 from app.core.config import settings
 from app.core.security import hash_password
 from app.models.invite import InviteCreate, InviteToken
 from app.models.user import User
+from app.schemas.invites import InviteAcceptResponse, InviteCreateResponse
 from app.services.azure_ad import validate_email_in_tenant
 from app.services.emailer import send_invite_email
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
+templates = Jinja2Templates(directory="app/templates")
 
 
 def _hash_token(token: str) -> str:
@@ -29,13 +34,13 @@ def _as_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-@router.post("")
+@router.post("", response_model=InviteCreateResponse)
 async def create_invite(
     payload: InviteCreate,
     db: Session = Depends(get_db),
     x_admin_api_key: Optional[str] = Header(default=None, alias="X-Admin-Api-Key"),
     current_admin: Optional[User] = Depends(get_optional_admin),
-) -> dict:
+) -> InviteCreateResponse:
     if x_admin_api_key is not None:
         require_admin_api_key(x_admin_api_key)
         invited_by = None
@@ -78,16 +83,16 @@ async def create_invite(
     invite_url = f"{base}/invites/accept?token={token}"
     send_invite_email(to_email=payload.email, invite_url=invite_url)
 
-    return {"ok": True, "invite_url": invite_url, "expires_at": expires_at.isoformat()}
+    return InviteCreateResponse(ok=True, invite_url=invite_url, expires_at=expires_at)
 
 
-@router.post("/accept")
+@router.post("/accept", response_model=InviteAcceptResponse)
 async def accept_invite(
     token: str,
     password: str,
     full_name: Optional[str] = None,
     db: Session = Depends(get_db),
-) -> dict:
+) -> InviteAcceptResponse:
     token_hash = _hash_token(token)
     invite = db.exec(
         select(InviteToken).where(InviteToken.token_hash == token_hash)
@@ -143,4 +148,35 @@ async def accept_invite(
     db.add(invite)
     db.commit()
 
-    return {"ok": True, "email_verified": email_verified}
+    return InviteAcceptResponse(ok=True, email_verified=email_verified)
+
+
+@router.get("/accept", response_class=HTMLResponse)
+def accept_invite_page(request: Request, token: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "accept_invite.html", {"request": request, "token": token}
+    )
+
+
+@router.post("/accept-form", response_class=HTMLResponse)
+async def accept_invite_form(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    full_name: Optional[str] = Form(default=None),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    try:
+        await accept_invite(token=token, password=password, full_name=full_name, db=db)
+    except HTTPException as e:
+        return templates.TemplateResponse(
+            request,
+            "accept_invite.html",
+            {"request": request, "token": token, "error": e.detail},
+            status_code=e.status_code,
+        )
+    return templates.TemplateResponse(
+        request,
+        "accept_invite.html",
+        {"request": request, "token": token, "success": True},
+    )

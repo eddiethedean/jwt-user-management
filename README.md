@@ -3,7 +3,8 @@
 This repo contains:
 
 - `backend/`: FastAPI API using SQLModel for user management + JWT issuance.
-- `streamlit_app/`: Streamlit admin UI gated by Streamlit-Authenticator, calling the backend to manage users.
+- `streamlit_admin/`: Streamlit admin UI gated by Streamlit-Authenticator, calling the backend to manage users.
+- `streamlit_user/`: Streamlit demo of a user-facing app (login + forgot/reset password) using the backend.
 
 ## Quickstart (local, SQLite)
 
@@ -24,7 +25,7 @@ API docs: `http://localhost:8000/docs`
 ### 2) Streamlit admin
 
 ```bash
-cd streamlit_app
+cd streamlit_admin
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -33,6 +34,19 @@ streamlit run app.py
 ```
 
 Streamlit: `http://localhost:8501`
+
+### 3) Streamlit user demo
+
+```bash
+cd streamlit_user
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+streamlit run app.py --server.port 8502
+```
+
+User demo: `http://localhost:8502`
 
 ## Environment
 
@@ -46,7 +60,7 @@ Streamlit: `http://localhost:8501`
 - `SMTP_*`: optional SMTP settings to send invite emails
 - `AZURE_*`: optional Azure AD (Microsoft Graph) settings to validate emails
 
-### Streamlit (`streamlit_app/.env`)
+### Streamlit admin (`streamlit_admin/.env`)
 
 - `BACKEND_URL`: e.g. `http://localhost:8000`
 - `BACKEND_ADMIN_API_KEY`: must match backend `ADMIN_API_KEY`

@@ -113,7 +113,7 @@ def test_invite_flow_renders_invite_url(monkeypatch):
     at.run()
 
     # invite url is shown via st.code; AppTest represents it as Markdown-like text blocks.
-    assert "Invite created" in "".join([s.value for s in at.success])
+    assert "Invite sent" in "".join([s.value for s in at.success])
 
 
 def test_backend_users_error_is_displayed(monkeypatch):

@@ -5,16 +5,17 @@ from sqlmodel import Session, select
 from app.api.deps import get_db
 from app.core.security import create_access_token, verify_password
 from app.models.user import User
+from app.schemas.auth import TokenResponse
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/token")
+@router.post("/token", response_model=TokenResponse)
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
-) -> dict:
+) -> TokenResponse:
     user = db.exec(select(User).where(User.email == form_data.username)).first()
     if (
         not user
@@ -26,4 +27,4 @@ def login_for_access_token(
         subject=str(user.id),
         extra_claims={"email": user.email, "is_admin": user.is_admin},
     )
-    return {"access_token": token, "token_type": "bearer"}
+    return TokenResponse(access_token=token, token_type="bearer")
