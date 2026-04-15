@@ -112,3 +112,17 @@ def test_shows_warning_when_admin_key_missing(monkeypatch):
     assert not at.exception
     assert len(at.warning) >= 1
     assert "BACKEND_ADMIN_API_KEY" in at.warning[0].value
+
+
+def test_users_endpoint_error_is_shown(monkeypatch):
+    def fake_get(url, headers=None, timeout=None):
+        return _Resp(ok=False, status_code=500, json_data={}, text="boom")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
+
+    at = AppTest.from_file("app.py", default_timeout=30).run()
+    assert not at.exception
+    assert len(at.error) >= 1
+    assert "Failed to load users" in at.error[0].value

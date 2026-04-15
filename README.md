@@ -6,6 +6,11 @@ This repo contains:
 - `streamlit_admin/`: Streamlit admin UI gated by Streamlit-Authenticator, calling the backend to manage users.
 - `streamlit_user/`: Streamlit demo of a user-facing app (login + forgot/reset password) using the backend.
 
+App-specific READMEs:
+- `backend/README.md`
+- `streamlit_admin/README.md`
+- `streamlit_user/README.md`
+
 ## Quickstart (local, SQLite)
 
 ### 1) Backend

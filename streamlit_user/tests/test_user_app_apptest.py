@@ -85,3 +85,33 @@ def test_forgot_password_shows_non_enumerating_message(monkeypatch):
     at.run()
 
     assert any("reset email has been sent" in s.value.lower() for s in at.success)
+
+
+def test_sign_out_clears_session_state(monkeypatch):
+    def fake_post(url, data=None, headers=None, timeout=None, params=None, json=None):
+        if url.endswith("/auth/token"):
+            return _Resp(
+                ok=True, json_data={"access_token": "tok", "token_type": "bearer"}
+            )
+        return _Resp(ok=True, json_data={"ok": True})
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    assert not at.exception
+
+    _input_text(at, "Email", "user@test.local", key_contains="login_email")
+    _input_text(at, "Password", "pw", key_contains="login_password")
+    _click_button(at, "Sign in")
+    at.run()
+    assert "access_token" in at.session_state
+    assert at.session_state["access_token"] == "tok"
+
+    _click_button(at, "Sign out")
+    at.run()
+    assert (
+        "access_token" not in at.session_state
+        or at.session_state["access_token"] is None
+    )

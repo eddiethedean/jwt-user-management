@@ -10,6 +10,9 @@ from typing import Dict, Optional
 
 load_dotenv()
 
+st.set_page_config(page_title="User App • Demo", layout="centered")
+st.title("User app (demo)")
+
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
 COOKIE_NAME = os.getenv("USER_COOKIE_NAME", "user-demo-auth")
 COOKIE_KEY = os.getenv("USER_COOKIE_KEY", "change-me")
@@ -62,7 +65,9 @@ def _cookie_delete() -> None:
         cookie_manager.delete(COOKIE_NAME)
         # Some browsers / Streamlit contexts may keep the old cookie value for one run.
         # Setting a short-lived sentinel helps ensure we don't immediately restore.
-        cookie_manager.set(COOKIE_NAME, "deleted", expires_at=datetime.now() - timedelta(days=1))
+        cookie_manager.set(
+            COOKIE_NAME, "deleted", expires_at=datetime.now() - timedelta(days=1)
+        )
     except Exception:
         pass
 
@@ -85,9 +90,6 @@ def _post_json(
 def _get(path: str, params: Optional[Dict] = None) -> requests.Response:
     return requests.get(f"{BACKEND_URL}{path}", params=params, timeout=10)
 
-
-st.set_page_config(page_title="User App • Demo", layout="centered")
-st.title("User app (demo)")
 
 # Explicit logout flag to prevent immediate cookie restore
 if "logout" not in st.session_state:
