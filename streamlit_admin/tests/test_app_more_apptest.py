@@ -88,34 +88,6 @@ def test_update_user_calls_backend_patch(monkeypatch):
     assert seen["json"]["is_active"] is True
 
 
-def test_invite_flow_renders_invite_url(monkeypatch):
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data=[]))
-    monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
-
-    def fake_post(url, headers=None, json=None, timeout=None):
-        if url.endswith("/invites"):
-            return _Resp(
-                ok=True,
-                json_data={"ok": True, "invite_url": "http://x/invite?token=abc"},
-            )
-        return _Resp(ok=True, json_data={"id": 1})
-
-    monkeypatch.setattr(requests, "post", fake_post)
-
-    at = AppTest.from_file("app.py", default_timeout=30).run()
-    assert not at.exception
-
-    # Invite form fields appear after the "Add user" form inputs; use occurrence indexes.
-    _input_text(at, "Invite email", "inv@test.local")
-    _input_text(at, "Invitee name (optional)", "Inv Itee")
-    _input_text(at, "Invite permissions (comma-separated)", "p1,p2")
-    _click_button(at, "Send invite")
-    at.run()
-
-    # invite url is shown via st.code; AppTest represents it as Markdown-like text blocks.
-    assert "Invite sent" in "".join([s.value for s in at.success])
-
-
 def test_backend_users_error_is_displayed(monkeypatch):
     def fake_get(url, headers=None, timeout=None):
         return _Resp(ok=False, status_code=500, json_data={}, text="boom")

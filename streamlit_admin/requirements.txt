@@ -3,5 +3,4 @@ streamlit-authenticator
 pyyaml
 python-dotenv
 requests
-pandas
 pytest

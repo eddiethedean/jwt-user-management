@@ -1,6 +1,5 @@
 import os
 
-import pandas as pd
 import requests
 import streamlit as st
 import streamlit_authenticator as stauth
@@ -79,21 +78,23 @@ if st.session_state.get("authentication_status"):
             st.error(f"Failed to load users: {resp.status_code} {resp.text}")
         else:
             users = resp.json()
-            df = pd.DataFrame(users)
-            if not df.empty:
-                df = df[
-                    [
-                        "id",
-                        "email",
-                        "full_name",
-                        "is_active",
-                        "is_admin",
-                        "email_verified",
-                        "permissions",
-                        "created_at",
-                    ]
-                ]
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            # Avoid pandas/numpy dependency; Streamlit can render list-of-dicts directly.
+            desired_keys = [
+                "id",
+                "email",
+                "full_name",
+                "is_active",
+                "is_admin",
+                "email_verified",
+                "permissions",
+                "created_at",
+            ]
+            rows = [
+                {k: u.get(k) for k in desired_keys}
+                for u in users
+                if isinstance(u, dict)
+            ]
+            st.dataframe(rows, use_container_width=True, hide_index=True)
 
         st.divider()
         st.subheader("Update permissions / flags")
@@ -133,31 +134,6 @@ if st.session_state.get("authentication_status"):
             if r.ok:
                 data = r.json()
                 st.success("Invite sent")
-                st.code(data.get("invite_url", ""), language="text")
-            else:
-                st.error(f"Invite failed: {r.status_code} {r.text}")
-
-        st.divider()
-        st.subheader("Send invite (manual)")
-        with st.form("send_invite"):
-            invite_email = st.text_input("Invite email")
-            invite_name = st.text_input("Invitee name (optional)")
-            invite_is_admin = st.checkbox("Invite as admin", value=False)
-            invite_perms = st.text_input("Invite permissions (comma-separated)")
-            invite_submit = st.form_submit_button("Send invite")
-        if invite_submit:
-            payload = {
-                "email": invite_email,
-                "full_name": invite_name or None,
-                "is_admin": invite_is_admin,
-                "permissions": [
-                    p.strip() for p in invite_perms.split(",") if p.strip()
-                ],
-            }
-            r = backend_post("/invites", json=payload)
-            if r.ok:
-                data = r.json()
-                st.success("Invite created")
                 st.code(data.get("invite_url", ""), language="text")
             else:
                 st.error(f"Invite failed: {r.status_code} {r.text}")

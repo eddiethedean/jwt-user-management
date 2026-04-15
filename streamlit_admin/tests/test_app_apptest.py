@@ -70,7 +70,6 @@ def test_renders_main_sections(monkeypatch):
     assert at.title[0].value == "User management"
     assert any(s.value == "Users" for s in at.subheader)
     assert any(s.value == "Add user (send invite email)" for s in at.subheader)
-    assert any(s.value.startswith("Send invite") for s in at.subheader)
 
 
 def test_add_user_sends_invite(monkeypatch):

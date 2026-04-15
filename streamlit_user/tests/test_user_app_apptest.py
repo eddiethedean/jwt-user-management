@@ -9,6 +9,7 @@ from streamlit.testing.v1 import AppTest
 @pytest.fixture(autouse=True)
 def _env():
     os.environ["BACKEND_URL"] = "http://testserver"
+    os.environ["STREAMLIT_DISABLE_COOKIES"] = "1"
     yield
 
 
