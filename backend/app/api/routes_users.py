@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import text
@@ -52,11 +52,13 @@ def create_user(
 ) -> User:
     _require_admin_or_key(current_admin, x_admin_api_key)
 
-    existing = db.exec(select(User).where(User.email == payload.email)).first()
+    existing: Optional[User] = db.exec(
+        select(User).where(User.email == payload.email)
+    ).first()
     if existing:
         raise HTTPException(status_code=409, detail="Email already exists")
 
-    raw_password = (payload.password or "").strip()
+    raw_password: str = (payload.password or "").strip()
     if not raw_password:
         raise HTTPException(status_code=422, detail="Password is required")
     user = User(
@@ -83,11 +85,11 @@ def update_user(
     current_admin: Optional[User] = Depends(get_optional_admin),
 ) -> User:
     _require_admin_or_key(current_admin, x_admin_api_key)
-    user = db.get(User, user_id)
+    user: Optional[User] = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    data = payload.model_dump(exclude_unset=True)
+    data: dict[str, Any] = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
         setattr(user, k, v)
 
@@ -105,7 +107,7 @@ def deactivate_user(
     current_admin: Optional[User] = Depends(get_optional_admin),
 ) -> dict:
     _require_admin_or_key(current_admin, x_admin_api_key)
-    user = db.get(User, user_id)
+    user: Optional[User] = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.is_active = False

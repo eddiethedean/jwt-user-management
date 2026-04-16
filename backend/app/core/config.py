@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     # dev|prod (demo defaults to dev)
     environment: str = "dev"
 
+    # Optional flag (same name as Streamlit DEBUG=); ignored by API logic today.
+    debug: bool = False
+
     database_url: str = "sqlite:///./app.db"
     public_base_url: str = "http://localhost:8000"
 

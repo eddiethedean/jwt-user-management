@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import secrets
 from fastapi import Depends, HTTPException, Security
@@ -22,8 +22,8 @@ def get_db(session: Session = Depends(get_session)) -> Session:
 def require_admin_api_key(x_admin_api_key: Optional[str] = None) -> None:
     if not settings.admin_api_key:
         raise HTTPException(status_code=403, detail="Admin API key is not configured")
-    provided = (x_admin_api_key or "").strip()
-    expected = (settings.admin_api_key or "").strip()
+    provided: str = (x_admin_api_key or "").strip()
+    expected: str = (settings.admin_api_key or "").strip()
     if not provided or not secrets.compare_digest(provided, expected):
         raise HTTPException(status_code=401, detail="Invalid admin API key")
 
@@ -34,19 +34,19 @@ def get_current_user(
 ) -> User:
     if not creds:
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    token = creds.credentials
+    token: str = creds.credentials
     try:
-        payload = decode_token(token)
+        payload: dict[str, Any] = decode_token(token)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    user_id = payload.get("sub")
+    user_id: Optional[Any] = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token subject")
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token subject")
-    user = db.exec(select(User).where(User.id == user_id_int)).first()
+    user: Optional[User] = db.exec(select(User).where(User.id == user_id_int)).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Inactive user")
     return user
@@ -58,19 +58,19 @@ def get_optional_user(
 ) -> Optional[User]:
     if not creds:
         return None
-    token = creds.credentials
+    token: str = creds.credentials
     try:
-        payload = decode_token(token)
+        payload: dict[str, Any] = decode_token(token)
     except JWTError:
         return None
-    user_id = payload.get("sub")
+    user_id: Optional[Any] = payload.get("sub")
     if not user_id:
         return None
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError):
         return None
-    user = db.exec(select(User).where(User.id == user_id_int)).first()
+    user: Optional[User] = db.exec(select(User).where(User.id == user_id_int)).first()
     if not user or not user.is_active:
         return None
     return user

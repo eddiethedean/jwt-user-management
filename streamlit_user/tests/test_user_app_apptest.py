@@ -63,7 +63,9 @@ def test_login_success_sets_session(monkeypatch):
     _click_button(at, "Sign in")
     at.run()
 
-    assert any("Signed in" in s.value for s in at.success)
+    assert "access_token" in at.session_state
+    assert at.session_state["access_token"] == "tok"
+    assert any("signed in" in s.value.lower() for s in at.success)
 
 
 def test_forgot_password_shows_non_enumerating_message(monkeypatch):

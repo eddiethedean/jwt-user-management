@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from starlette.requests import Request
+from typing import Optional
 
 from app.api.deps import get_db
 from app.core.config import settings
@@ -46,21 +47,21 @@ def forgot_password(
     If the user exists, a reset email is sent with a single-use token link.
     """
     email = str(payload.email)
-    user = db.exec(select(User).where(User.email == email)).first()
+    user: Optional[User] = db.exec(select(User).where(User.email == email)).first()
     if not user or not user.is_active:
         return ForgotPasswordResponse(ok=True)
 
-    token = secrets.token_urlsafe(32)
-    token_hash = _hash_token(token)
-    now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(minutes=30)
+    token: str = secrets.token_urlsafe(32)
+    token_hash: str = _hash_token(token)
+    now: datetime = datetime.now(timezone.utc)
+    expires_at: datetime = now + timedelta(minutes=30)
 
     prt = PasswordResetToken(email=email, token_hash=token_hash, expires_at=expires_at)
     db.add(prt)
     db.commit()
 
-    base = (settings.public_base_url or "http://localhost:8000").rstrip("/")
-    reset_url = f"{base}/password/reset?token={token}"
+    base: str = (settings.public_base_url or "http://localhost:8000").rstrip("/")
+    reset_url: str = f"{base}/password/reset?token={token}"
     send_password_reset_email(to_email=email, reset_url=reset_url)
     return ForgotPasswordResponse(ok=True)
 
@@ -77,10 +78,10 @@ def reset_password(
     payload: ResetPasswordRequest,
     db: Session = Depends(get_db),
 ) -> ResetPasswordResponse:
-    token = payload.token
-    password = payload.password
-    token_hash = _hash_token(token)
-    prt = db.exec(
+    token: str = payload.token
+    password: str = payload.password
+    token_hash: str = _hash_token(token)
+    prt: Optional[PasswordResetToken] = db.exec(
         select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
     ).first()
     if not prt:
@@ -88,11 +89,11 @@ def reset_password(
     if prt.used_at is not None:
         raise HTTPException(status_code=400, detail="Reset token already used")
 
-    now = datetime.now(timezone.utc)
+    now: datetime = datetime.now(timezone.utc)
     if _as_utc(prt.expires_at) < now:
         raise HTTPException(status_code=400, detail="Reset token expired")
 
-    user = db.exec(select(User).where(User.email == prt.email)).first()
+    user: Optional[User] = db.exec(select(User).where(User.email == prt.email)).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=404, detail="User not found")
 

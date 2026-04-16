@@ -1,7 +1,9 @@
+from typing import Any, Optional
+
+from app.services.azure_ad import AzureADUser
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Header, HTTPException
 from fastapi.responses import HTMLResponse
@@ -45,7 +47,7 @@ async def create_invite(
         require_admin_api_key(x_admin_api_key)
         invited_by = None
     elif current_admin:
-        invited_by = current_admin.id
+        invited_by: Optional[int] = current_admin.id
     else:
         raise HTTPException(status_code=403, detail="Admin required")
 
@@ -55,16 +57,16 @@ async def create_invite(
         and settings.azure_client_secret
     )
     if azure_enabled:
-        ad_user = await validate_email_in_tenant(payload.email)
+        ad_user: Optional[AzureADUser] = await validate_email_in_tenant(payload.email)
         if ad_user is None:
             raise HTTPException(
                 status_code=400, detail="Email not found in Azure AD tenant"
             )
 
-    token = secrets.token_urlsafe(32)
-    token_hash = _hash_token(token)
-    now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(days=7)
+    token: str = secrets.token_urlsafe(32)
+    token_hash: str = _hash_token(token)
+    now: datetime = datetime.now(timezone.utc)
+    expires_at: datetime = now + timedelta(days=7)
 
     invite = InviteToken(
         email=payload.email,
@@ -79,8 +81,8 @@ async def create_invite(
     db.commit()
     db.refresh(invite)
 
-    base = (settings.public_base_url or "http://localhost:8000").rstrip("/")
-    invite_url = f"{base}/invites/accept?token={token}"
+    base: str = (settings.public_base_url or "http://localhost:8000").rstrip("/")
+    invite_url: str = f"{base}/invites/accept?token={token}"
     send_invite_email(to_email=payload.email, invite_url=invite_url)
 
     return InviteCreateResponse(ok=True, invite_url=invite_url, expires_at=expires_at)
@@ -93,8 +95,8 @@ async def accept_invite(
     full_name: Optional[str] = None,
     db: Session = Depends(get_db),
 ) -> InviteAcceptResponse:
-    token_hash = _hash_token(token)
-    invite = db.exec(
+    token_hash: str = _hash_token(token)
+    invite: Optional[InviteToken] = db.exec(
         select(InviteToken).where(InviteToken.token_hash == token_hash)
     ).first()
     if not invite:
@@ -102,11 +104,11 @@ async def accept_invite(
     if invite.used_at is not None:
         raise HTTPException(status_code=400, detail="Invite already used")
 
-    now = datetime.now(timezone.utc)
+    now: datetime = datetime.now(timezone.utc)
     if _as_utc(invite.expires_at) < now:
         raise HTTPException(status_code=400, detail="Invite expired")
 
-    ad_user = await validate_email_in_tenant(invite.email)
+    ad_user: Optional[AzureADUser] = await validate_email_in_tenant(invite.email)
     azure_enabled = bool(
         settings.azure_tenant_id
         and settings.azure_client_id
@@ -120,10 +122,12 @@ async def accept_invite(
         ad_object_id = None
         email_verified = False
     else:
-        ad_object_id = getattr(ad_user, "id", None)
-        email_verified = True if ad_user else False
+        ad_object_id: Optional[Any] = getattr(ad_user, "id", None)
+        email_verified: bool = True if ad_user else False
 
-    user = db.exec(select(User).where(User.email == invite.email)).first()
+    user: Optional[User] = db.exec(
+        select(User).where(User.email == invite.email)
+    ).first()
     if user:
         user.hashed_password = hash_password(password)
         user.full_name = full_name or invite.full_name or user.full_name

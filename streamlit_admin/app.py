@@ -13,6 +13,103 @@ load_dotenv()
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
 ADMIN_API_KEY = os.getenv("BACKEND_ADMIN_API_KEY", "")
 TEST_MODE = os.getenv("STREAMLIT_TEST_MODE", "").lower() in ("1", "true", "yes")
+DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def _cookies_from_authenticator(authenticator) -> dict:
+    # streamlit-authenticator exposes a cookie manager in some versions.
+    if authenticator is None:
+        return {}
+    mgr = getattr(authenticator, "cookie_manager", None)
+    if mgr is None:
+        return {}
+    try:
+        data = mgr.get_all()
+        if not data:
+            return {}
+        return {str(k): str(v) for k, v in dict(data).items()}
+    except Exception:
+        return {}
+
+
+def _cookie_sig(*, authenticator=None) -> str:
+    cookies = _cookies_from_authenticator(authenticator)
+    items = [(k, v) for k, v in sorted(cookies.items())]
+    return repr(items)
+
+
+def _render_cookie_debug(*, title: str = "Cookies (debug)", authenticator=None) -> None:
+    if not DEBUG:
+        return
+    with st.expander(title, expanded=False):
+        cookies = _cookies_from_authenticator(authenticator)
+        if not cookies:
+            st.caption("No cookies visible to this session.")
+            return
+        st.json(cookies)
+
+
+def _schedule_cookie_resync(*, expect: str) -> None:
+    if not DEBUG:
+        return
+    st.session_state["_admin_cookie_sync_pending"] = True
+    st.session_state["_admin_cookie_sync_attempts"] = 0
+    st.session_state["_admin_cookie_sig_at_sync_start"] = st.session_state.get(
+        "_admin_cookie_sig_at_sync_start"
+    ) or ""
+    st.session_state["_admin_cookie_expect"] = expect
+
+
+def _cookie_raw(*, cookie_name: str, authenticator=None) -> str:
+    raw = _cookies_from_authenticator(authenticator).get(cookie_name)
+    if raw is None:
+        return ""
+    return str(raw)
+
+
+def _cookie_expectation_met(*, expect: str, cookie_name: str, authenticator=None) -> bool:
+    raw = _cookie_raw(cookie_name=cookie_name, authenticator=authenticator)
+    if expect == "cleared":
+        return raw == "" or raw == "deleted"
+    if expect == "present":
+        return raw != "" and raw != "deleted"
+    return False
+
+
+def _maybe_finish_cookie_resync(*, cookie_name: str, authenticator=None) -> None:
+    if not st.session_state.get("_admin_cookie_sync_pending"):
+        return
+    expect = str(st.session_state.get("_admin_cookie_expect") or "")
+    start_sig = st.session_state.get("_admin_cookie_sig_at_sync_start") or ""
+    if not start_sig:
+        st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
+            authenticator=authenticator
+        )
+        start_sig = st.session_state["_admin_cookie_sig_at_sync_start"]
+    cur_sig = _cookie_sig(authenticator=authenticator)
+
+    if expect and _cookie_expectation_met(
+        expect=expect, cookie_name=cookie_name, authenticator=authenticator
+    ):
+        st.session_state["_admin_cookie_sync_pending"] = False
+        st.session_state["_admin_cookie_sync_attempts"] = 0
+        st.session_state.pop("_admin_cookie_expect", None)
+        return
+
+    if not expect and cur_sig != start_sig:
+        st.session_state["_admin_cookie_sync_pending"] = False
+        st.session_state["_admin_cookie_sync_attempts"] = 0
+        st.session_state.pop("_admin_cookie_expect", None)
+        return
+
+    attempts = int(st.session_state.get("_admin_cookie_sync_attempts") or 0) + 1
+    st.session_state["_admin_cookie_sync_attempts"] = attempts
+    if attempts >= 12:
+        st.session_state["_admin_cookie_sync_pending"] = False
+        st.session_state["_admin_cookie_sync_attempts"] = 0
+        st.session_state.pop("_admin_cookie_expect", None)
+        return
+    st.rerun()
 
 
 def backend_headers() -> dict:
@@ -64,6 +161,8 @@ else:
     with open("config.yaml") as file:
         config = yaml.load(file, Loader=SafeLoader)
 
+    COOKIE_NAME = str(config["cookie"]["name"])
+
     authenticator = stauth.Authenticate(
         config["credentials"],
         config["cookie"]["name"],
@@ -72,15 +171,55 @@ else:
     )
 
     try:
-        authenticator.login(location="main")
+        login_result = authenticator.login(location="main")
     except Exception as e:
         st.error(e)
         st.stop()
 
+    if login_result is not None:
+        _name, auth_ok, _username = login_result
+        if auth_ok is True:
+            st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
+                authenticator=authenticator
+            )
+            _schedule_cookie_resync(expect="present")
+            st.rerun()
+
+    if "prev_authentication_status" not in st.session_state:
+        st.session_state["prev_authentication_status"] = st.session_state.get(
+            "authentication_status"
+        )
+
+    cur_auth = st.session_state.get("authentication_status")
+    prev_auth = st.session_state.get("prev_authentication_status")
+    if prev_auth is True and cur_auth is not True:
+        st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
+            authenticator=authenticator
+        )
+        _schedule_cookie_resync(expect="cleared")
+        st.rerun()
+    st.session_state["prev_authentication_status"] = cur_auth
+
+_render_cookie_debug(title="Cookies (debug) • main", authenticator=locals().get("authenticator"))
+
 if st.session_state.get("authentication_status"):
     st.sidebar.write(f"Signed in as **{st.session_state.get('name')}**")
     if not TEST_MODE:
-        authenticator.logout(location="sidebar")
+
+        def _admin_logout_callback() -> None:
+            st.session_state["_admin_cookie_sync_pending"] = False
+            st.session_state["_admin_cookie_sync_attempts"] = 0
+            st.session_state.pop("_admin_cookie_expect", None)
+            st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
+                authenticator=authenticator
+            )
+            _schedule_cookie_resync(expect="cleared")
+
+        authenticator.logout(location="sidebar", callback=_admin_logout_callback)
+
+    _render_cookie_debug(
+        title="Cookies (debug) • sidebar", authenticator=locals().get("authenticator")
+    )
 
     if not ADMIN_API_KEY:
         st.warning(
@@ -167,3 +306,7 @@ elif st.session_state.get("authentication_status") is False:
     st.error("Username/password is incorrect")
 else:
     st.warning("Please enter your username and password")
+
+# After login/logout widgets so st.rerun() does not skip authenticator.logout / login.
+if not TEST_MODE:
+    _maybe_finish_cookie_resync(cookie_name=COOKIE_NAME, authenticator=authenticator)
