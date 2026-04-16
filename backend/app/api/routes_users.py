@@ -56,7 +56,9 @@ def create_user(
     if existing:
         raise HTTPException(status_code=409, detail="Email already exists")
 
-    raw_password = payload.password or "ChangeMe123!"
+    raw_password = (payload.password or "").strip()
+    if not raw_password:
+        raise HTTPException(status_code=422, detail="Password is required")
     user = User(
         email=payload.email,
         full_name=payload.full_name,

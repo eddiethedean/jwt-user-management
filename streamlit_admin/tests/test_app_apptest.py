@@ -126,3 +126,27 @@ def test_users_endpoint_error_is_shown(monkeypatch):
     assert not at.exception
     assert len(at.error) >= 1
     assert "Failed to load users" in at.error[0].value
+
+
+def test_backend_request_exception_is_shown(monkeypatch):
+    def boom(*args, **kwargs):
+        raise requests.Timeout("nope")
+
+    monkeypatch.setattr(requests, "get", boom)
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
+
+    at = AppTest.from_file("app.py", default_timeout=30).run()
+    assert not at.exception
+    assert len(at.error) >= 1
+    assert "Backend request failed" in at.error[0].value
+
+
+def test_test_mode_requires_testserver_backend_url(monkeypatch):
+    monkeypatch.setenv("STREAMLIT_TEST_MODE", "1")
+    monkeypatch.setenv("BACKEND_URL", "http://localhost:8000")
+
+    at = AppTest.from_file("app.py", default_timeout=30).run()
+    assert not at.exception
+    assert len(at.error) >= 1
+    assert "STREAMLIT_TEST_MODE is only allowed" in at.error[0].value

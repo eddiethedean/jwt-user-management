@@ -1,5 +1,6 @@
 from typing import Optional
 
+import secrets
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
@@ -21,7 +22,9 @@ def get_db(session: Session = Depends(get_session)) -> Session:
 def require_admin_api_key(x_admin_api_key: Optional[str] = None) -> None:
     if not settings.admin_api_key:
         raise HTTPException(status_code=403, detail="Admin API key is not configured")
-    if not x_admin_api_key or x_admin_api_key != settings.admin_api_key:
+    provided = (x_admin_api_key or "").strip()
+    expected = (settings.admin_api_key or "").strip()
+    if not provided or not secrets.compare_digest(provided, expected):
         raise HTTPException(status_code=401, detail="Invalid admin API key")
 
 
@@ -39,7 +42,11 @@ def get_current_user(
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token subject")
-    user = db.exec(select(User).where(User.id == int(user_id))).first()
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token subject")
+    user = db.exec(select(User).where(User.id == user_id_int)).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Inactive user")
     return user
@@ -59,7 +66,11 @@ def get_optional_user(
     user_id = payload.get("sub")
     if not user_id:
         return None
-    user = db.exec(select(User).where(User.id == int(user_id))).first()
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    user = db.exec(select(User).where(User.id == user_id_int)).first()
     if not user or not user.is_active:
         return None
     return user

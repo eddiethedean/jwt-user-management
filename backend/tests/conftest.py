@@ -8,11 +8,13 @@ from sqlmodel import Session, SQLModel, create_engine
 
 # Ensure the backend package root is importable (so `import app...` works)
 os.environ.setdefault("PYTHONPATH", os.getcwd())
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-please-change")
 
 from app.api.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.invite import InviteToken
+from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 
 
@@ -36,6 +38,7 @@ def engine():
 def db_session(engine):
     with Session(engine) as session:
         # Clear tables between tests (DB is shared via StaticPool)
+        session.exec(sa.delete(PasswordResetToken))
         session.exec(sa.delete(InviteToken))
         session.exec(sa.delete(User))
         session.commit()

@@ -72,23 +72,37 @@ def _cookie_delete() -> None:
         pass
 
 
-def _post_form(path: str, data: dict) -> requests.Response:
-    return requests.post(
-        f"{BACKEND_URL}{path}",
-        data=data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        timeout=10,
-    )
+def _post_form(path: str, data: dict) -> Optional[requests.Response]:
+    try:
+        return requests.post(
+            f"{BACKEND_URL}{path}",
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        return None
 
 
 def _post_json(
     path: str, params: Optional[Dict] = None, json: Optional[Dict] = None
-) -> requests.Response:
-    return requests.post(f"{BACKEND_URL}{path}", params=params, json=json, timeout=10)
+) -> Optional[requests.Response]:
+    try:
+        return requests.post(
+            f"{BACKEND_URL}{path}", params=params, json=json, timeout=10
+        )
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        return None
 
 
-def _get(path: str, params: Optional[Dict] = None) -> requests.Response:
-    return requests.get(f"{BACKEND_URL}{path}", params=params, timeout=10)
+def _get(path: str, params: Optional[Dict] = None) -> Optional[requests.Response]:
+    try:
+        return requests.get(f"{BACKEND_URL}{path}", params=params, timeout=10)
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        return None
 
 
 # Explicit logout flag to prevent immediate cookie restore
@@ -113,6 +127,8 @@ with tab_login:
 
     if submitted:
         resp = _post_form("/auth/token", data={"username": email, "password": password})
+        if resp is None:
+            st.stop()
         if resp.ok:
             st.session_state["access_token"] = resp.json()["access_token"]
             st.session_state["username"] = email
@@ -144,6 +160,8 @@ with tab_reset:
 
     if forgot_submit:
         resp = _post_json("/password/forgot", json={"email": forgot_email})
+        if resp is None:
+            st.stop()
         if resp.ok:
             st.success("If the account exists, a reset email has been sent.")
             st.info(
@@ -168,6 +186,8 @@ with tab_reset:
         resp = _post_json(
             "/password/reset", json={"token": token, "password": new_password}
         )
+        if resp is None:
+            st.stop()
         if resp.ok:
             st.success("Password updated. You can now log in.")
         else:

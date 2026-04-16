@@ -115,3 +115,22 @@ def test_sign_out_clears_session_state(monkeypatch):
         "access_token" not in at.session_state
         or at.session_state["access_token"] is None
     )
+
+
+def test_login_backend_request_exception_is_shown(monkeypatch):
+    def boom(*args, **kwargs):
+        raise requests.Timeout("nope")
+
+    monkeypatch.setattr(requests, "post", boom)
+    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+
+    at = AppTest.from_file("app.py", default_timeout=30).run()
+    assert not at.exception
+
+    _input_text(at, "Email", "user@test.local", key_contains="login_email")
+    _input_text(at, "Password", "pw", key_contains="login_password")
+    _click_button(at, "Sign in")
+    at.run()
+
+    assert len(at.error) >= 1
+    assert "Backend request failed" in at.error[0].value

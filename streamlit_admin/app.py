@@ -20,25 +20,44 @@ def backend_headers() -> dict:
 
 
 def backend_get(path: str):
-    return requests.get(f"{BACKEND_URL}{path}", headers=backend_headers(), timeout=10)
+    try:
+        return requests.get(
+            f"{BACKEND_URL}{path}", headers=backend_headers(), timeout=10
+        )
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        return None
 
 
 def backend_post(path: str, json: dict):
-    return requests.post(
-        f"{BACKEND_URL}{path}", headers=backend_headers(), json=json, timeout=10
-    )
+    try:
+        return requests.post(
+            f"{BACKEND_URL}{path}", headers=backend_headers(), json=json, timeout=10
+        )
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        return None
 
 
 def backend_patch(path: str, json: dict):
-    return requests.patch(
-        f"{BACKEND_URL}{path}", headers=backend_headers(), json=json, timeout=10
-    )
+    try:
+        return requests.patch(
+            f"{BACKEND_URL}{path}", headers=backend_headers(), json=json, timeout=10
+        )
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        return None
 
 
 st.set_page_config(page_title="Admin • User Management", layout="wide")
 st.title("User management")
 
 if TEST_MODE:
+    if BACKEND_URL != "http://testserver":
+        st.error(
+            "STREAMLIT_TEST_MODE is only allowed with BACKEND_URL=http://testserver"
+        )
+        st.stop()
     st.session_state["authentication_status"] = True
     st.session_state["name"] = "Test Admin"
 else:
@@ -74,6 +93,8 @@ if st.session_state.get("authentication_status"):
     with col1:
         st.subheader("Users")
         resp = backend_get("/users")
+        if resp is None:
+            st.stop()
         if not resp.ok:
             st.error(f"Failed to load users: {resp.status_code} {resp.text}")
         else:
@@ -109,6 +130,8 @@ if st.session_state.get("authentication_status"):
                 "is_active": is_active,
             }
             r = backend_patch(f"/users/{int(user_id)}", json=payload)
+            if r is None:
+                st.stop()
             if r.ok:
                 st.success("Updated")
                 st.rerun()
@@ -131,6 +154,8 @@ if st.session_state.get("authentication_status"):
                 "permissions": [p.strip() for p in perms.split(",") if p.strip()],
             }
             r = backend_post("/invites", json=payload)
+            if r is None:
+                st.stop()
             if r.ok:
                 data = r.json()
                 st.success("Invite sent")
