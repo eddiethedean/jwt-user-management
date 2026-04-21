@@ -31,14 +31,10 @@ def test_invite_accept_cannot_be_reused(client, admin_key, db_session):
     )
     token = resp.json()["invite_url"].split("token=", 1)[1]
 
-    r1 = client.post(
-        "/invites/accept", params={"token": token, "password": "P@ssw0rd!"}
-    )
+    r1 = client.post("/invites/accept", json={"token": token, "password": "P@ssw0rd!"})
     assert r1.status_code == 200
 
-    r2 = client.post(
-        "/invites/accept", params={"token": token, "password": "P@ssw0rd!"}
-    )
+    r2 = client.post("/invites/accept", json={"token": token, "password": "P@ssw0rd!"})
     assert r2.status_code == 400
     assert r2.json()["detail"] == "Invite already used"
 
@@ -64,6 +60,6 @@ def test_invite_accept_expired_rejected(client, admin_key, db_session):
     db_session.add(inv)
     db_session.commit()
 
-    r = client.post("/invites/accept", params={"token": token, "password": "P@ssw0rd!"})
+    r = client.post("/invites/accept", json={"token": token, "password": "P@ssw0rd!"})
     assert r.status_code == 400
     assert r.json()["detail"] == "Invite expired"

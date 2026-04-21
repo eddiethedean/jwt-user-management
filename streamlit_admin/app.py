@@ -1,4 +1,6 @@
 import os
+import ipaddress
+from urllib.parse import urlparse
 
 import requests
 import streamlit as st
@@ -14,6 +16,36 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
 ADMIN_API_KEY = os.getenv("BACKEND_ADMIN_API_KEY", "")
 TEST_MODE = os.getenv("STREAMLIT_TEST_MODE", "").lower() in ("1", "true", "yes")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def _validate_backend_url(url: str, *, require_https: bool) -> None:
+    p = urlparse(url)
+    if p.scheme not in {"http", "https"} or not p.netloc:
+        raise ValueError("BACKEND_URL must be a full http(s) URL")
+    if p.username or p.password:
+        raise ValueError("BACKEND_URL must not contain credentials")
+    host = p.hostname or ""
+    if require_https and p.scheme != "https":
+        raise ValueError("BACKEND_URL must use https:// for non-local backends")
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_loopback:
+            return
+        if ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
+            raise ValueError("BACKEND_URL must not target private/link-local IPs")
+    except ValueError:
+        # Not an IP; allow hostnames.
+        pass
+
+
+_is_local = BACKEND_URL.startswith("http://localhost") or BACKEND_URL.startswith(
+    "http://127.0.0.1"
+) or BACKEND_URL == "http://testserver"
+try:
+    _validate_backend_url(BACKEND_URL, require_https=(not _is_local and bool(ADMIN_API_KEY)))
+except ValueError as e:
+    st.error(str(e))
+    st.stop()
 
 
 def _cookies_from_authenticator(authenticator) -> dict:
@@ -46,7 +78,7 @@ def _render_cookie_debug(*, title: str = "Cookies (debug)", authenticator=None) 
         if not cookies:
             st.caption("No cookies visible to this session.")
             return
-        st.json(cookies)
+        st.json({k: "***redacted***" for k in cookies.keys()})
 
 
 def _schedule_cookie_resync(*, expect: str) -> None:

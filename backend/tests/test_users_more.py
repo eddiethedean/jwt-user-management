@@ -65,3 +65,20 @@ def test_deactivate_user_sets_inactive(client, admin_key):
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert login.status_code == 400
+
+
+def test_me_rejects_token_for_inactive_user(client, normal_user, db_session):
+    login = client.post(
+        "/auth/token",
+        data={"username": normal_user.email, "password": "password123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+
+    normal_user.is_active = False
+    db_session.add(normal_user)
+    db_session.commit()
+
+    r = client.get("/users/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401

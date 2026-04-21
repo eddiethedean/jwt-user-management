@@ -39,6 +39,8 @@ def get_current_user(
         payload: dict[str, Any] = decode_token(token)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if payload.get("exp") is None:
+        raise HTTPException(status_code=401, detail="Token missing exp")
     user_id: Optional[Any] = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token subject")
@@ -62,6 +64,8 @@ def get_optional_user(
     try:
         payload: dict[str, Any] = decode_token(token)
     except JWTError:
+        return None
+    if payload.get("exp") is None:
         return None
     user_id: Optional[Any] = payload.get("sub")
     if not user_id:

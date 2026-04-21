@@ -15,7 +15,7 @@ class InviteToken(SQLModel, table=True):
     permissions: List[str] = Field(
         default_factory=list, sa_column=Column(JSON, nullable=False)
     )
-    token_hash: str = Field(index=True)
+    token_hash: str = Field(index=True, unique=True)
     invited_by_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

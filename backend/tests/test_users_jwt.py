@@ -28,3 +28,12 @@ def test_admin_endpoints_require_admin(client, normal_user):
     token = _login(client, normal_user.email, "password123")
     resp = client.get("/users", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 403
+
+
+def test_admin_jwt_can_list_users(client, admin_user):
+    token = _login(client, admin_user.email, "password123")
+    resp = client.get("/users", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    users = resp.json()
+    assert isinstance(users, list)
+    assert any(u["email"] == admin_user.email for u in users)

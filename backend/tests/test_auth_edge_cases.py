@@ -29,3 +29,12 @@ def test_me_rejects_expired_token(client, normal_user):
 def test_me_rejects_garbage_token(client, normal_user):
     r = client.get("/users/me", headers={"Authorization": "Bearer not-a-real-token"})
     assert r.status_code == 401
+
+
+def test_me_rejects_token_missing_exp(client, normal_user):
+    from jose import jwt
+    from app.core.config import settings
+
+    token = jwt.encode({"sub": str(normal_user.id)}, settings.jwt_secret, algorithm="HS256")
+    r = client.get("/users/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401

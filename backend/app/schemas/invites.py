@@ -10,6 +10,12 @@ class InviteCreateResponse(BaseModel):
     expires_at: datetime
 
 
+class InviteAcceptRequest(BaseModel):
+    token: str
+    password: str
+    full_name: Optional[str] = None
+
+
 class InviteAcceptResponse(BaseModel):
     ok: bool
     email_verified: bool

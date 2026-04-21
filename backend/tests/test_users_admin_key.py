@@ -21,6 +21,26 @@ def test_list_users_with_admin_api_key(client, admin_user):
         settings.admin_api_key = old
 
 
+def test_admin_api_key_header_but_not_configured_is_forbidden(client):
+    old = settings.admin_api_key
+    try:
+        settings.admin_api_key = None
+        resp = client.get("/users", headers={"X-Admin-Api-Key": "anything"})
+        assert resp.status_code == 403
+    finally:
+        settings.admin_api_key = old
+
+
+def test_admin_api_key_whitespace_is_rejected(client):
+    old = settings.admin_api_key
+    try:
+        settings.admin_api_key = "test-key"
+        resp = client.get("/users", headers={"X-Admin-Api-Key": "   "})
+        assert resp.status_code == 401
+    finally:
+        settings.admin_api_key = old
+
+
 def test_create_user_with_admin_api_key(client, admin_user):
     old = settings.admin_api_key
     try:

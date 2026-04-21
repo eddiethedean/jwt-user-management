@@ -7,8 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    # dev|prod (demo defaults to dev)
-    environment: str = "dev"
+    # dev|prod
+    environment: str = "prod"
 
     # Optional flag (same name as Streamlit DEBUG=); ignored by API logic today.
     debug: bool = False
@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     azure_client_id: Optional[str] = None
     azure_client_secret: Optional[str] = None
 
+    rate_limit_enabled: bool = True
+    rate_limit_trust_proxy_headers: bool = False
+
     @field_validator("jwt_secret")
     @classmethod
     def _validate_jwt_secret(cls, v: str, info):
@@ -44,6 +47,22 @@ class Settings(BaseSettings):
             if v.lower() == "change-me" or len(v) < 24:
                 raise ValueError(
                     "JWT_SECRET must be a strong secret (>=24 chars) outside dev"
+                )
+        return v
+
+    @field_validator("admin_api_key")
+    @classmethod
+    def _validate_admin_api_key(cls, v: Optional[str], info):
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        env = (info.data.get("environment") or "prod").lower()
+        if env != "dev":
+            if v.lower() in {"change-me", "change-me-too"} or len(v) < 24:
+                raise ValueError(
+                    "ADMIN_API_KEY must be a strong secret (>=24 chars) outside dev"
                 )
         return v
 

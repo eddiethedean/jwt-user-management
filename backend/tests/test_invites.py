@@ -27,11 +27,7 @@ def test_invite_create_and_accept_flow(client):
         # Accept invite
         accept = client.post(
             "/invites/accept",
-            params={
-                "token": token,
-                "password": "NewPass123!",
-                "full_name": "Accepted Name",
-            },
+            json={"token": token, "password": "NewPass123!", "full_name": "Accepted Name"},
         )
         assert accept.status_code == 200
         assert accept.json()["ok"] is True

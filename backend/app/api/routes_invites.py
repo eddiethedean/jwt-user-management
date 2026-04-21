@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Form, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import update
 from sqlmodel import Session, select
 from starlette.requests import Request
 
@@ -16,7 +17,12 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.models.invite import InviteCreate, InviteToken
 from app.models.user import User
-from app.schemas.invites import InviteAcceptResponse, InviteCreateResponse
+from app.schemas.invites import (
+    InviteAcceptRequest,
+    InviteAcceptResponse,
+    InviteCreateResponse,
+)
+from app.security.origin import require_same_origin
 from app.services.azure_ad import validate_email_in_tenant
 from app.services.emailer import send_invite_email
 
@@ -88,12 +94,8 @@ async def create_invite(
     return InviteCreateResponse(ok=True, invite_url=invite_url, expires_at=expires_at)
 
 
-@router.post("/accept", response_model=InviteAcceptResponse)
-async def accept_invite(
-    token: str,
-    password: str,
-    full_name: Optional[str] = None,
-    db: Session = Depends(get_db),
+async def _accept_invite(
+    *, token: str, password: str, full_name: Optional[str], db: Session
 ) -> InviteAcceptResponse:
     token_hash: str = _hash_token(token)
     invite: Optional[InviteToken] = db.exec(
@@ -101,12 +103,30 @@ async def accept_invite(
     ).first()
     if not invite:
         raise HTTPException(status_code=404, detail="Invite not found")
-    if invite.used_at is not None:
-        raise HTTPException(status_code=400, detail="Invite already used")
-
     now: datetime = datetime.now(timezone.utc)
     if _as_utc(invite.expires_at) < now:
         raise HTTPException(status_code=400, detail="Invite expired")
+
+    # Single-use enforcement (atomic): mark invite as used only if unused and unexpired.
+    res = db.exec(
+        update(InviteToken)
+        .where(InviteToken.token_hash == token_hash)
+        .where(InviteToken.used_at.is_(None))
+        .where(InviteToken.expires_at >= now)
+        .values(used_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    if getattr(res, "rowcount", 0) != 1:
+        refreshed: Optional[InviteToken] = db.exec(
+            select(InviteToken).where(InviteToken.token_hash == token_hash)
+        ).first()
+        if not refreshed:
+            raise HTTPException(status_code=404, detail="Invite not found")
+        if refreshed.used_at is not None:
+            raise HTTPException(status_code=400, detail="Invite already used")
+        if _as_utc(refreshed.expires_at) < now:
+            raise HTTPException(status_code=400, detail="Invite expired")
+        raise HTTPException(status_code=400, detail="Invite could not be accepted")
 
     ad_user: Optional[AzureADUser] = await validate_email_in_tenant(invite.email)
     azure_enabled = bool(
@@ -148,11 +168,22 @@ async def accept_invite(
         )
         db.add(user)
 
-    invite.used_at = datetime.now(timezone.utc)
-    db.add(invite)
     db.commit()
 
     return InviteAcceptResponse(ok=True, email_verified=email_verified)
+
+
+@router.post("/accept", response_model=InviteAcceptResponse)
+async def accept_invite(
+    payload: InviteAcceptRequest,
+    db: Session = Depends(get_db),
+) -> InviteAcceptResponse:
+    return await _accept_invite(
+        token=payload.token,
+        password=payload.password,
+        full_name=payload.full_name,
+        db=db,
+    )
 
 
 @router.get("/accept", response_class=HTMLResponse)
@@ -171,7 +202,11 @@ async def accept_invite_form(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     try:
-        await accept_invite(token=token, password=password, full_name=full_name, db=db)
+        require_same_origin(request)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Origin not allowed")
+    try:
+        await _accept_invite(token=token, password=password, full_name=full_name, db=db)
     except HTTPException as e:
         return templates.TemplateResponse(
             request,
