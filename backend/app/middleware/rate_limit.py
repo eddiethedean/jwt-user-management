@@ -45,6 +45,9 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
         self._rules = rules
         self._hits: Dict[str, Deque[float]] = {}
 
+    def reset(self) -> None:
+        self._hits.clear()
+
     def _client_ip(self, request: Request) -> str:
         if self._trust_proxy_headers:
             xff = request.headers.get("x-forwarded-for")

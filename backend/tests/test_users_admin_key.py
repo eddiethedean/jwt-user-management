@@ -41,6 +41,28 @@ def test_admin_api_key_whitespace_is_rejected(client):
         settings.admin_api_key = old
 
 
+def test_admin_key_precedence_over_missing_admin_jwt(client, normal_user):
+    # If a valid admin key is present, it should authorize even if bearer token is non-admin.
+    old = settings.admin_api_key
+    try:
+        settings.admin_api_key = "test-key"
+        login = client.post(
+            "/auth/token",
+            data={"username": normal_user.email, "password": "password123"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+
+        r = client.get(
+            "/users",
+            headers={"Authorization": f"Bearer {token}", "X-Admin-Api-Key": "test-key"},
+        )
+        assert r.status_code == 200
+    finally:
+        settings.admin_api_key = old
+
+
 def test_create_user_with_admin_api_key(client, admin_user):
     old = settings.admin_api_key
     try:
