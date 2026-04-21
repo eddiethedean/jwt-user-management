@@ -13,6 +13,8 @@ App-specific READMEs:
 
 ## Quickstart (local, SQLite)
 
+Prereqs: **Python 3.10+** (the pinned dependencies and tests may not work on Python 3.8/3.9).
+
 ### 1) Backend
 
 ```bash
@@ -60,11 +62,13 @@ User demo: `http://localhost:8502`
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `PUBLIC_BASE_URL`: used to generate invite links (e.g. `http://localhost:8000`)
-- `JWT_SECRET`: secret used to sign JWTs
+- `JWT_SECRET`: secret used to sign JWTs (use a strong secret outside `ENVIRONMENT=dev`)
 - `JWT_EXPIRES_MINUTES`: default `60`
 - `ADMIN_API_KEY`: if set, Streamlit can call admin endpoints via `X-Admin-Api-Key`
 - `SMTP_*`: optional SMTP settings to send invite emails
 - `AZURE_*`: optional Azure AD (Microsoft Graph) settings to validate emails
+- `RATE_LIMIT_ENABLED`: optional (default true) in-memory rate limiting for sensitive endpoints
+- `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional; only enable if you trust your proxy headers
 
 ### Streamlit admin (`streamlit_admin/.env`)
 
@@ -75,6 +79,30 @@ User demo: `http://localhost:8502`
 
 The backend includes an optional Microsoft Graph integration (client credentials flow) that can validate that an email exists in your tenant.
 Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` to enable it.
+
+## Run tests
+
+Backend:
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest
+```
+
+Streamlit apps:
+
+```bash
+cd streamlit_admin
+source .venv/bin/activate
+pytest
+```
+
+```bash
+cd streamlit_user
+source .venv/bin/activate
+pytest
+```
 
 ## Migrations (Alembic)
 

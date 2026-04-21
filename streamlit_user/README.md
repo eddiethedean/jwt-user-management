@@ -4,6 +4,8 @@ User-facing demo Streamlit app that logs in against the backend and demonstrates
 
 ## Run locally
 
+Prereqs: **Python 3.10+**.
+
 1) Ensure the backend is running.
 
 ```bash
@@ -28,15 +30,26 @@ Open `http://localhost:8502`.
 ## Authentication behavior
 
 - **Login** calls `POST /auth/token` and stores the returned JWT in session state.
-- To demonstrate “stay logged in”, the app also stores the JWT in a **signed cookie**.
-  - Configure via `.env`:
-    - `USER_COOKIE_NAME`
-    - `USER_COOKIE_KEY` (set a strong random secret)
-    - `USER_COOKIE_EXPIRY_DAYS`
+- This demo does not persist auth across browser refreshes; it’s intentionally minimal.
+
+### Backend URL safety checks
+
+The user app validates `BACKEND_URL`:
+
+- It must be a full `http(s)://` URL and must not include credentials.
+- It rejects targeting private / link-local / reserved IP ranges (hostnames like `localhost` are allowed).
 
 ## Password reset behavior
 
 - “Forgot password” calls `POST /password/forgot` (always returns ok to avoid account enumeration).
 - For a real reset, users click the link emailed by the backend (`/password/reset?token=...`).
 - The app also includes a “Reset using token” demo that calls `POST /password/reset`.
+
+## Run tests
+
+```bash
+cd streamlit_user
+source .venv/bin/activate
+pytest
+```
 

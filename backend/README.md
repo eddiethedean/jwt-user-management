@@ -4,6 +4,8 @@ FastAPI API for user management, JWT issuance, invites, and password resets.
 
 ## Run locally
 
+Prereqs: **Python 3.10+**.
+
 ```bash
 cd backend
 python -m venv .venv
@@ -40,8 +42,18 @@ Configured via `backend/.env`:
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `PUBLIC_BASE_URL`: used to generate invite/reset links (e.g. `http://localhost:8000`)
-- `JWT_SECRET`: JWT signing key (rotate if compromised)
+- `JWT_SECRET`: JWT signing key (rotate if compromised). Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
 - `ADMIN_API_KEY`: admin key used by `streamlit_admin` (rotate if compromised)
 - `SMTP_*`: send invite/reset emails
 - `AZURE_*`: optional Microsoft Graph (Azure AD) validation
+- `RATE_LIMIT_ENABLED`: optional (default true). In-memory rate limiting for sensitive endpoints (login/reset/invite accept).
+- `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional. Only enable if you trust your proxy headers.
+
+## Run tests
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest
+```
 

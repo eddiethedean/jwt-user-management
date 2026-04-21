@@ -4,6 +4,8 @@ Admin-only Streamlit UI for managing users and sending invites.
 
 ## Run locally
 
+Prereqs: **Python 3.10+**.
+
 1) Ensure the backend is running.
 
 ```bash
@@ -42,4 +44,27 @@ The admin app calls the backend using `X-Admin-Api-Key`.
 Set in `streamlit_admin/.env`:
 - `BACKEND_URL`
 - `BACKEND_ADMIN_API_KEY` (must match backend `ADMIN_API_KEY`)
+
+### Backend URL safety checks
+
+The admin app validates `BACKEND_URL` to reduce SSRF-style footguns:
+
+- For non-local backends, if `BACKEND_ADMIN_API_KEY` is set, `BACKEND_URL` must use `https://`.
+- It rejects URLs containing credentials (e.g. `https://user:pass@host`).
+- It rejects targeting private / link-local / reserved IP ranges.
+
+### Test mode
+
+For automated tests only, you can bypass Streamlit-Authenticator by setting:
+
+- `STREAMLIT_TEST_MODE=1`
+- `BACKEND_URL=http://testserver`
+
+## Run tests
+
+```bash
+cd streamlit_admin
+source .venv/bin/activate
+pytest
+```
 
