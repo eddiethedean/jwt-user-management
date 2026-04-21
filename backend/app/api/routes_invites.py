@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Optional
 
 from app.services.azure_ad import AzureADUser
@@ -28,7 +29,9 @@ from app.services.emailer import send_invite_email
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(
+    directory=str(Path(__file__).resolve().parent.parent / "templates")
+)
 
 
 def _hash_token(token: str) -> str:

@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse
@@ -26,7 +27,9 @@ from app.services.emailer import send_password_reset_email
 
 
 router = APIRouter(prefix="/password", tags=["password"])
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(
+    directory=str(Path(__file__).resolve().parent.parent / "templates")
+)
 
 
 def _hash_token(token: str) -> str:

@@ -36,3 +36,11 @@ backend/app.db
 # Streamlit
 .streamlit/
 
+# Local process logs
+*.nohup.log
+
+# E2E local artifacts / DB
+e2e/__pycache__/
+e2e/artifacts/
+e2e/e2e.db
+

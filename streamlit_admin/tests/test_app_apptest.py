@@ -4,10 +4,11 @@ import pytest
 import requests
 from streamlit.testing.v1 import AppTest
 
+from helpers import ADMIN_APP_PY, prime_admin_session
+
 
 @pytest.fixture(autouse=True)
 def _env():
-    # Force "authenticated" mode that bypasses Streamlit-Authenticator widgets.
     os.environ["STREAMLIT_TEST_MODE"] = "1"
     os.environ["BACKEND_URL"] = "http://testserver"
     os.environ["BACKEND_ADMIN_API_KEY"] = "test-key"
@@ -41,9 +42,15 @@ def _input_text(at: AppTest, label: str, value: str, occurrence: int = 0) -> Non
 
 
 def test_renders_main_sections(monkeypatch):
-    def fake_get(url, headers=None, timeout=None):
+    def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
+        u = url.rstrip("/")
+        if u.endswith("/users/me"):
+            return _Resp(
+                ok=True,
+                json_data={"is_admin": True, "email": "a@test.local"},
+            )
         assert headers and headers.get("X-Admin-Api-Key") == "test-key"
-        assert url.endswith("/users")
+        assert u.endswith("/users")
         return _Resp(
             ok=True,
             json_data=[
@@ -63,7 +70,8 @@ def test_renders_main_sections(monkeypatch):
 
     monkeypatch.setattr(requests, "get", fake_get)
 
-    at = AppTest.from_file("app.py", default_timeout=30)
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
     at.run()
 
     assert not at.exception
@@ -73,13 +81,18 @@ def test_renders_main_sections(monkeypatch):
 
 
 def test_add_user_sends_invite(monkeypatch):
-    # Users table load
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data=[]))
+    def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
+        u = url.rstrip("/")
+        if u.endswith("/users/me"):
+            return _Resp(ok=True, json_data={"is_admin": True, "email": "a@test.local"})
+        return _Resp(ok=True, json_data=[])
+
+    monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     invite_payload = {}
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         assert url.endswith("/invites")
         invite_payload.update(json or {})
         return _Resp(
@@ -88,13 +101,14 @@ def test_add_user_sends_invite(monkeypatch):
 
     monkeypatch.setattr(requests, "post", fake_post)
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
+    at.run()
     assert not at.exception
 
     _input_text(at, "Email", "new@test.local")
     _input_text(at, "Full name", "New Person")
-    # This label appears multiple times; occurrence 1 is the "Add user" form field.
-    _input_text(at, "Permissions (comma-separated)", "p1,p2", occurrence=1)
+    _input_text(at, "Invite permissions (comma-separated)", "p1,p2", occurrence=0)
     _click_button(at, "Send invite")
     at.run()
 
@@ -104,9 +118,18 @@ def test_add_user_sends_invite(monkeypatch):
 
 
 def test_shows_warning_when_admin_key_missing(monkeypatch):
-    os.environ["BACKEND_ADMIN_API_KEY"] = ""
+    monkeypatch.setenv("BACKEND_ADMIN_API_KEY", "")
 
-    at = AppTest.from_file("app.py", default_timeout=30)
+    def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
+        u = url.rstrip("/")
+        if u.endswith("/users/me"):
+            return _Resp(ok=True, json_data={"is_admin": True, "email": "a@test.local"})
+        return _Resp(ok=True, json_data=[])
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
     at.run()
 
     assert not at.exception
@@ -115,14 +138,19 @@ def test_shows_warning_when_admin_key_missing(monkeypatch):
 
 
 def test_users_endpoint_error_is_shown(monkeypatch):
-    def fake_get(url, headers=None, timeout=None):
+    def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
+        u = url.rstrip("/")
+        if u.endswith("/users/me"):
+            return _Resp(ok=True, json_data={"is_admin": True, "email": "a@test.local"})
         return _Resp(ok=False, status_code=500, json_data={}, text="boom")
 
     monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(ok=True, json_data={}))
     monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
+    at.run()
     assert not at.exception
     assert len(at.error) >= 1
     assert "Failed to load users" in at.error[0].value
@@ -136,7 +164,9 @@ def test_backend_request_exception_is_shown(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(ok=True, json_data={}))
     monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
+    at.run()
     assert not at.exception
     assert len(at.error) >= 1
     assert "Backend request failed" in at.error[0].value
@@ -146,7 +176,7 @@ def test_test_mode_requires_testserver_backend_url(monkeypatch):
     monkeypatch.setenv("STREAMLIT_TEST_MODE", "1")
     monkeypatch.setenv("BACKEND_URL", "http://localhost:8000")
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30).run()
     assert not at.exception
     assert len(at.error) >= 1
     assert "STREAMLIT_TEST_MODE is only allowed" in at.error[0].value

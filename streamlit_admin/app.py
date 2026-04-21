@@ -1,344 +1,243 @@
 import os
-import ipaddress
-from urllib.parse import urlparse
+import sys
+from pathlib import Path
 
 import requests
 import streamlit as st
-import streamlit_authenticator as stauth
-import yaml
 from dotenv import load_dotenv
-from yaml.loader import SafeLoader
 
+# Ensure repo root is importable when running from this subdir.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from streamlit_common.auth_state import (
+    get_auth_state,
+    login_success,
+    logout,
+    require_admin_from_me,
+)
+from streamlit_common.backend_client import (
+    BackendClient,
+    safe_json,
+    validate_admin_requires_https,
+    validate_backend_url,
+    validate_streamlit_test_mode_backend,
+)
+from streamlit_common.ui import show_http_error
 
 load_dotenv()
-
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
-ADMIN_API_KEY = os.getenv("BACKEND_ADMIN_API_KEY", "")
-TEST_MODE = os.getenv("STREAMLIT_TEST_MODE", "").lower() in ("1", "true", "yes")
-DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
-
-
-def _validate_backend_url(url: str, *, require_https: bool) -> None:
-    p = urlparse(url)
-    if p.scheme not in {"http", "https"} or not p.netloc:
-        raise ValueError("BACKEND_URL must be a full http(s) URL")
-    if p.username or p.password:
-        raise ValueError("BACKEND_URL must not contain credentials")
-    host = p.hostname or ""
-    if require_https and p.scheme != "https":
-        raise ValueError("BACKEND_URL must use https:// for non-local backends")
-    try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_loopback:
-            return
-        if ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
-            raise ValueError("BACKEND_URL must not target private/link-local IPs")
-    except ValueError:
-        # Not an IP; allow hostnames.
-        pass
-
-
-_is_local = BACKEND_URL.startswith("http://localhost") or BACKEND_URL.startswith(
-    "http://127.0.0.1"
-) or BACKEND_URL == "http://testserver"
-try:
-    _validate_backend_url(BACKEND_URL, require_https=(not _is_local and bool(ADMIN_API_KEY)))
-except ValueError as e:
-    st.error(str(e))
-    st.stop()
-
-
-def _cookies_from_authenticator(authenticator) -> dict:
-    # streamlit-authenticator exposes a cookie manager in some versions.
-    if authenticator is None:
-        return {}
-    mgr = getattr(authenticator, "cookie_manager", None)
-    if mgr is None:
-        return {}
-    try:
-        data = mgr.get_all()
-        if not data:
-            return {}
-        return {str(k): str(v) for k, v in dict(data).items()}
-    except Exception:
-        return {}
-
-
-def _cookie_sig(*, authenticator=None) -> str:
-    cookies = _cookies_from_authenticator(authenticator)
-    items = [(k, v) for k, v in sorted(cookies.items())]
-    return repr(items)
-
-
-def _render_cookie_debug(*, title: str = "Cookies (debug)", authenticator=None) -> None:
-    if not DEBUG:
-        return
-    with st.expander(title, expanded=False):
-        cookies = _cookies_from_authenticator(authenticator)
-        if not cookies:
-            st.caption("No cookies visible to this session.")
-            return
-        st.json({k: "***redacted***" for k in cookies.keys()})
-
-
-def _schedule_cookie_resync(*, expect: str) -> None:
-    if not DEBUG:
-        return
-    st.session_state["_admin_cookie_sync_pending"] = True
-    st.session_state["_admin_cookie_sync_attempts"] = 0
-    st.session_state["_admin_cookie_sig_at_sync_start"] = st.session_state.get(
-        "_admin_cookie_sig_at_sync_start"
-    ) or ""
-    st.session_state["_admin_cookie_expect"] = expect
-
-
-def _cookie_raw(*, cookie_name: str, authenticator=None) -> str:
-    raw = _cookies_from_authenticator(authenticator).get(cookie_name)
-    if raw is None:
-        return ""
-    return str(raw)
-
-
-def _cookie_expectation_met(*, expect: str, cookie_name: str, authenticator=None) -> bool:
-    raw = _cookie_raw(cookie_name=cookie_name, authenticator=authenticator)
-    if expect == "cleared":
-        return raw == "" or raw == "deleted"
-    if expect == "present":
-        return raw != "" and raw != "deleted"
-    return False
-
-
-def _maybe_finish_cookie_resync(*, cookie_name: str, authenticator=None) -> None:
-    if not st.session_state.get("_admin_cookie_sync_pending"):
-        return
-    expect = str(st.session_state.get("_admin_cookie_expect") or "")
-    start_sig = st.session_state.get("_admin_cookie_sig_at_sync_start") or ""
-    if not start_sig:
-        st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
-            authenticator=authenticator
-        )
-        start_sig = st.session_state["_admin_cookie_sig_at_sync_start"]
-    cur_sig = _cookie_sig(authenticator=authenticator)
-
-    if expect and _cookie_expectation_met(
-        expect=expect, cookie_name=cookie_name, authenticator=authenticator
-    ):
-        st.session_state["_admin_cookie_sync_pending"] = False
-        st.session_state["_admin_cookie_sync_attempts"] = 0
-        st.session_state.pop("_admin_cookie_expect", None)
-        return
-
-    if not expect and cur_sig != start_sig:
-        st.session_state["_admin_cookie_sync_pending"] = False
-        st.session_state["_admin_cookie_sync_attempts"] = 0
-        st.session_state.pop("_admin_cookie_expect", None)
-        return
-
-    attempts = int(st.session_state.get("_admin_cookie_sync_attempts") or 0) + 1
-    st.session_state["_admin_cookie_sync_attempts"] = attempts
-    if attempts >= 12:
-        st.session_state["_admin_cookie_sync_pending"] = False
-        st.session_state["_admin_cookie_sync_attempts"] = 0
-        st.session_state.pop("_admin_cookie_expect", None)
-        return
-    st.rerun()
-
-
-def backend_headers() -> dict:
-    return {"X-Admin-Api-Key": ADMIN_API_KEY} if ADMIN_API_KEY else {}
-
-
-def backend_get(path: str):
-    try:
-        return requests.get(
-            f"{BACKEND_URL}{path}", headers=backend_headers(), timeout=10
-        )
-    except requests.RequestException:
-        st.error("Backend request failed (is it running?)")
-        return None
-
-
-def backend_post(path: str, json: dict):
-    try:
-        return requests.post(
-            f"{BACKEND_URL}{path}", headers=backend_headers(), json=json, timeout=10
-        )
-    except requests.RequestException:
-        st.error("Backend request failed (is it running?)")
-        return None
-
-
-def backend_patch(path: str, json: dict):
-    try:
-        return requests.patch(
-            f"{BACKEND_URL}{path}", headers=backend_headers(), json=json, timeout=10
-        )
-    except requests.RequestException:
-        st.error("Backend request failed (is it running?)")
-        return None
-
 
 st.set_page_config(page_title="Admin • User Management", layout="wide")
 st.title("User management")
 
-if TEST_MODE:
-    if BACKEND_URL != "http://testserver":
-        st.error(
-            "STREAMLIT_TEST_MODE is only allowed with BACKEND_URL=http://testserver"
-        )
-        st.stop()
-    st.session_state["authentication_status"] = True
-    st.session_state["name"] = "Test Admin"
-else:
-    with open("config.yaml") as file:
-        config = yaml.load(file, Loader=SafeLoader)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
+ADMIN_API_KEY = os.getenv("BACKEND_ADMIN_API_KEY", "")
+DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
-    COOKIE_NAME = str(config["cookie"]["name"])
 
-    authenticator = stauth.Authenticate(
-        config["credentials"],
-        config["cookie"]["name"],
-        config["cookie"]["key"],
-        config["cookie"]["expiry_days"],
+def _render_session_debug() -> None:
+    if not DEBUG:
+        return
+    st.sidebar.caption("Session (debug)")
+    a = get_auth_state(session_key="admin_auth")
+    st.sidebar.json(
+        {"authenticated": a.is_authenticated, "email": a.email or "(none)"}
     )
 
+
+try:
+    validate_backend_url(BACKEND_URL)
+    validate_admin_requires_https(BACKEND_URL, admin_api_key=ADMIN_API_KEY)
+    validate_streamlit_test_mode_backend(BACKEND_URL)
+except ValueError as e:
+    st.error(str(e))
+    st.stop()
+
+if st.session_state.pop("_admin_sign_out_clicked", False):
+    logout(session_key="admin_auth")
+    st.rerun()
+
+auth = get_auth_state(session_key="admin_auth")
+
+if st.session_state.pop("_flash_admin_signed_in", False):
+    st.success("Signed in")
+
+if auth.is_authenticated:
+    st.session_state["access_token"] = auth.access_token
+    st.session_state["username"] = auth.email
+else:
+    st.session_state.pop("access_token", None)
+    st.session_state.pop("username", None)
+
+_render_session_debug()
+
+
+def _client_for_current() -> BackendClient:
+    return BackendClient(
+        base_url=BACKEND_URL,
+        admin_api_key=ADMIN_API_KEY,
+        access_token=auth.access_token,
+    )
+
+
+def _verify_admin() -> bool:
+    """
+    Verify the current auth token corresponds to an admin user.
+    Clears session auth if the token is invalid or the user is not an admin so the
+    sign-in form is not stuck behind a stale JWT.
+    """
+    if not auth.is_authenticated:
+        return False
+    c = _client_for_current()
     try:
-        login_result = authenticator.login(location="main")
-    except Exception as e:
-        st.error(e)
+        r = c.get("/users/me")
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
         st.stop()
+    if not r.ok:
+        show_http_error("Failed to verify session", r)
+        logout(session_key="admin_auth")
+        return False
+    ok, msg = require_admin_from_me(safe_json(r))
+    if not ok:
+        if msg:
+            st.error(msg)
+        logout(session_key="admin_auth")
+        return False
+    return True
 
-    if login_result is not None:
-        _name, auth_ok, _username = login_result
-        if auth_ok is True:
-            st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
-                authenticator=authenticator
-            )
-            _schedule_cookie_resync(expect="present")
-            st.rerun()
 
-    if "prev_authentication_status" not in st.session_state:
-        st.session_state["prev_authentication_status"] = st.session_state.get(
-            "authentication_status"
-        )
+is_admin = _verify_admin()
 
-    cur_auth = st.session_state.get("authentication_status")
-    prev_auth = st.session_state.get("prev_authentication_status")
-    if prev_auth is True and cur_auth is not True:
-        st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
-            authenticator=authenticator
-        )
-        _schedule_cookie_resync(expect="cleared")
-        st.rerun()
-    st.session_state["prev_authentication_status"] = cur_auth
+if not auth.is_authenticated or not is_admin:
+    st.subheader("Admin sign in")
+    with st.form("admin_login_form"):
+        email = st.text_input("Email", key="admin_login_email")
+        password = st.text_input("Password", type="password", key="admin_login_password")
+        submitted = st.form_submit_button("Sign in")
 
-_render_cookie_debug(title="Cookies (debug) • main", authenticator=locals().get("authenticator"))
-
-if st.session_state.get("authentication_status"):
-    st.sidebar.write(f"Signed in as **{st.session_state.get('name')}**")
-    if not TEST_MODE:
-
-        def _admin_logout_callback() -> None:
-            st.session_state["_admin_cookie_sync_pending"] = False
-            st.session_state["_admin_cookie_sync_attempts"] = 0
-            st.session_state.pop("_admin_cookie_expect", None)
-            st.session_state["_admin_cookie_sig_at_sync_start"] = _cookie_sig(
-                authenticator=authenticator
-            )
-            _schedule_cookie_resync(expect="cleared")
-
-        authenticator.logout(location="sidebar", callback=_admin_logout_callback)
-
-    _render_cookie_debug(
-        title="Cookies (debug) • sidebar", authenticator=locals().get("authenticator")
-    )
-
-    if not ADMIN_API_KEY:
-        st.warning(
-            "Set `BACKEND_ADMIN_API_KEY` in `streamlit_admin/.env` to enable admin API calls."
-        )
-        st.stop()
-
-    col1, col2 = st.columns([2, 1], gap="large")
-
-    with col1:
-        st.subheader("Users")
-        resp = backend_get("/users")
-        if resp is None:
+    if submitted:
+        c = BackendClient(base_url=BACKEND_URL)
+        try:
+            r = c.post_form("/auth/token", data={"username": email, "password": password})
+        except requests.RequestException:
+            st.error("Backend request failed (is it running?)")
             st.stop()
-        if not resp.ok:
-            st.error(f"Failed to load users: {resp.status_code} {resp.text}")
-        else:
-            users = resp.json()
-            # Avoid pandas/numpy dependency; Streamlit can render list-of-dicts directly.
-            desired_keys = [
-                "id",
-                "email",
-                "full_name",
-                "is_active",
-                "is_admin",
-                "email_verified",
-                "permissions",
-                "created_at",
-            ]
-            rows = [
-                {k: u.get(k) for k in desired_keys}
-                for u in users
-                if isinstance(u, dict)
-            ]
-            st.dataframe(rows, use_container_width=True, hide_index=True)
+        if not r.ok:
+            show_http_error("Invalid email or password", r)
+            st.stop()
 
-        st.divider()
-        st.subheader("Update permissions / flags")
+        data = safe_json(r)
+        token = str(data.get("access_token") or "")
+        if not token:
+            show_http_error("Login failed", r)
+            st.stop()
+
+        login_success(
+            access_token=token,
+            email=email,
+            session_key="admin_auth",
+        )
+        st.session_state["_flash_admin_signed_in"] = True
+        st.rerun()
+
+    st.stop()
+
+st.sidebar.write(f"Signed in as **{auth.email or 'admin'}**")
+if st.sidebar.button("Sign out", type="primary", key="admin_sign_out"):
+    st.session_state["_admin_sign_out_clicked"] = True
+    st.rerun()
+
+if not ADMIN_API_KEY:
+    st.warning(
+        "Set `BACKEND_ADMIN_API_KEY` in `streamlit_admin/.env` to enable admin API calls."
+    )
+    st.stop()
+
+client = _client_for_current()
+
+col1, col2 = st.columns([2, 1], gap="large")
+
+with col1:
+    st.subheader("Users")
+    try:
+        resp = client.get("/users")
+    except requests.RequestException:
+        st.error("Backend request failed (is it running?)")
+        st.stop()
+    if not resp.ok:
+        show_http_error("Failed to load users", resp)
+        st.stop()
+    users = safe_json(resp).get("data")
+    if isinstance(users, list):
+        desired_keys = [
+            "id",
+            "email",
+            "full_name",
+            "is_active",
+            "is_admin",
+            "email_verified",
+            "permissions",
+            "created_at",
+        ]
+        rows = [
+            {k: u.get(k) for k in desired_keys}
+            for u in users
+            if isinstance(u, dict)
+        ]
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+    else:
+        st.caption("No users to display.")
+
+    st.divider()
+    st.subheader("Update permissions / flags")
+    with st.form("update_user_form"):
         user_id = st.number_input("User ID", min_value=1, step=1)
-        permissions = st.text_input("Permissions (comma-separated)", value="")
-        is_admin = st.checkbox("Is admin", value=False)
-        is_active = st.checkbox("Is active", value=True)
-        if st.button("Update user", type="primary"):
-            payload = {
-                "permissions": [p.strip() for p in permissions.split(",") if p.strip()],
-                "is_admin": is_admin,
-                "is_active": is_active,
-            }
-            r = backend_patch(f"/users/{int(user_id)}", json=payload)
-            if r is None:
-                st.stop()
-            if r.ok:
-                st.success("Updated")
-                st.rerun()
-            else:
-                st.error(f"Update failed: {r.status_code} {r.text}")
+        permissions = st.text_input("Update permissions (comma-separated)", value="")
+        is_admin_flag = st.checkbox("Is admin", value=False)
+        is_active_flag = st.checkbox("Is active", value=True)
+        submitted = st.form_submit_button("Update user")
+    if submitted:
+        payload = {
+            "permissions": [p.strip() for p in permissions.split(",") if p.strip()],
+            "is_admin": is_admin_flag,
+            "is_active": is_active_flag,
+        }
+        try:
+            r = client.patch_json(f"/users/{int(user_id)}", json=payload)
+        except requests.RequestException:
+            st.error("Backend request failed (is it running?)")
+            st.stop()
+        if r.ok:
+            st.success("Updated")
+            st.rerun()
+        else:
+            show_http_error("Update failed", r)
 
-    with col2:
-        st.subheader("Add user (send invite email)")
-        with st.form("add_user"):
-            email = st.text_input("Email")
-            full_name = st.text_input("Full name")
-            new_is_admin = st.checkbox("Admin", value=False)
-            perms = st.text_input("Permissions (comma-separated)")
-            submitted = st.form_submit_button("Send invite")
-        if submitted:
-            payload = {
-                "email": email,
-                "full_name": full_name or None,
-                "is_admin": new_is_admin,
-                "permissions": [p.strip() for p in perms.split(",") if p.strip()],
-            }
-            r = backend_post("/invites", json=payload)
-            if r is None:
-                st.stop()
-            if r.ok:
-                data = r.json()
-                st.success("Invite sent")
-                st.code(data.get("invite_url", ""), language="text")
-            else:
-                st.error(f"Invite failed: {r.status_code} {r.text}")
-
-elif st.session_state.get("authentication_status") is False:
-    st.error("Username/password is incorrect")
-else:
-    st.warning("Please enter your username and password")
-
-# After login/logout widgets so st.rerun() does not skip authenticator.logout / login.
-if not TEST_MODE:
-    _maybe_finish_cookie_resync(cookie_name=COOKIE_NAME, authenticator=authenticator)
+with col2:
+    st.subheader("Add user (send invite email)")
+    with st.form("add_user"):
+        email = st.text_input("Email", key="admin_invite_email")
+        full_name = st.text_input("Full name", key="admin_invite_full_name")
+        new_is_admin = st.checkbox("Admin", value=False)
+        perms = st.text_input("Invite permissions (comma-separated)")
+        submitted = st.form_submit_button("Send invite")
+    if submitted:
+        payload = {
+            "email": email,
+            "full_name": full_name or None,
+            "is_admin": new_is_admin,
+            "permissions": [p.strip() for p in perms.split(",") if p.strip()],
+        }
+        try:
+            r = client.post_json("/invites", json=payload)
+        except requests.RequestException:
+            st.error("Backend request failed (is it running?)")
+            st.stop()
+        if r.ok:
+            data = safe_json(r)
+            st.success("Invite sent")
+            st.code(str(data.get("invite_url") or ""), language="text")
+        else:
+            show_http_error("Invite failed", r)

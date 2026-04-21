@@ -4,6 +4,8 @@ import pytest
 import requests
 from streamlit.testing.v1 import AppTest
 
+from helpers import ADMIN_APP_PY, prime_admin_session
+
 
 @pytest.fixture(autouse=True)
 def _env():
@@ -59,11 +61,17 @@ def _click_button(at: AppTest, label: str) -> None:
 
 
 def test_update_user_calls_backend_patch(monkeypatch):
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data=[]))
+    def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
+        u = url.rstrip("/")
+        if u.endswith("/users/me"):
+            return _Resp(ok=True, json_data={"is_admin": True, "email": "a@test.local"})
+        return _Resp(ok=True, json_data=[])
+
+    monkeypatch.setattr(requests, "get", fake_get)
 
     seen = {}
 
-    def fake_patch(url, headers=None, json=None, timeout=None):
+    def fake_patch(url, headers=None, json=None, timeout=None, **kwargs):
         assert url.endswith("/users/7")
         seen["headers"] = headers or {}
         seen["json"] = json or {}
@@ -72,11 +80,13 @@ def test_update_user_calls_backend_patch(monkeypatch):
     monkeypatch.setattr(requests, "patch", fake_patch)
     monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
+    at.run()
     assert not at.exception
 
     _set_number_input(at, "User ID", 7)
-    _input_text(at, "Permissions (comma-separated)", "alpha,beta", occurrence=0)
+    _input_text(at, "Update permissions (comma-separated)", "alpha,beta", occurrence=0)
     _set_checkbox(at, "Is admin", True)
     _set_checkbox(at, "Is active", True)
     _click_button(at, "Update user")
@@ -89,14 +99,19 @@ def test_update_user_calls_backend_patch(monkeypatch):
 
 
 def test_backend_users_error_is_displayed(monkeypatch):
-    def fake_get(url, headers=None, timeout=None):
+    def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
+        u = url.rstrip("/")
+        if u.endswith("/users/me"):
+            return _Resp(ok=True, json_data={"is_admin": True, "email": "a@test.local"})
         return _Resp(ok=False, status_code=500, json_data={}, text="boom")
 
     monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.setattr(requests, "patch", lambda *a, **k: _Resp(ok=True, json_data={}))
     monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(ADMIN_APP_PY, default_timeout=30)
+    prime_admin_session(at)
+    at.run()
     assert not at.exception
     assert len(at.error) >= 1
     assert "Failed to load users" in at.error[0].value

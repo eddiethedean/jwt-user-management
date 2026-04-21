@@ -5,11 +5,12 @@ import pytest
 import requests
 from streamlit.testing.v1 import AppTest
 
+from app_paths import USER_APP_PY
+
 
 @pytest.fixture(autouse=True)
 def _env():
     os.environ["BACKEND_URL"] = "http://testserver"
-    os.environ["STREAMLIT_DISABLE_COOKIES"] = "1"
     yield
 
 
@@ -55,7 +56,7 @@ def test_login_success_sets_session(monkeypatch):
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
     _input_text(at, "Email", "user@test.local", key_contains="login_email")
@@ -78,7 +79,7 @@ def test_forgot_password_shows_non_enumerating_message(monkeypatch):
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
     # Switch to "Reset password" tab; AppTest runs all tabs but widgets exist.
@@ -100,7 +101,7 @@ def test_sign_out_clears_session_state(monkeypatch):
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30)
+    at = AppTest.from_file(USER_APP_PY, default_timeout=30)
     at.run()
     assert not at.exception
 
@@ -126,7 +127,7 @@ def test_login_backend_request_exception_is_shown(monkeypatch):
     monkeypatch.setattr(requests, "post", boom)
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
-    at = AppTest.from_file("app.py", default_timeout=30).run()
+    at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
     _input_text(at, "Email", "user@test.local", key_contains="login_email")

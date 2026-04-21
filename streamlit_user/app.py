@@ -1,12 +1,20 @@
 import os
-import ipaddress
-from datetime import datetime, timedelta
-from urllib.parse import urlparse
+import sys
+from pathlib import Path
 
 import requests
 import streamlit as st
 from dotenv import load_dotenv
 from typing import Dict, Optional
+
+# Ensure repo root is importable when running from this subdir.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from streamlit_common.auth_state import get_auth_state, login_success, logout
+from streamlit_common.backend_client import BackendClient, safe_json, validate_backend_url
+from streamlit_common.ui import show_http_error
 
 load_dotenv()
 
@@ -17,37 +25,32 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
 
-def _validate_backend_url(url: str) -> None:
-    p = urlparse(url)
-    if p.scheme not in {"http", "https"} or not p.netloc:
-        raise ValueError("BACKEND_URL must be a full http(s) URL")
-    if p.username or p.password:
-        raise ValueError("BACKEND_URL must not contain credentials")
-    host = p.hostname or ""
-    try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
-            raise ValueError("BACKEND_URL must not target private/link-local IPs")
-    except ValueError:
-        # Not an IP; allow hostnames.
-        pass
+def _render_session_debug() -> None:
+    if not DEBUG:
+        return
+    st.sidebar.caption("Session (debug)")
+    a = get_auth_state(session_key="user_auth")
+    st.sidebar.json(
+        {"authenticated": a.is_authenticated, "email": a.email or "(none)"}
+    )
 
 
 try:
-    _validate_backend_url(BACKEND_URL)
+    validate_backend_url(BACKEND_URL)
 except ValueError as e:
     st.error(str(e))
     st.stop()
 
+client = BackendClient(base_url=BACKEND_URL)
+
+if st.session_state.pop("_sign_out_clicked", False):
+    logout(session_key="user_auth")
+    st.rerun()
+
 
 def _post_form(path: str, data: dict) -> Optional[requests.Response]:
     try:
-        return requests.post(
-            f"{BACKEND_URL}{path}",
-            data=data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10,
-        )
+        return client.post_form(path, data=data)
     except requests.RequestException:
         st.error("Backend request failed (is it running?)")
         return None
@@ -57,37 +60,32 @@ def _post_json(
     path: str, params: Optional[Dict] = None, json: Optional[Dict] = None
 ) -> Optional[requests.Response]:
     try:
-        return requests.post(
-            f"{BACKEND_URL}{path}", params=params, json=json, timeout=10
-        )
+        return client.post_json(path, params=params, json=json or {})
     except requests.RequestException:
         st.error("Backend request failed (is it running?)")
         return None
 
 
-def _get(path: str, params: Optional[Dict] = None) -> Optional[requests.Response]:
-    try:
-        return requests.get(f"{BACKEND_URL}{path}", params=params, timeout=10)
-    except requests.RequestException:
-        st.error("Backend request failed (is it running?)")
-        return None
+auth = get_auth_state(session_key="user_auth")
 
+# One-run flash messages (survive reruns deterministically).
+if st.session_state.pop("_flash_signed_in", False):
+    st.success("Signed in")
 
-def _sign_out_user() -> None:
+# Backwards-compatible session keys used by existing tests/E2E.
+if auth.is_authenticated:
+    st.session_state["access_token"] = auth.access_token
+    st.session_state["username"] = auth.email
+else:
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
-    st.session_state["logout"] = True
-    st.rerun()
 
-
-# Explicit logout flag to prevent immediate cookie restore
-if "logout" not in st.session_state:
-    st.session_state["logout"] = False
+_render_session_debug()
 
 tab_login, tab_reset = st.tabs(["Login", "Reset password"])
 
 with tab_login:
-    if st.session_state.get("access_token"):
+    if auth.is_authenticated:
         st.info("You're signed in. Use **Sign out** below the tabs.")
     else:
         st.subheader("Login")
@@ -103,12 +101,20 @@ with tab_login:
             if resp is None:
                 st.stop()
             if resp.ok:
-                st.session_state["access_token"] = resp.json()["access_token"]
-                st.session_state["username"] = email
-                st.session_state["logout"] = False
-                st.success("Signed in")
+                data = safe_json(resp)
+                access_token = str(data.get("access_token") or "")
+                if not access_token:
+                    show_http_error("Login failed", resp)
+                    st.stop()
+                login_success(
+                    access_token=access_token,
+                    email=email,
+                    session_key="user_auth",
+                )
+                st.session_state["_flash_signed_in"] = True
+                st.rerun()
             else:
-                st.error("Invalid email or password")
+                show_http_error("Invalid email or password", resp)
 
 with tab_reset:
     st.subheader("Forgot password")
@@ -154,10 +160,11 @@ with tab_reset:
         else:
             st.error(f"Reset failed: {resp.status_code} {resp.text}")
 
-if st.session_state.get("access_token"):
+if auth.is_authenticated:
     st.divider()
     st.success("Authenticated session is active.")
-    if st.session_state.get("username"):
-        st.caption(f"Signed in as `{st.session_state['username']}`")
+    if auth.email:
+        st.caption(f"Signed in as `{auth.email}`")
     if st.button("Sign out", type="primary", key="user_sign_out_main"):
-        _sign_out_user()
+        st.session_state["_sign_out_clicked"] = True
+        st.rerun()
