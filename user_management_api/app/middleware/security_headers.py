@@ -5,6 +5,37 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 
+def should_set_csp(content_type: str) -> bool:
+    return not (content_type or "").lower().startswith("application/json")
+
+
+def csp_for_admin() -> str:
+    # Streamlit uses JS bundles + websocket connections under the same origin.
+    return (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' ws: wss:; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'; "
+        "object-src 'none'"
+    )
+
+
+def csp_for_html_forms() -> str:
+    # HTML endpoints render inline styles in templates; allow only what's needed.
+    return (
+        "default-src 'none'; "
+        "style-src 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "form-action 'self'; "
+        "base-uri 'none'; "
+        "frame-ancestors 'none'"
+    )
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         resp = await call_next(request)
@@ -20,34 +51,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         path = request.url.path or "/"
         content_type = (resp.headers.get("content-type") or "").lower()
 
-        # For JSON responses, CSP is irrelevant and can cause confusion with some clients.
-        if content_type.startswith("application/json"):
+        if not should_set_csp(content_type):
             return resp
 
         if path.startswith("/admin"):
-            # Streamlit uses JS bundles + websocket connections under the same origin.
-            resp.headers.setdefault(
-                "Content-Security-Policy",
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: blob:; "
-                "font-src 'self' data:; "
-                "connect-src 'self' ws: wss:; "
-                "base-uri 'self'; "
-                "frame-ancestors 'none'; "
-                "object-src 'none'",
-            )
+            resp.headers.setdefault("Content-Security-Policy", csp_for_admin())
             return resp
 
-        # HTML endpoints render inline styles in templates; allow only what's needed.
-        resp.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'none'; "
-            "style-src 'unsafe-inline'; "
-            "img-src 'self' data:; "
-            "form-action 'self'; "
-            "base-uri 'none'; "
-            "frame-ancestors 'none'",
-        )
+        resp.headers.setdefault("Content-Security-Policy", csp_for_html_forms())
         return resp

@@ -3,15 +3,30 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
+from app.admin_proxy import create_admin_proxy_router
+from app.admin_streamlit import start_streamlit_admin, stop_streamlit_admin
 from app.api.routes_auth import router as auth_router
 from app.api.routes_invites import router as invites_router
 from app.api.routes_password import router as password_router
 from app.api.routes_users import router as users_router
 from app.core.config import settings
-from app.admin_proxy import create_admin_proxy_router
-from app.admin_streamlit import start_streamlit_admin, stop_streamlit_admin
 from app.middleware.rate_limit import InMemoryRateLimitMiddleware, RateLimitRule
 from app.middleware.security_headers import SecurityHeadersMiddleware
+
+
+def mount_admin_ui(app: FastAPI) -> None:
+    # Serve Streamlit admin UI under /admin (HTTP + websocket reverse proxy).
+    def _admin_upstream_base() -> str:
+        port = int(getattr(app.state, "admin_ui_port", 0) or 0)
+        return f"http://127.0.0.1:{port}/admin"
+
+    app.include_router(
+        create_admin_proxy_router(
+            upstream_base_getter=_admin_upstream_base,
+            client_getter=lambda: app.state.admin_proxy_client,
+        ),
+        prefix="/admin",
+    )
 
 
 @asynccontextmanager
@@ -19,7 +34,6 @@ async def lifespan(app: FastAPI):
     app.state.admin_proxy_client = httpx.AsyncClient(
         follow_redirects=False, timeout=30.0
     )
-    # Start Streamlit admin UI as an internal subprocess.
     backend_url = settings.public_base_url.rstrip("/") or "http://127.0.0.1:8000"
     ui = start_streamlit_admin(backend_url=backend_url, base_path="admin")
     app.state.admin_ui_port = ui.port
@@ -52,17 +66,4 @@ app.include_router(users_router)
 app.include_router(invites_router)
 app.include_router(password_router)
 
-
-# Serve Streamlit admin UI under /admin (HTTP + websocket reverse proxy).
-def _admin_upstream_base() -> str:
-    port = int(getattr(app.state, "admin_ui_port", 0) or 0)
-    return f"http://127.0.0.1:{port}/admin"
-
-
-app.include_router(
-    create_admin_proxy_router(
-        upstream_base_getter=_admin_upstream_base,
-        client_getter=lambda: app.state.admin_proxy_client,
-    ),
-    prefix="/admin",
-)
+mount_admin_ui(app)

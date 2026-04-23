@@ -28,6 +28,110 @@ class StreamlitSubprocess:
 _STATE: Optional[StreamlitSubprocess] = None
 
 
+@dataclass(frozen=True)
+class StreamlitAdminRunner:
+    repo_root: Path
+    base_path: str = "admin"
+
+    def script_path(self) -> Path:
+        return self.repo_root / "user_management_api" / "admin_ui" / "app.py"
+
+    def pick_port(self) -> int:
+        return int(os.getenv("ADMIN_UI_INTERNAL_PORT") or 0) or _pick_free_port()
+
+    def build_env(self, *, backend_url: str) -> dict[str, str]:
+        env = os.environ.copy()
+        env["BACKEND_URL"] = backend_url.rstrip("/")
+        env["PYTHONPATH"] = str(self.repo_root) + (
+            os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+        )
+        return env
+
+    def build_cmd(self, *, port: int) -> list[str]:
+        script_path = self.script_path()
+        return [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(script_path),
+            "--server.headless",
+            "true",
+            "--server.address",
+            "127.0.0.1",
+            "--server.port",
+            str(port),
+            "--server.fileWatcherType",
+            "none",
+            "--server.baseUrlPath",
+            self.base_path.lstrip("/"),
+        ]
+
+    def open_log(self) -> Optional[IO[str]]:
+        log_path = os.getenv("ADMIN_UI_LOG_FILE") or str(
+            self.repo_root / "admin.nohup.log"
+        )
+        try:
+            return open(log_path, "a", encoding="utf-8")
+        except OSError:
+            return None
+
+    def wait_ready(self, *, port: int, proc: subprocess.Popen) -> None:
+        wait_s = float(os.getenv("ADMIN_UI_READY_WAIT_S") or 0) or 0.0
+        if wait_s <= 0:
+            return
+        deadline = time.time() + wait_s
+        url = f"http://127.0.0.1:{port}/{self.base_path.lstrip('/')}/_stcore/health"
+        while time.time() < deadline and proc.poll() is None:
+            try:
+                r = httpx.get(url, timeout=1.0, follow_redirects=False)
+                if r.status_code == 200:
+                    break
+            except Exception:
+                pass
+            time.sleep(0.1)
+
+    def start(self, *, backend_url: str) -> StreamlitSubprocess:
+        script_path = self.script_path()
+        if not script_path.exists():
+            raise FileNotFoundError(
+                f"Streamlit admin entrypoint not found: {script_path}"
+            )
+
+        port = self.pick_port()
+        env = self.build_env(backend_url=backend_url)
+        cmd = self.build_cmd(port=port)
+
+        log_fp = self.open_log()
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(self.repo_root),
+            env=env,
+            stdout=log_fp or subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            text=True if log_fp else False,
+        )
+        self.wait_ready(port=port, proc=proc)
+        return StreamlitSubprocess(process=proc, port=port, log_file=log_fp)
+
+    def stop(self, state: StreamlitSubprocess) -> None:
+        proc = state.process
+        log_fp = state.log_file
+
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+        if log_fp:
+            try:
+                log_fp.close()
+            except Exception:
+                pass
+
+
 def start_streamlit_admin(
     *, backend_url: str, base_path: str = "admin"
 ) -> StreamlitSubprocess:
@@ -44,71 +148,8 @@ def start_streamlit_admin(
         return _STATE
 
     repo_root = Path(__file__).resolve().parents[2]
-    script_path = repo_root / "user_management_api" / "admin_ui" / "app.py"
-    if not script_path.exists():
-        raise FileNotFoundError(f"Streamlit admin entrypoint not found: {script_path}")
-
-    port = int(os.getenv("ADMIN_UI_INTERNAL_PORT") or 0) or _pick_free_port()
-
-    env = os.environ.copy()
-    # Streamlit admin makes server-side HTTP calls; point it at this backend.
-    env["BACKEND_URL"] = backend_url.rstrip("/")
-
-    # Ensure repo root is importable for shared/local imports.
-    env["PYTHONPATH"] = str(repo_root) + (
-        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
-    )
-
-    cmd = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(script_path),
-        "--server.headless",
-        "true",
-        "--server.address",
-        "127.0.0.1",
-        "--server.port",
-        str(port),
-        "--server.fileWatcherType",
-        "none",
-        "--server.baseUrlPath",
-        base_path.lstrip("/"),
-    ]
-
-    log_path = os.getenv("ADMIN_UI_LOG_FILE") or str(repo_root / "admin.nohup.log")
-    log_fp: Optional[IO[str]] = None
-    try:
-        log_fp = open(log_path, "a", encoding="utf-8")
-    except OSError:
-        log_fp = None
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=str(repo_root),
-        env=env,
-        stdout=log_fp or subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True if log_fp else False,
-    )
-
-    _STATE = StreamlitSubprocess(process=proc, port=port, log_file=log_fp)
-
-    # Optional bounded readiness wait so the proxy doesn't immediately 502.
-    # Streamlit serves a lightweight health endpoint.
-    wait_s = float(os.getenv("ADMIN_UI_READY_WAIT_S") or 0) or 0.0
-    if wait_s > 0:
-        deadline = time.time() + wait_s
-        url = f"http://127.0.0.1:{port}/{base_path.lstrip('/')}/_stcore/health"
-        while time.time() < deadline and proc.poll() is None:
-            try:
-                r = httpx.get(url, timeout=1.0, follow_redirects=False)
-                if r.status_code == 200:
-                    break
-            except Exception:
-                pass
-            time.sleep(0.1)
+    runner = StreamlitAdminRunner(repo_root=repo_root, base_path=base_path)
+    _STATE = runner.start(backend_url=backend_url)
     return _STATE
 
 
@@ -116,23 +157,7 @@ def stop_streamlit_admin() -> None:
     global _STATE  # noqa: PLW0603
     if not _STATE:
         return
-    proc = _STATE.process
-    log_fp = _STATE.log_file
+    state = _STATE
     _STATE = None
-    if proc.poll() is not None:
-        if log_fp:
-            try:
-                log_fp.close()
-            except Exception:
-                pass
-        return
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-    if log_fp:
-        try:
-            log_fp.close()
-        except Exception:
-            pass
+    runner = StreamlitAdminRunner(repo_root=Path(__file__).resolve().parents[2])
+    runner.stop(state)
