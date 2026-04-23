@@ -16,4 +16,3 @@ def show_http_error(prefix: str, resp: requests.Response) -> None:
         st.error(f"{prefix}: {resp.status_code} ({detail})")
     else:
         st.error(f"{prefix}: {resp.status_code}")
-

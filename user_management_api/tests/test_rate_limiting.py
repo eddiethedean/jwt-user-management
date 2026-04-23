@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Protocol
 
 
-def _get_rate_limiter(app) -> Optional[object]:
+class _HasReset(Protocol):
+    def reset(self) -> None: ...
+
+
+def _get_rate_limiter(app) -> Optional[_HasReset]:
     # The middleware stack is nested: wrapper.app.app.... until the endpoint router.
     cur = getattr(app, "middleware_stack", None)
     while cur is not None:
@@ -32,4 +36,3 @@ def test_rate_limit_trips_for_password_forgot(client):
     assert r6.status_code == 429
     assert r6.json()["detail"] == "Too many requests"
     assert int(r6.headers.get("Retry-After", "0")) >= 1
-

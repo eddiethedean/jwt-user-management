@@ -1,11 +1,12 @@
-import re
 import time
 
 import pytest
 
 
 @pytest.mark.e2e
-def test_admin_send_invite_then_accept_html(page, app_urls, admin_credentials, list_backend_users):
+def test_admin_send_invite_then_accept_html(
+    page, app_urls, admin_credentials, list_backend_users
+):
     """
     End-to-end flow:
     - Admin logs into Streamlit admin
@@ -29,7 +30,9 @@ def test_admin_send_invite_then_accept_html(page, app_urls, admin_credentials, l
     # Send invite via Streamlit form.
     page.get_by_role("textbox", name="Email").first.fill(invited_email)
     page.get_by_role("textbox", name="Full name").fill("Invited E2E")
-    page.get_by_role("textbox", name="Invite permissions (comma-separated)").fill("invited,e2e")
+    page.get_by_role("textbox", name="Invite permissions (comma-separated)").fill(
+        "invited,e2e"
+    )
     page.get_by_role("button", name="Send invite").click()
 
     page.get_by_text("Invite sent").wait_for(timeout=30_000)
@@ -47,7 +50,6 @@ def test_admin_send_invite_then_accept_html(page, app_urls, admin_credentials, l
 
     # The HTML form returns the same template with either success or error text.
     success = page.get_by_text("Invite accepted. You can close this page.")
-    error = page.locator("p").filter(has_text="Origin not allowed").first
     try:
         success.wait_for(timeout=10_000)
     except Exception:
@@ -59,4 +61,3 @@ def test_admin_send_invite_then_accept_html(page, app_urls, admin_credentials, l
     # Verify backend has user.
     users = list_backend_users()
     assert any(u.get("email") == invited_email for u in users)
-

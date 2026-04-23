@@ -12,4 +12,3 @@ def test_user_login_failure_shows_error(page, app_urls):
     page.get_by_role("button", name="Sign in").click()
 
     page.get_by_text("Invalid email or password").wait_for(timeout=30_000)
-

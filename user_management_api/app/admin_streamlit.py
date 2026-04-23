@@ -24,7 +24,9 @@ class StreamlitSubprocess:
 _STATE: Optional[StreamlitSubprocess] = None
 
 
-def start_streamlit_admin(*, backend_url: str, base_path: str = "admin") -> StreamlitSubprocess:
+def start_streamlit_admin(
+    *, backend_url: str, base_path: str = "admin"
+) -> StreamlitSubprocess:
     """
     Start the Streamlit admin app as a local subprocess and return its port.
 
@@ -49,9 +51,8 @@ def start_streamlit_admin(*, backend_url: str, base_path: str = "admin") -> Stre
     env["BACKEND_URL"] = backend_url.rstrip("/")
 
     # Ensure repo root is importable for shared/local imports.
-    env["PYTHONPATH"] = (
-        str(repo_root)
-        + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    env["PYTHONPATH"] = str(repo_root) + (
+        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
     )
 
     cmd = [

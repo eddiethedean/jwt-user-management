@@ -2,7 +2,6 @@ import os
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -257,10 +256,11 @@ def backend_admin_headers(backend_admin_api_key):
 @pytest.fixture
 def list_backend_users(app_urls, backend_admin_headers):
     def _list():
-        r = requests.get(f"{app_urls['backend']}/users", headers=backend_admin_headers, timeout=10)
+        r = requests.get(
+            f"{app_urls['backend']}/users", headers=backend_admin_headers, timeout=10
+        )
         if not r.ok:
             raise RuntimeError(f"list users failed: {r.status_code} {r.text}")
         return r.json()
 
     return _list
-

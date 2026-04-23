@@ -72,7 +72,11 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
         while q and q[0] <= cutoff:
             q.popleft()
         if len(q) >= rule.max_requests:
-            retry_after = int(max(1, (q[0] + rule.window_seconds) - now)) if q else rule.window_seconds
+            retry_after = (
+                int(max(1, (q[0] + rule.window_seconds) - now))
+                if q
+                else rule.window_seconds
+            )
             return False, retry_after
         q.append(now)
         return True, 0
@@ -95,4 +99,3 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
             content={"detail": "Too many requests"},
             headers={"Retry-After": str(retry_after)},
         )
-

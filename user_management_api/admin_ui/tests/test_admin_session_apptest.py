@@ -68,7 +68,9 @@ def test_users_me_unauthorized_clears_session(monkeypatch):
     def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
         u = url.rstrip("/")
         if u.endswith("/users/me"):
-            return _Resp(ok=False, status_code=401, json_data={"detail": "Unauthorized"})
+            return _Resp(
+                ok=False, status_code=401, json_data={"detail": "Unauthorized"}
+            )
         return _Resp(ok=True, json_data=[])
 
     monkeypatch.setattr(requests, "get", fake_get)

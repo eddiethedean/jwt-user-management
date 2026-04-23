@@ -25,7 +25,9 @@ def get_auth_state(session_key: str = "auth") -> AuthState:
     return state
 
 
-def login_success(*, access_token: str, email: str, session_key: str = "auth") -> AuthState:
+def login_success(
+    *, access_token: str, email: str, session_key: str = "auth"
+) -> AuthState:
     state = get_auth_state(session_key=session_key)
     state.access_token = access_token
     state.email = email

@@ -98,15 +98,18 @@ def reset_password(
     # Single-use enforcement (atomic): mark reset token as used only if unused and unexpired.
     res = db.exec(
         update(PasswordResetToken)
-        .where(PasswordResetToken.token_hash == token_hash)
-        .where(PasswordResetToken.used_at.is_(None))
-        .where(PasswordResetToken.expires_at >= now)
+        # Use SQLAlchemy `Column` access for typed SQL expressions.
+        .where(getattr(PasswordResetToken, "__table__").c.token_hash == token_hash)
+        .where(getattr(PasswordResetToken, "__table__").c.used_at.is_(None))
+        .where(getattr(PasswordResetToken, "__table__").c.expires_at >= now)
         .values(used_at=now)
         .execution_options(synchronize_session=False)
     )
     if getattr(res, "rowcount", 0) != 1:
         refreshed: Optional[PasswordResetToken] = db.exec(
-            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == token_hash
+            )
         ).first()
         if not refreshed:
             raise HTTPException(status_code=404, detail="Reset token not found")

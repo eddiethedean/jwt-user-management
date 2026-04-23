@@ -50,7 +50,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_passwordresettoken_used_at"), table_name="passwordresettoken")
+    op.drop_index(
+        op.f("ix_passwordresettoken_used_at"), table_name="passwordresettoken"
+    )
     op.drop_index(
         op.f("ix_passwordresettoken_expires_at"), table_name="passwordresettoken"
     )
@@ -71,4 +73,3 @@ def downgrade() -> None:
         ["token_hash"],
         unique=False,
     )
-

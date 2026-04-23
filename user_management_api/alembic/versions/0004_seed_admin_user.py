@@ -43,7 +43,7 @@ def upgrade() -> None:
         return
 
     # Import here to avoid import-time side effects during Alembic env setup.
-    from app.core.security import hash_password  # noqa: WPS433
+    from app.core.security import hash_password
 
     conn = op.get_bind()
 
@@ -83,4 +83,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     # We can't safely delete without knowing which row was seeded; leave as no-op.
     return
-

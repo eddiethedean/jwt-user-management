@@ -1,5 +1,4 @@
 import pytest
-import time
 from ._debug import dump_page
 
 
@@ -28,4 +27,3 @@ def test_admin_login_logout(page, app_urls, admin_credentials):
     # Logout
     page.get_by_role("button", name="Sign out").click()
     page.get_by_role("textbox", name="Email").first.wait_for(timeout=30_000)
-

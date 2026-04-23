@@ -45,4 +45,3 @@ def test_password_reset_token_hash_is_unique(db_session):
     db_session.add(r2)
     with pytest.raises(IntegrityError):
         db_session.commit()
-

@@ -6,6 +6,8 @@ import requests
 import streamlit as st
 from dotenv import load_dotenv
 
+# ruff: noqa: E402
+
 APP_ROOT = Path(__file__).resolve().parent
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
@@ -40,9 +42,7 @@ def _render_session_debug() -> None:
         return
     st.sidebar.caption("Session (debug)")
     a = get_auth_state(session_key="admin_auth")
-    st.sidebar.json(
-        {"authenticated": a.is_authenticated, "email": a.email or "(none)"}
-    )
+    st.sidebar.json({"authenticated": a.is_authenticated, "email": a.email or "(none)"})
 
 
 try:
@@ -113,13 +113,17 @@ if not auth.is_authenticated or not is_admin:
     st.subheader("Admin sign in")
     with st.form("admin_login_form"):
         email = st.text_input("Email", key="admin_login_email")
-        password = st.text_input("Password", type="password", key="admin_login_password")
+        password = st.text_input(
+            "Password", type="password", key="admin_login_password"
+        )
         submitted = st.form_submit_button("Sign in")
 
     if submitted:
         c = BackendClient(base_url=BACKEND_URL)
         try:
-            r = c.post_form("/auth/token", data={"username": email, "password": password})
+            r = c.post_form(
+                "/auth/token", data={"username": email, "password": password}
+            )
         except requests.RequestException:
             st.error("Backend request failed (is it running?)")
             st.stop()
@@ -181,9 +185,7 @@ with col1:
             "created_at",
         ]
         rows = [
-            {k: u.get(k) for k in desired_keys}
-            for u in users
-            if isinstance(u, dict)
+            {k: u.get(k) for k in desired_keys} for u in users if isinstance(u, dict)
         ]
         st.dataframe(rows, use_container_width=True, hide_index=True)
     else:

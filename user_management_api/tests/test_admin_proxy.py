@@ -24,7 +24,9 @@ def test_filter_out_hop_by_hop_headers():
 def test_admin_proxy_returns_502_when_upstream_not_ready():
     app = FastAPI()
     app.include_router(
-        create_admin_proxy_router(upstream_base_getter=lambda: "http://127.0.0.1:0/admin"),
+        create_admin_proxy_router(
+            upstream_base_getter=lambda: "http://127.0.0.1:0/admin"
+        ),
         prefix="/admin",
     )
     c = TestClient(app)
@@ -35,10 +37,14 @@ def test_admin_proxy_returns_502_when_upstream_not_ready():
 def test_admin_proxy_forwards_http_via_injected_client():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url == httpx.URL("http://127.0.0.1:1234/admin/foo?x=1")
-        return httpx.Response(200, headers={"Content-Type": "text/plain"}, content=b"ok")
+        return httpx.Response(
+            200, headers={"Content-Type": "text/plain"}, content=b"ok"
+        )
 
     transport = httpx.MockTransport(handler)
-    injected = httpx.AsyncClient(transport=transport, follow_redirects=False, timeout=5.0)
+    injected = httpx.AsyncClient(
+        transport=transport, follow_redirects=False, timeout=5.0
+    )
 
     app = FastAPI()
     app.include_router(

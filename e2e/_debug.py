@@ -26,4 +26,3 @@ def dump_page(page, *, name: str) -> Optional[Path]:
         return png
     except Exception:
         return None
-

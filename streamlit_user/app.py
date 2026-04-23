@@ -7,6 +7,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from typing import Dict, Optional
 
+# ruff: noqa: E402
+
 # Ensure this app directory is importable.
 APP_ROOT = Path(__file__).resolve().parent
 if str(APP_ROOT) not in sys.path:
@@ -30,9 +32,7 @@ def _render_session_debug() -> None:
         return
     st.sidebar.caption("Session (debug)")
     a = get_auth_state(session_key="user_auth")
-    st.sidebar.json(
-        {"authenticated": a.is_authenticated, "email": a.email or "(none)"}
-    )
+    st.sidebar.json({"authenticated": a.is_authenticated, "email": a.email or "(none)"})
 
 
 try:

@@ -54,4 +54,3 @@ def test_html_form_posts_reject_wrong_origin(client):
         assert r2.json()["detail"] == "Origin not allowed"
     finally:
         settings.public_base_url = old
-

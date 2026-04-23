@@ -35,7 +35,9 @@ class BackendClient:
             timeout=self.timeout_s,
         )
 
-    def post_json(self, path: str, *, json: dict, params: Optional[dict] = None) -> requests.Response:
+    def post_json(
+        self, path: str, *, json: dict, params: Optional[dict] = None
+    ) -> requests.Response:
         return requests.post(
             self._url(path),
             params=params,
@@ -56,7 +58,10 @@ class BackendClient:
         return requests.post(
             self._url(path),
             data=data,
-            headers={**self._headers(), "Content-Type": "application/x-www-form-urlencoded"},
+            headers={
+                **self._headers(),
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
             timeout=self.timeout_s,
         )
 
@@ -103,7 +108,9 @@ def validate_streamlit_test_mode_backend(url: str) -> None:
     if flag not in ("1", "true", "yes"):
         return
     if url.rstrip("/") != "http://testserver":
-        raise ValueError("STREAMLIT_TEST_MODE is only allowed with BACKEND_URL=http://testserver")
+        raise ValueError(
+            "STREAMLIT_TEST_MODE is only allowed with BACKEND_URL=http://testserver"
+        )
 
 
 def safe_json(resp: requests.Response) -> Dict[str, Any]:
@@ -114,4 +121,3 @@ def safe_json(resp: requests.Response) -> Dict[str, Any]:
     if isinstance(data, dict):
         return data
     return {"data": data}
-

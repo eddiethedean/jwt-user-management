@@ -113,9 +113,11 @@ async def _accept_invite(
     # Single-use enforcement (atomic): mark invite as used only if unused and unexpired.
     res = db.exec(
         update(InviteToken)
-        .where(InviteToken.token_hash == token_hash)
-        .where(InviteToken.used_at.is_(None))
-        .where(InviteToken.expires_at >= now)
+        # `InviteToken.token_hash` is a SQLModel field; mypy/ty may see it as `str`.
+        # Use SQLAlchemy `Column` access for typed SQL expressions.
+        .where(getattr(InviteToken, "__table__").c.token_hash == token_hash)
+        .where(getattr(InviteToken, "__table__").c.used_at.is_(None))
+        .where(getattr(InviteToken, "__table__").c.expires_at >= now)
         .values(used_at=now)
         .execution_options(synchronize_session=False)
     )

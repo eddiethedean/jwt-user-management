@@ -4,7 +4,9 @@ import pytest
 
 
 @pytest.mark.e2e
-def test_admin_update_user_permissions(page, app_urls, admin_credentials, create_backend_user, list_backend_users):
+def test_admin_update_user_permissions(
+    page, app_urls, admin_credentials, create_backend_user, list_backend_users
+):
     email = f"upd_e2e_{int(time.time())}@test.local"
     create_backend_user(email, "Passw0rd!123")
 
@@ -24,7 +26,10 @@ def test_admin_update_user_permissions(page, app_urls, admin_credentials, create
 
     # Update user section.
     page.get_by_role("spinbutton", name="User ID").fill(str(user_id))
-    page.get_by_role("textbox", name="Update permissions (comma-separated)").fill("alpha,beta")
+    page.get_by_role("textbox", name="Update permissions (comma-separated)").fill(
+        "alpha,beta"
+    )
+
     def _set_streamlit_checkbox(label: str, desired: bool) -> None:
         box = page.get_by_test_id("stCheckbox").filter(has_text=label).first
         inp = box.locator(f'input[aria-label="{label}"]')
@@ -47,10 +52,13 @@ def test_admin_update_user_permissions(page, app_urls, admin_credentials, create
     while time.time() < deadline:
         users2 = list_backend_users()
         updated = next(u for u in users2 if u.get("id") == user_id)
-        if updated.get("permissions") == ["alpha", "beta"] and updated.get("is_admin") is True:
+        if (
+            updated.get("permissions") == ["alpha", "beta"]
+            and updated.get("is_admin") is True
+        ):
             break
         time.sleep(0.5)
+    assert updated is not None
     assert updated.get("is_admin") is True
     assert updated.get("is_active") is True
     assert updated.get("permissions") == ["alpha", "beta"]
-

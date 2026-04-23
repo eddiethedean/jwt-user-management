@@ -102,11 +102,17 @@ def create_admin_proxy_router(
             await websocket.close(code=1011)
             return
         qs = f"?{websocket.url.query}" if websocket.url.query else ""
-        upstream_ws_url = upstream_base.replace("http://", "ws://").replace("https://", "wss://")
-        upstream_ws_url = f"{upstream_ws_url.rstrip('/')}/{path.lstrip('/')}{qs}" if path else f"{upstream_ws_url}{qs}"
+        upstream_ws_url = upstream_base.replace("http://", "ws://").replace(
+            "https://", "wss://"
+        )
+        upstream_ws_url = (
+            f"{upstream_ws_url.rstrip('/')}/{path.lstrip('/')}{qs}"
+            if path
+            else f"{upstream_ws_url}{qs}"
+        )
 
         try:
-            import websockets  # type: ignore
+            import websockets
         except Exception as e:  # pragma: no cover
             await websocket.close(code=1011)
             raise RuntimeError(
@@ -114,6 +120,7 @@ def create_admin_proxy_router(
             ) from e
 
         async with websockets.connect(upstream_ws_url) as upstream:
+
             async def _client_to_upstream() -> None:
                 try:
                     while True:

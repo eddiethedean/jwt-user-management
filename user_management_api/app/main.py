@@ -47,10 +47,14 @@ app.include_router(users_router)
 app.include_router(invites_router)
 app.include_router(password_router)
 
+
 # Serve Streamlit admin UI under /admin (HTTP + websocket reverse proxy).
 def _admin_upstream_base() -> str:
     port = int(getattr(app.state, "admin_ui_port", 0) or 0)
     return f"http://127.0.0.1:{port}/admin"
 
 
-app.include_router(create_admin_proxy_router(upstream_base_getter=_admin_upstream_base), prefix="/admin")
+app.include_router(
+    create_admin_proxy_router(upstream_base_getter=_admin_upstream_base),
+    prefix="/admin",
+)

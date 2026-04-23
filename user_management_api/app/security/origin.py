@@ -32,8 +32,13 @@ def require_same_origin(request: Request) -> None:
 
     origin = request.headers.get("origin")
     referer = request.headers.get("referer")
-    presented = _origin_from_url(origin) if origin else _origin_from_url(referer) if referer else None
+    presented = (
+        _origin_from_url(origin)
+        if origin
+        else _origin_from_url(referer)
+        if referer
+        else None
+    )
     if presented and presented != expected:
         # Intentionally raise HTTPException in callers (keeps this helper starlette-only).
         raise ValueError(f"Origin not allowed: {presented}")
-

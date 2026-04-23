@@ -1,5 +1,3 @@
-import os
-
 from streamlit.testing.v1 import AppTest
 
 from helpers import ADMIN_APP_PY
@@ -25,4 +23,3 @@ def test_disallows_backend_url_with_credentials(monkeypatch):
     assert not at.exception
     assert len(at.error) >= 1
     assert "credentials" in at.error[0].value.lower()
-
