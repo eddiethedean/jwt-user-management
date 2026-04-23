@@ -10,6 +10,7 @@ from app.api.routes_invites import router as invites_router
 from app.api.routes_password import router as password_router
 from app.api.routes_users import router as users_router
 from app.core.config import settings
+from app.middleware.base_path import BasePathMiddleware
 from app.middleware.rate_limit import InMemoryRateLimitMiddleware, RateLimitRule
 from app.middleware.security_headers import SecurityHeadersMiddleware
 
@@ -18,6 +19,9 @@ def mount_admin_ui(app: FastAPI) -> None:
     # Serve Streamlit admin UI under /admin (HTTP + websocket reverse proxy).
     def _admin_upstream_base() -> str:
         port = int(getattr(app.state, "admin_ui_port", 0) or 0)
+        base_path = (getattr(app.state, "admin_ui_base_path", "") or "").strip("/")
+        if base_path:
+            return f"http://127.0.0.1:{port}/{base_path}"
         return f"http://127.0.0.1:{port}/admin"
 
     app.include_router(
@@ -35,7 +39,12 @@ async def lifespan(app: FastAPI):
         follow_redirects=False, timeout=30.0
     )
     backend_url = settings.public_base_url.rstrip("/") or "http://127.0.0.1:8000"
-    ui = start_streamlit_admin(backend_url=backend_url, base_path="admin")
+    # When served behind an external prefix (e.g. Workbench), Streamlit must be started
+    # with a baseUrlPath that includes the prefix so its absolute asset paths resolve.
+    base_prefix = (settings.base_path or "").strip("/")
+    base_path = f"{base_prefix}/admin" if base_prefix else "admin"
+    app.state.admin_ui_base_path = base_path
+    ui = start_streamlit_admin(backend_url=backend_url, base_path=base_path)
     app.state.admin_ui_port = ui.port
     try:
         yield
@@ -46,6 +55,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="JWT User Management API", lifespan=lifespan)
 
+if settings.base_path:
+    app.add_middleware(BasePathMiddleware, base_path=settings.base_path)
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(

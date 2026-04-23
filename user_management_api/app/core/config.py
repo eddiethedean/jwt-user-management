@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./app.db"
     public_base_url: str = "http://localhost:8000"
+    # Optional: external path prefix when served behind a reverse proxy (e.g. Workbench).
+    # Example: /s/<service>/p/<project>
+    base_path: str = ""
 
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"

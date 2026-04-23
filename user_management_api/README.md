@@ -43,6 +43,7 @@ Configured via `user_management_api/.env`:
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `PUBLIC_BASE_URL`: used to generate invite/reset links (e.g. `http://localhost:8000`)
+- `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench). Example: `/s/<service>/p/<project>`
 - `JWT_SECRET`: JWT signing key (rotate if compromised). Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
 - `ADMIN_API_KEY`: admin key (rotate if compromised)
 - `SMTP_*`: send invite/reset emails
@@ -83,3 +84,22 @@ The backend starts the Streamlit admin app as a **local subprocess** and reverse
 
 For production, set `ADMIN_UI_REQUIRE_JWT=1` so `/admin/*` requires an **admin JWT** (HTTP + websocket).
 
+## Running behind a reverse proxy (Workbench / path prefix)
+
+If your deployment serves the app under a URL prefix like:
+
+- `https://workbench.socom.mil/s/<service>/p/<project>/...`
+
+set `BASE_PATH` to that prefix (the `/s/.../p/...` part). This enables correct routing and ensures the embedded Streamlit admin UI serves assets under the same prefix.
+
+Example:
+
+```bash
+BASE_PATH=/s/e886e3c9ab5a7f3d86cf3/p/0da13bad
+PUBLIC_BASE_URL=https://workbench.socom.mil
+uvicorn app.main:app --port 8001 --proxy-headers --forwarded-allow-ips='*'
+```
+
+Then the admin UI will be available at:
+
+- `https://workbench.socom.mil/s/e886e3c9ab5a7f3d86cf3/p/0da13bad/admin`

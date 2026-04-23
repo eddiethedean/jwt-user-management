@@ -54,6 +54,7 @@ User demo: `http://localhost:8502`
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `PUBLIC_BASE_URL`: used to generate invite links (e.g. `http://localhost:8000`)
+- `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench). Example: `/s/<service>/p/<project>`
 - `JWT_SECRET`: secret used to sign JWTs (use a strong secret outside `ENVIRONMENT=dev`)
 - `JWT_EXPIRES_MINUTES`: default `60`
 - `ADMIN_API_KEY`: if set, Streamlit can call admin endpoints via `X-Admin-Api-Key`
