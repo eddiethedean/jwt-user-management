@@ -4,6 +4,11 @@ from dataclasses import dataclass
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 from urllib.parse import unquote, urlparse
+import logging
+import os
+
+
+log = logging.getLogger("app.base_path")
 
 
 def _normalize_prefix(prefix: str) -> str:
@@ -63,6 +68,18 @@ def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
         new_scope["root_path"] = (scope.get("root_path") or "") + root_path_override
     new_scope["path"] = decoded_path or "/"
     new_scope["query_string"] = (parsed.query or "").encode()
+
+    if os.getenv("BASE_PATH_DEBUG", "").lower() in ("1", "true", "yes"):
+        log.warning(
+            "Decoded absolute URL path from Workbench proxy: raw_path=%r decoded_url=%r parsed_path=%r parsed_query=%r root_path_override=%r final_root_path=%r final_path=%r",
+            raw_path,
+            decoded,
+            parsed.path,
+            parsed.query,
+            root_path_override,
+            new_scope.get("root_path") or "",
+            new_scope.get("path") or "",
+        )
     return new_scope
 
 
@@ -83,6 +100,25 @@ class BasePathMiddleware:
     base_path: str
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        debug = os.getenv("BASE_PATH_DEBUG", "").lower() in ("1", "true", "yes")
+        if debug and scope["type"] in {"http", "websocket"}:
+            log.warning(
+                "Incoming scope: type=%s method=%r scheme=%r root_path=%r path=%r raw_path=%r query_string=%r headers_host=%r headers_x_forwarded_proto=%r",
+                scope["type"],
+                scope.get("method"),
+                scope.get("scheme"),
+                scope.get("root_path"),
+                scope.get("path"),
+                scope.get("raw_path"),
+                (scope.get("query_string") or b"").decode(errors="replace"),
+                dict(scope.get("headers") or [])
+                .get(b"host", b"")
+                .decode(errors="replace"),
+                dict(scope.get("headers") or [])
+                .get(b"x-forwarded-proto", b"")
+                .decode(errors="replace"),
+            )
+
         scope = _maybe_decode_encoded_absolute_url(scope)
         prefix = _normalize_prefix(self.base_path)
         if not prefix or scope["type"] not in {"http", "websocket"}:
@@ -107,4 +143,13 @@ class BasePathMiddleware:
         new_scope = dict(scope)
         new_scope["root_path"] = (scope.get("root_path") or "") + prefix
         new_scope["path"] = new_path or "/"
+        if debug:
+            log.warning(
+                "BASE_PATH applied: prefix=%r old_root_path=%r old_path=%r new_root_path=%r new_path=%r",
+                prefix,
+                scope.get("root_path") or "",
+                path,
+                new_scope.get("root_path") or "",
+                new_scope.get("path") or "",
+            )
         await self.app(new_scope, receive, send)
