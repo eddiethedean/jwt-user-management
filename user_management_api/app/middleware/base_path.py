@@ -11,6 +11,10 @@ import os
 log = logging.getLogger("app.base_path")
 
 
+def _debug_enabled() -> bool:
+    return os.getenv("BASE_PATH_DEBUG", "").lower() in ("1", "true", "yes")
+
+
 def _normalize_prefix(prefix: str) -> str:
     p = (prefix or "").strip()
     if not p:
@@ -69,7 +73,7 @@ def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
     new_scope["path"] = decoded_path or "/"
     new_scope["query_string"] = (parsed.query or "").encode()
 
-    if os.getenv("BASE_PATH_DEBUG", "").lower() in ("1", "true", "yes"):
+    if _debug_enabled():
         log.warning(
             "Decoded absolute URL path from Workbench proxy: raw_path=%r decoded_url=%r parsed_path=%r parsed_query=%r root_path_override=%r final_root_path=%r final_path=%r",
             raw_path,
@@ -100,7 +104,7 @@ class BasePathMiddleware:
     base_path: str
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        debug = os.getenv("BASE_PATH_DEBUG", "").lower() in ("1", "true", "yes")
+        debug = _debug_enabled()
         if debug and scope["type"] in {"http", "websocket"}:
             log.warning(
                 "Incoming scope: type=%s method=%r scheme=%r root_path=%r path=%r raw_path=%r query_string=%r headers_host=%r headers_x_forwarded_proto=%r",

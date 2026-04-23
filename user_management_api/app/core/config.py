@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Optional: external path prefix when served behind a reverse proxy (e.g. Workbench).
     # Example: /s/<service>/p/<project>
     base_path: str = ""
+    # Optional: extra request logging for BASE_PATH routing/debugging.
+    base_path_debug: bool = False
 
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
