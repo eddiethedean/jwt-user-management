@@ -35,8 +35,33 @@ def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
         return scope
 
     parsed = urlparse(decoded)
+    decoded_path = parsed.path or "/"
+
+    # If the decoded path includes an unknown Workbench prefix, try to auto-detect it by
+    # locating the first "real" app route and converting everything before it to root_path.
+    # This handles cases where the Workbench proxy prefix changes per session/project.
+    known_route_prefixes = (
+        "/admin",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/auth",
+        "/users",
+        "/invites",
+        "/password",
+    )
+    root_path_override = ""
+    for rp in known_route_prefixes:
+        idx = decoded_path.find(rp)
+        if idx > 0:
+            root_path_override = decoded_path[:idx]
+            decoded_path = decoded_path[idx:]
+            break
+
     new_scope = dict(scope)
-    new_scope["path"] = parsed.path or "/"
+    if root_path_override:
+        new_scope["root_path"] = (scope.get("root_path") or "") + root_path_override
+    new_scope["path"] = decoded_path or "/"
     new_scope["query_string"] = (parsed.query or "").encode()
     return new_scope
 
@@ -69,6 +94,12 @@ class BasePathMiddleware:
             new_path = "/"
         elif path.startswith(prefix + "/"):
             new_path = path[len(prefix) :]
+        elif (scope.get("root_path") or "").endswith(prefix):
+            # We may have already moved an external prefix into root_path (auto-detected
+            # from an encoded absolute URL). In that case, routing should proceed without
+            # additional stripping.
+            await self.app(scope, receive, send)
+            return
         else:
             await self.app(scope, receive, send)
             return
