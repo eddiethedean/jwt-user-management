@@ -28,6 +28,14 @@ Set in `user_management_api/admin_ui/.env` (optional for local dev; the backend 
 - `BACKEND_URL`
 - `BACKEND_ADMIN_API_KEY` (must match backend `ADMIN_API_KEY`)
 
+## Proxy auth (`/admin/*`)
+
+The backend can optionally require an **admin JWT** for all `/admin/*` requests (HTTP + websocket):
+
+- Set `ADMIN_UI_REQUIRE_JWT=1` in `user_management_api/.env`.
+
+When enabled, you must have a valid admin session to access `/admin/`.
+
 ### Backend URL safety checks
 
 The admin app validates `BACKEND_URL` to reduce SSRF-style footguns:
@@ -35,6 +43,7 @@ The admin app validates `BACKEND_URL` to reduce SSRF-style footguns:
 - For non-local backends, if `BACKEND_ADMIN_API_KEY` is set, `BACKEND_URL` must use `https://`.
 - It rejects URLs containing credentials (e.g. `https://user:pass@host`).
 - It rejects targeting private / link-local / reserved IP ranges.
+- For hostnames, it resolves A/AAAA records and rejects any private/link-local/etc resolution.
 
 ### Test mode
 

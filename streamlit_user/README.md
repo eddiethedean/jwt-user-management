@@ -37,7 +37,8 @@ Open `http://localhost:8502`.
 The user app validates `BACKEND_URL`:
 
 - It must be a full `http(s)://` URL and must not include credentials.
-- It rejects targeting private / link-local / reserved IP ranges (hostnames like `localhost` are allowed).
+- It rejects targeting private / link-local / reserved IP ranges.
+- For hostnames, it resolves A/AAAA records and rejects any private/link-local/etc resolution (hostnames like `localhost` are allowed).
 
 ## Password reset behavior
 

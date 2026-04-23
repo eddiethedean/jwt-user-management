@@ -31,11 +31,9 @@ API docs: `http://localhost:8000/docs`
 
 ### 2) Admin UI
 
-```bash
 The backend serves the admin UI at `/admin/` (it runs Streamlit internally).
 
 - Admin UI: `http://localhost:8000/admin/`
-```
 
 ### 3) Streamlit user demo
 
@@ -59,15 +57,18 @@ User demo: `http://localhost:8502`
 - `JWT_SECRET`: secret used to sign JWTs (use a strong secret outside `ENVIRONMENT=dev`)
 - `JWT_EXPIRES_MINUTES`: default `60`
 - `ADMIN_API_KEY`: if set, Streamlit can call admin endpoints via `X-Admin-Api-Key`
+- `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_FULL_NAME`: optional admin seed during `alembic upgrade head` (idempotent)
 - `SMTP_*`: optional SMTP settings to send invite emails
 - `AZURE_*`: optional Azure AD (Microsoft Graph) settings to validate emails
 - `RATE_LIMIT_ENABLED`: optional (default true) in-memory rate limiting for sensitive endpoints
 - `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional; only enable if you trust your proxy headers
+- `ADMIN_UI_REQUIRE_JWT`: optional. If set (`1`/`true`/`yes`), the `/admin/*` reverse proxy requires an admin JWT for HTTP + websocket.
+- `ADMIN_UI_LOG_FILE`: optional. Where the embedded Streamlit subprocess writes logs (default: `admin.nohup.log` in repo root).
+- `ADMIN_UI_READY_WAIT_S`: optional. Bounded startup wait (seconds) for Streamlit health endpoint to avoid initial `/admin` 502s.
 
-### Streamlit admin (`user_management_api/admin_ui/.env`)
+### Streamlit apps (`streamlit_user/.env`, optional)
 
 - `BACKEND_URL`: e.g. `http://localhost:8000`
-- `BACKEND_ADMIN_API_KEY`: must match backend `ADMIN_API_KEY`
 
 ## Notes on Azure AD / Active Directory validation
 
@@ -76,26 +77,15 @@ Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` to enable it.
 
 ## Run tests
 
-Backend:
-
 ```bash
-cd user_management_api
 source .venv/bin/activate
-pytest
+python -m pytest
 ```
 
-Streamlit apps:
+Static checks:
 
 ```bash
-cd user_management_api/admin_ui
-source .venv/bin/activate
-pytest
-```
-
-```bash
-cd streamlit_user
-source .venv/bin/activate
-pytest
+ruff format . && ruff check . && ty check .
 ```
 
 ## Migrations (Alembic)

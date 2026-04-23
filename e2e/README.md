@@ -27,5 +27,6 @@ pytest -q e2e
 ## Notes
 
 - The suite starts backend + Streamlit on **ephemeral ports** to avoid clashing with your dev servers.
-- The admin Streamlit app reads its auth config from `STREAMLIT_AUTH_CONFIG_PATH` (the tests generate a temporary one).
+- Each run uses a **unique SQLite DB file** under `e2e/` to avoid shared state.
+- Process logs are written to `e2e/artifacts/logs/` for easier debugging on failures.
 
