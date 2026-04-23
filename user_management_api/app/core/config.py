@@ -22,6 +22,12 @@ class Settings(BaseSettings):
 
     admin_api_key: Optional[str] = None
 
+    # Optional seed user (used by Alembic migration 0004_seed_admin_user).
+    # These are intentionally optional and are treated as disabled when empty.
+    seed_admin_email: Optional[str] = None
+    seed_admin_password: Optional[str] = None
+    seed_admin_full_name: Optional[str] = None
+
     smtp_host: Optional[str] = None
     smtp_port: int = 587
     smtp_username: Optional[str] = None
@@ -65,6 +71,14 @@ class Settings(BaseSettings):
                     "ADMIN_API_KEY must be a strong secret (>=24 chars) outside dev"
                 )
         return v
+
+    @field_validator("seed_admin_email", "seed_admin_password", "seed_admin_full_name")
+    @classmethod
+    def _normalize_seed_values(cls, v: Optional[str]):
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
 
 
 settings = Settings()
