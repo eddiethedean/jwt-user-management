@@ -164,6 +164,8 @@ col1, col2 = st.columns([2, 1], gap="large")
 
 with col1:
     st.subheader("Users")
+    if st.button("Refresh", key="admin_refresh_users"):
+        st.rerun()
     try:
         resp = client.get("/users")
     except requests.RequestException:

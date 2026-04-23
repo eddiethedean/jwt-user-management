@@ -42,6 +42,8 @@ def _input_text(at: AppTest, label: str, value: str, occurrence: int = 0) -> Non
 
 
 def test_renders_main_sections(monkeypatch):
+    calls = {"users": 0}
+
     def fake_get(url, headers=None, timeout=None, params=None, **kwargs):
         u = url.rstrip("/")
         if u.endswith("/users/me"):
@@ -51,6 +53,7 @@ def test_renders_main_sections(monkeypatch):
             )
         assert headers and headers.get("X-Admin-Api-Key") == "test-key"
         assert u.endswith("/users")
+        calls["users"] += 1
         return _Resp(
             ok=True,
             json_data=[
@@ -78,6 +81,12 @@ def test_renders_main_sections(monkeypatch):
     assert at.title[0].value == "User management"
     assert any(s.value == "Users" for s in at.subheader)
     assert any(s.value == "Add user (send invite email)" for s in at.subheader)
+    assert calls["users"] == 1
+
+    # Clicking Refresh should trigger a rerun and re-fetch /users.
+    _click_button(at, "Refresh")
+    at.run()
+    assert calls["users"] >= 2
 
 
 def test_add_user_sends_invite(monkeypatch):

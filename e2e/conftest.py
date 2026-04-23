@@ -11,6 +11,8 @@ import requests
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+_E2E_DB_PATH: Path | None = None
+
 
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -49,8 +51,15 @@ def _wait_streamlit_ready(url: str, *, timeout_s: float = 45.0) -> None:
     while time.time() < deadline:
         try:
             r = requests.get(url, timeout=2)
-            if r.status_code == 200 and 'data-testid="stApp"' in r.text:
-                return
+            if r.status_code == 200:
+                body = r.text or ""
+                # Streamlit markup can change across versions; accept a few stable indicators.
+                if (
+                    'data-testid="stApp"' in body
+                    or "streamlit" in body.lower()
+                    or "_stcore" in body
+                ):
+                    return
         except Exception as e:  # noqa: BLE001
             last_err = e
         time.sleep(0.25)
@@ -105,7 +114,9 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     admin_log = logs_dir / f"admin-{run_id}.log"
     user_log = logs_dir / f"user-{run_id}.log"
 
+    global _E2E_DB_PATH  # noqa: PLW0603
     db_path = REPO_ROOT / "e2e" / f"e2e-{run_id}.db"
+    _E2E_DB_PATH = db_path
 
     env_backend = os.environ.copy()
     env_backend.update(
@@ -286,6 +297,13 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             if p.poll() is None:
                 p.kill()
         # log file handles are owned by the OS; processes are terminated above.
+
+
+@pytest.fixture(scope="session")
+def e2e_db_path() -> Path:
+    if _E2E_DB_PATH is None:
+        raise RuntimeError("E2E DB path not initialized yet")
+    return _E2E_DB_PATH
 
 
 @pytest.fixture
