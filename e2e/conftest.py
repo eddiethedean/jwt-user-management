@@ -104,7 +104,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     # Apply migrations.
     subprocess.check_call(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
-        cwd=str(REPO_ROOT / "backend"),
+        cwd=str(REPO_ROOT / "user_management_api"),
         env=env_backend,
     )
 
@@ -117,7 +117,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             "--port",
             backend_port,
         ],
-        cwd=str(REPO_ROOT / "backend"),
+        cwd=str(REPO_ROOT / "user_management_api"),
         env=env_backend,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -167,7 +167,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             "--server.fileWatcherType",
             "none",
         ],
-        cwd=str(REPO_ROOT / "streamlit_admin"),
+        cwd=str(REPO_ROOT / "user_management_api" / "admin_ui"),
         env=env_admin,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

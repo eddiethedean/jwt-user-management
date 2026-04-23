@@ -38,7 +38,7 @@ def start_streamlit_admin(*, backend_url: str, base_path: str = "admin") -> Stre
         return _STATE
 
     repo_root = Path(__file__).resolve().parents[2]
-    script_path = repo_root / "streamlit_admin" / "app.py"
+    script_path = repo_root / "user_management_api" / "admin_ui" / "app.py"
     if not script_path.exists():
         raise FileNotFoundError(f"Streamlit admin entrypoint not found: {script_path}")
 
@@ -48,7 +48,7 @@ def start_streamlit_admin(*, backend_url: str, base_path: str = "admin") -> Stre
     # Streamlit admin makes server-side HTTP calls; point it at this backend.
     env["BACKEND_URL"] = backend_url.rstrip("/")
 
-    # Ensure repo root is importable for `streamlit_common` imports.
+    # Ensure repo root is importable for shared/local imports.
     env["PYTHONPATH"] = (
         str(repo_root)
         + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")

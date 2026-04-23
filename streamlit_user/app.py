@@ -7,14 +7,14 @@ import streamlit as st
 from dotenv import load_dotenv
 from typing import Dict, Optional
 
-# Ensure repo root is importable when running from this subdir.
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# Ensure this app directory is importable.
+APP_ROOT = Path(__file__).resolve().parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
 
-from streamlit_common.auth_state import get_auth_state, login_success, logout
-from streamlit_common.backend_client import BackendClient, safe_json, validate_backend_url
-from streamlit_common.ui import show_http_error
+from user_common.auth_state import get_auth_state, login_success, logout
+from user_common.backend_client import BackendClient, safe_json, validate_backend_url
+from user_common.ui import show_http_error
 
 load_dotenv()
 

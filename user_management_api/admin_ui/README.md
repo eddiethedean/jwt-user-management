@@ -1,47 +1,30 @@
-# Streamlit Admin App
+# Admin UI (Streamlit, served by backend)
 
-Admin-only Streamlit UI for managing users and sending invites.
+Admin-only Streamlit UI for managing users and sending invites. The FastAPI backend runs this Streamlit app as an internal subprocess and serves it at `/admin/`.
 
 ## Run locally
 
 Prereqs: **Python 3.10+**.
 
-1) Ensure the backend is running.
+1) Start the backend (it will also start the admin UI subprocess).
 
 ```bash
-cd backend
+cd user_management_api
 source .venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 ```
 
-2) Start the admin app.
-
-```bash
-cd streamlit_admin
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-cp config.example.yaml config.yaml
-streamlit run app.py --server.port 8501 --server.fileWatcherType none
-```
-
-Open `http://localhost:8501`.
+Open `http://127.0.0.1:8000/admin/`.
 
 ## Login credentials
 
-Streamlit-Authenticator uses `streamlit_admin/config.yaml`.
-
-- **Username**: the key under `credentials.usernames.*` (e.g. `admin`)
-- **Password**: `credentials.usernames.<username>.password`
-
-`streamlit_admin/config.yaml` is intentionally **gitignored**. Copy from `config.example.yaml` and set a real password.
+- Admin signs in via backend `POST /auth/token` and keeps the JWT in Streamlit session state (no cookie persistence).
 
 ## Backend integration
 
 The admin app calls the backend using `X-Admin-Api-Key`.
 
-Set in `streamlit_admin/.env`:
+Set in `user_management_api/admin_ui/.env` (optional for local dev; the backend also sets `BACKEND_URL` automatically when spawning the subprocess):
 - `BACKEND_URL`
 - `BACKEND_ADMIN_API_KEY` (must match backend `ADMIN_API_KEY`)
 
@@ -63,7 +46,7 @@ For automated tests only, you can bypass Streamlit-Authenticator by setting:
 ## Run tests
 
 ```bash
-cd streamlit_admin
+cd user_management_api/admin_ui
 source .venv/bin/activate
 pytest
 ```

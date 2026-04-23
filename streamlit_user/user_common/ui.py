@@ -17,7 +17,3 @@ def show_http_error(prefix: str, resp: requests.Response) -> None:
     else:
         st.error(f"{prefix}: {resp.status_code}")
 
-
-def show_request_exception(prefix: str, exc: Exception) -> None:
-    st.error(f"{prefix}: {exc}")
-

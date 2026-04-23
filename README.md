@@ -2,13 +2,13 @@
 
 This repo contains:
 
-- `backend/`: FastAPI API using SQLModel for user management + JWT issuance.
-- `streamlit_admin/`: Streamlit admin UI gated by Streamlit-Authenticator, calling the backend to manage users.
+- `user_management_api/`: FastAPI API using SQLModel for user management + JWT issuance.
+- `user_management_api/admin_ui/`: Streamlit admin UI (now served behind the backend at `/admin/`).
 - `streamlit_user/`: Streamlit demo of a user-facing app (login + forgot/reset password) using the backend.
 
 App-specific READMEs:
-- `backend/README.md`
-- `streamlit_admin/README.md`
+- `user_management_api/README.md`
+- `user_management_api/admin_ui/README.md`
 - `streamlit_user/README.md`
 
 ## Quickstart (local, SQLite)
@@ -18,7 +18,7 @@ Prereqs: **Python 3.10+** (the pinned dependencies and tests may not work on Pyt
 ### 1) Backend
 
 ```bash
-cd backend
+cd user_management_api
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -29,19 +29,13 @@ uvicorn app.main:app --reload --port 8000
 
 API docs: `http://localhost:8000/docs`
 
-### 2) Streamlit admin
+### 2) Admin UI
 
 ```bash
-cd streamlit_admin
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-cp config.example.yaml config.yaml
-streamlit run app.py
-```
+The backend serves the admin UI at `/admin/` (it runs Streamlit internally).
 
-Streamlit: `http://localhost:8501`
+- Admin UI: `http://localhost:8000/admin/`
+```
 
 ### 3) Streamlit user demo
 
@@ -58,7 +52,7 @@ User demo: `http://localhost:8502`
 
 ## Environment
 
-### Backend (`backend/.env`)
+### Backend (`user_management_api/.env`)
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `PUBLIC_BASE_URL`: used to generate invite links (e.g. `http://localhost:8000`)
@@ -70,7 +64,7 @@ User demo: `http://localhost:8502`
 - `RATE_LIMIT_ENABLED`: optional (default true) in-memory rate limiting for sensitive endpoints
 - `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional; only enable if you trust your proxy headers
 
-### Streamlit admin (`streamlit_admin/.env`)
+### Streamlit admin (`user_management_api/admin_ui/.env`)
 
 - `BACKEND_URL`: e.g. `http://localhost:8000`
 - `BACKEND_ADMIN_API_KEY`: must match backend `ADMIN_API_KEY`
@@ -85,7 +79,7 @@ Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` to enable it.
 Backend:
 
 ```bash
-cd backend
+cd user_management_api
 source .venv/bin/activate
 pytest
 ```
@@ -93,7 +87,7 @@ pytest
 Streamlit apps:
 
 ```bash
-cd streamlit_admin
+cd user_management_api/admin_ui
 source .venv/bin/activate
 pytest
 ```
@@ -109,7 +103,7 @@ pytest
 Create a new migration:
 
 ```bash
-cd backend
+cd user_management_api
 source .venv/bin/activate
 alembic revision --autogenerate -m "your message"
 ```

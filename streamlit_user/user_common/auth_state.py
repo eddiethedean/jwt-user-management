@@ -25,12 +25,7 @@ def get_auth_state(session_key: str = "auth") -> AuthState:
     return state
 
 
-def login_success(
-    *,
-    access_token: str,
-    email: str,
-    session_key: str = "auth",
-) -> AuthState:
+def login_success(*, access_token: str, email: str, session_key: str = "auth") -> AuthState:
     state = get_auth_state(session_key=session_key)
     state.access_token = access_token
     state.email = email
@@ -41,15 +36,11 @@ def logout(*, session_key: str = "auth") -> None:
     state = get_auth_state(session_key=session_key)
     state.access_token = ""
     state.email = ""
-    # Mirror keys used by BackendClient / E2E; clear whenever auth is cleared.
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
 
 
 def require_admin_from_me(me_json: dict) -> Tuple[bool, Optional[str]]:
-    """
-    `GET /users/me` returns UserPublic which includes `is_admin`.
-    """
     is_admin = bool(me_json.get("is_admin"))
     if is_admin:
         return True, None

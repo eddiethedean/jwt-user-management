@@ -9,7 +9,7 @@ Prereqs: **Python 3.10+**.
 1) Ensure the backend is running.
 
 ```bash
-cd backend
+cd user_management_api
 source .venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 ```

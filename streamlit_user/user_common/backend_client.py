@@ -75,46 +75,15 @@ def validate_backend_url(url: str, *, allow_local: bool = True) -> None:
         if ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
             raise ValueError("BACKEND_URL must not target private/link-local IPs")
     except ValueError:
-        # Not an IP; allow hostnames.
         return
-
-
-def validate_admin_requires_https(url: str, *, admin_api_key: str) -> None:
-    """
-    When an admin API key is configured, disallow plain http for non-loopback hosts
-    (production-style deployments should use TLS).
-    """
-    if not admin_api_key:
-        return
-    p = urlparse(url)
-    if p.scheme != "http":
-        return
-    host = (p.hostname or "").lower()
-    # testserver: used by Streamlit AppTest / HTTP test clients (not a real deployment).
-    if host in ("localhost", "127.0.0.1", "::1", "testserver"):
-        return
-    try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_loopback:
-            return
-    except ValueError:
-        pass
-    raise ValueError(
-        "BACKEND_URL must use https:// when BACKEND_ADMIN_API_KEY is set and the backend is not local"
-    )
 
 
 def validate_streamlit_test_mode_backend(url: str) -> None:
-    """
-    AppTest runs with BACKEND_URL=http://testserver; block accidental use of real URLs.
-    """
     flag = os.getenv("STREAMLIT_TEST_MODE", "").lower()
     if flag not in ("1", "true", "yes"):
         return
     if url.rstrip("/") != "http://testserver":
-        raise ValueError(
-            "STREAMLIT_TEST_MODE is only allowed with BACKEND_URL=http://testserver"
-        )
+        raise ValueError("STREAMLIT_TEST_MODE is only allowed with BACKEND_URL=http://testserver")
 
 
 def safe_json(resp: requests.Response) -> Dict[str, Any]:

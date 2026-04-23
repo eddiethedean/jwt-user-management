@@ -6,25 +6,24 @@ import requests
 import streamlit as st
 from dotenv import load_dotenv
 
-# Ensure repo root is importable when running from this subdir.
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+APP_ROOT = Path(__file__).resolve().parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
 
-from streamlit_common.auth_state import (
+from admin_common.auth_state import (
     get_auth_state,
     login_success,
     logout,
     require_admin_from_me,
 )
-from streamlit_common.backend_client import (
+from admin_common.backend_client import (
     BackendClient,
     safe_json,
     validate_admin_requires_https,
     validate_backend_url,
     validate_streamlit_test_mode_backend,
 )
-from streamlit_common.ui import show_http_error
+from admin_common.ui import show_http_error
 
 load_dotenv()
 
@@ -151,7 +150,7 @@ if st.sidebar.button("Sign out", type="primary", key="admin_sign_out"):
 
 if not ADMIN_API_KEY:
     st.warning(
-        "Set `BACKEND_ADMIN_API_KEY` in `streamlit_admin/.env` to enable admin API calls."
+        "Set `BACKEND_ADMIN_API_KEY` in `user_management_api/admin_ui/.env` to enable admin API calls."
     )
     st.stop()
 

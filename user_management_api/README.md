@@ -7,7 +7,7 @@ FastAPI API for user management, JWT issuance, invites, and password resets.
 Prereqs: **Python 3.10+**.
 
 ```bash
-cd backend
+cd user_management_api
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -39,21 +39,31 @@ uvicorn app.main:app --reload --port 8000
 
 ## Environment
 
-Configured via `backend/.env`:
+Configured via `user_management_api/.env`:
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `PUBLIC_BASE_URL`: used to generate invite/reset links (e.g. `http://localhost:8000`)
 - `JWT_SECRET`: JWT signing key (rotate if compromised). Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
-- `ADMIN_API_KEY`: admin key used by `streamlit_admin` (rotate if compromised)
+- `ADMIN_API_KEY`: admin key (rotate if compromised)
 - `SMTP_*`: send invite/reset emails
 - `AZURE_*`: optional Microsoft Graph (Azure AD) validation
 - `RATE_LIMIT_ENABLED`: optional (default true). In-memory rate limiting for sensitive endpoints (login/reset/invite accept).
 - `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional. Only enable if you trust your proxy headers.
 
+### Seeding an initial admin user (optional)
+
+When running `alembic upgrade head`, you can optionally seed an initial admin user by setting:
+
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`
+- `SEED_ADMIN_FULL_NAME` (optional)
+
+If the email already exists, the migration does nothing.
+
 ## Run tests
 
 ```bash
-cd backend
+cd user_management_api
 source .venv/bin/activate
 pytest
 ```
