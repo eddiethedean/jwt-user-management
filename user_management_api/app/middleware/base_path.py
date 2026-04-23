@@ -8,7 +8,8 @@ import logging
 import os
 
 
-log = logging.getLogger("app.base_path")
+# Use uvicorn's logger so messages reliably appear in uvicorn output.
+log = logging.getLogger("uvicorn.error")
 
 
 def _debug_enabled() -> bool:

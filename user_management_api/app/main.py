@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="JWT User Management API", lifespan=lifespan)
 
-if settings.base_path:
+if settings.base_path or settings.base_path_debug:
     app.add_middleware(BasePathMiddleware, base_path=settings.base_path)
 app.add_middleware(SecurityHeadersMiddleware)
 
