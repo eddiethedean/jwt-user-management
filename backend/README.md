@@ -17,6 +17,7 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 - API docs: `http://127.0.0.1:8000/docs`
+- Admin UI: `http://127.0.0.1:8000/admin` (served by backend; Streamlit runs internally)
 
 ## Key endpoints
 
@@ -56,4 +57,12 @@ cd backend
 source .venv/bin/activate
 pytest
 ```
+
+## Admin UI (embedded Streamlit)
+
+The backend starts the Streamlit admin app as a **local subprocess** and reverse-proxies it under `/admin`.
+
+- **URL**: `http://127.0.0.1:8000/admin`
+- **How it talks to the API**: server-side HTTP to `BACKEND_URL` (set automatically by the backend when it spawns Streamlit).
+- **Internal port**: set `ADMIN_UI_INTERNAL_PORT` to force a fixed port (optional).
 
