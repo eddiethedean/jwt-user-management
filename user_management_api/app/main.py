@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 
 from app.api.routes_auth import router as auth_router
@@ -15,6 +16,9 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.admin_proxy_client = httpx.AsyncClient(
+        follow_redirects=False, timeout=30.0
+    )
     # Start Streamlit admin UI as an internal subprocess.
     backend_url = settings.public_base_url.rstrip("/") or "http://127.0.0.1:8000"
     ui = start_streamlit_admin(backend_url=backend_url, base_path="admin")
@@ -23,6 +27,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         stop_streamlit_admin()
+        await app.state.admin_proxy_client.aclose()
 
 
 app = FastAPI(title="JWT User Management API", lifespan=lifespan)
@@ -55,6 +60,9 @@ def _admin_upstream_base() -> str:
 
 
 app.include_router(
-    create_admin_proxy_router(upstream_base_getter=_admin_upstream_base),
+    create_admin_proxy_router(
+        upstream_base_getter=_admin_upstream_base,
+        client_getter=lambda: app.state.admin_proxy_client,
+    ),
     prefix="/admin",
 )

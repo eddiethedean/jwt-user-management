@@ -17,6 +17,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
         )
 
+        path = request.url.path or "/"
+        content_type = (resp.headers.get("content-type") or "").lower()
+
+        # For JSON responses, CSP is irrelevant and can cause confusion with some clients.
+        if content_type.startswith("application/json"):
+            return resp
+
+        if path.startswith("/admin"):
+            # Streamlit uses JS bundles + websocket connections under the same origin.
+            resp.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' data:; "
+                "connect-src 'self' ws: wss:; "
+                "base-uri 'self'; "
+                "frame-ancestors 'none'; "
+                "object-src 'none'",
+            )
+            return resp
+
         # HTML endpoints render inline styles in templates; allow only what's needed.
         resp.headers.setdefault(
             "Content-Security-Policy",

@@ -4,8 +4,18 @@ import asyncio
 from typing import Callable, Iterable, List, Tuple
 
 import httpx
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+import os
+
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from starlette.responses import Response
+
+from jose import JWTError
+from sqlmodel import Session, select
+
+from app.api.deps import get_current_admin
+from app.core.security import decode_token
+from app.db.session import engine
+from app.models.user import User
 
 
 HOP_BY_HOP_HEADERS = {
@@ -33,6 +43,7 @@ def create_admin_proxy_router(
     *,
     upstream_base_getter: Callable[[], str],
     client: httpx.AsyncClient | None = None,
+    client_getter: Callable[[], httpx.AsyncClient] | None = None,
 ) -> APIRouter:
     """
     Reverse proxy router for Streamlit admin UI.
@@ -41,7 +52,15 @@ def create_admin_proxy_router(
     """
     router = APIRouter()
 
-    async_client = client or httpx.AsyncClient(follow_redirects=False, timeout=30.0)
+    if client is None and client_getter is None:
+        client = httpx.AsyncClient(follow_redirects=False, timeout=30.0)
+    require_jwt = os.getenv("ADMIN_UI_REQUIRE_JWT", "").lower() in ("1", "true", "yes")
+
+    def _get_client() -> httpx.AsyncClient:
+        if client is not None:
+            return client
+        assert client_getter is not None
+        return client_getter()
 
     @router.get("/{path:path}")
     @router.head("/{path:path}")
@@ -50,7 +69,12 @@ def create_admin_proxy_router(
     @router.patch("/{path:path}")
     @router.delete("/{path:path}")
     @router.options("/{path:path}")
-    async def proxy_http(path: str, request: Request) -> Response:
+    async def proxy_http(
+        path: str,
+        request: Request,
+        _admin=Depends(get_current_admin) if require_jwt else None,
+    ) -> Response:
+        async_client = _get_client()
         upstream_base = upstream_base_getter()
         if ":0/" in upstream_base or upstream_base.endswith(":0/admin"):
             return Response("Admin UI upstream not ready", status_code=502)
@@ -97,6 +121,31 @@ def create_admin_proxy_router(
         Uses the `websockets` library (typically installed via `uvicorn[standard]`).
         """
         await websocket.accept()
+        if require_jwt:
+            token = websocket.query_params.get("token") or ""
+            if not token:
+                await websocket.close(code=4401)
+                return
+            try:
+                payload = decode_token(token)
+            except JWTError:
+                await websocket.close(code=4403)
+                return
+            user_id = payload.get("sub")
+            if user_id is None:
+                await websocket.close(code=4403)
+                return
+            try:
+                user_id_int = int(str(user_id))
+            except (TypeError, ValueError):
+                await websocket.close(code=4403)
+                return
+            with Session(engine) as db:
+                user = db.exec(select(User).where(User.id == user_id_int)).first()
+            if not user or (not user.is_active) or (not user.is_admin):
+                await websocket.close(code=4403)
+                return
+        _ = _get_client()  # Ensure client is initialized for lifespan ownership.
         upstream_base = upstream_base_getter()
         if ":0/" in upstream_base or upstream_base.endswith(":0/admin"):
             await websocket.close(code=1011)

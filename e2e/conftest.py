@@ -32,19 +32,31 @@ def _wait_http_ok(url: str, *, timeout_s: float = 30.0) -> None:
     raise RuntimeError(f"Timed out waiting for {url} (last_err={last_err})")
 
 
-def _tail(proc: subprocess.Popen, *, max_lines: int = 200) -> str:
+def _tail_path(path: Path, *, max_lines: int = 200) -> str:
     try:
-        if proc.stdout is None:
+        if not path.exists():
             return ""
-        # Read whatever is available without blocking too long.
-        proc.stdout.flush()
-        data = proc.stdout.read()  # type: ignore[arg-type]
-        if not data:
-            return ""
-        lines = str(data).splitlines()
+        data = path.read_text(encoding="utf-8", errors="replace")
+        lines = data.splitlines()
         return "\n".join(lines[-max_lines:])
     except Exception:
         return ""
+
+
+def _wait_streamlit_ready(url: str, *, timeout_s: float = 45.0) -> None:
+    deadline = time.time() + timeout_s
+    last_err = None
+    while time.time() < deadline:
+        try:
+            r = requests.get(url, timeout=2)
+            if r.status_code == 200 and 'data-testid="stApp"' in r.text:
+                return
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+        time.sleep(0.25)
+    raise RuntimeError(
+        f"Timed out waiting for Streamlit at {url} (last_err={last_err})"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -82,15 +94,24 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     """
     Start backend + two Streamlit apps once per test session.
     """
+    run_id = f"{os.getpid()}-{int(time.time())}"
     backend_port = str(ports["backend"])
     admin_port = str(ports["admin"])
     user_port = str(ports["user"])
+
+    logs_dir = REPO_ROOT / "e2e" / "artifacts" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    backend_log = logs_dir / f"backend-{run_id}.log"
+    admin_log = logs_dir / f"admin-{run_id}.log"
+    user_log = logs_dir / f"user-{run_id}.log"
+
+    db_path = REPO_ROOT / "e2e" / f"e2e-{run_id}.db"
 
     env_backend = os.environ.copy()
     env_backend.update(
         {
             "ENVIRONMENT": "dev",
-            "DATABASE_URL": f"sqlite:///{(REPO_ROOT / 'e2e' / 'e2e.db').as_posix()}",
+            "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
             "PUBLIC_BASE_URL": f"http://127.0.0.1:{backend_port}",
             "JWT_SECRET": "e2e-secret-e2e-secret-e2e-secret-1234",
             "JWT_ALGORITHM": "HS256",
@@ -107,21 +128,43 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
         env=env_backend,
     )
 
-    backend = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--port",
-            backend_port,
-        ],
-        cwd=str(REPO_ROOT / "user_management_api"),
-        env=env_backend,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    def _start_uvicorn_with_retry() -> subprocess.Popen:
+        nonlocal backend_port
+        for _ in range(5):
+            backend_fp = backend_log.open("a", encoding="utf-8")
+            p = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "app.main:app",
+                    "--port",
+                    backend_port,
+                ],
+                cwd=str(REPO_ROOT / "user_management_api"),
+                env=env_backend,
+                stdout=backend_fp,
+                stderr=subprocess.STDOUT,
+            )
+            time.sleep(0.3)
+            if p.poll() is None:
+                return p
+            out = _tail_path(backend_log)
+            try:
+                backend_fp.close()
+            except Exception:
+                pass
+            if "Address already in use" in out:
+                backend_port = str(_free_port())
+                ports["backend"] = int(backend_port)
+                env_backend["PUBLIC_BASE_URL"] = f"http://127.0.0.1:{backend_port}"
+                continue
+            raise RuntimeError(f"backend process exited early.\n{out}")
+        raise RuntimeError(
+            f"backend failed to start after retries.\n{_tail_path(backend_log)}"
+        )
+
+    backend = _start_uvicorn_with_retry()
 
     # Wait for backend, then seed an admin user for the admin Streamlit app to login with.
     _wait_http_ok(f"http://127.0.0.1:{backend_port}/docs", timeout_s=45)
@@ -152,25 +195,58 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
         }
     )
 
-    admin = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "streamlit",
-            "run",
-            "app.py",
-            "--server.port",
-            admin_port,
-            "--server.headless",
-            "true",
-            "--server.fileWatcherType",
-            "none",
-        ],
-        cwd=str(REPO_ROOT / "user_management_api" / "admin_ui"),
+    def _start_streamlit_with_retry(
+        *, cwd: Path, env: dict, log_path: Path, port_key: str
+    ) -> subprocess.Popen:
+        nonlocal admin_port, user_port
+        for _ in range(5):
+            port = admin_port if port_key == "admin" else user_port
+            fp = log_path.open("a", encoding="utf-8")
+            p = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "streamlit",
+                    "run",
+                    "app.py",
+                    "--server.port",
+                    port,
+                    "--server.headless",
+                    "true",
+                    "--server.fileWatcherType",
+                    "none",
+                ],
+                cwd=str(cwd),
+                env=env,
+                stdout=fp,
+                stderr=subprocess.STDOUT,
+            )
+            time.sleep(0.3)
+            if p.poll() is None:
+                return p
+            out = _tail_path(log_path)
+            try:
+                fp.close()
+            except Exception:
+                pass
+            if "Port" in out and "is already in use" in out:
+                new_port = str(_free_port())
+                ports[port_key] = int(new_port)
+                if port_key == "admin":
+                    admin_port = new_port
+                else:
+                    user_port = new_port
+                continue
+            raise RuntimeError(f"{port_key} process exited early.\n{out}")
+        raise RuntimeError(
+            f"{port_key} failed to start after retries.\n{_tail_path(log_path)}"
+        )
+
+    admin = _start_streamlit_with_retry(
+        cwd=REPO_ROOT / "user_management_api" / "admin_ui",
         env=env_admin,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+        log_path=admin_log,
+        port_key="admin",
     )
 
     env_user = os.environ.copy()
@@ -182,34 +258,23 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
         }
     )
 
-    user = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "streamlit",
-            "run",
-            "app.py",
-            "--server.port",
-            user_port,
-            "--server.headless",
-            "true",
-            "--server.fileWatcherType",
-            "none",
-        ],
-        cwd=str(REPO_ROOT / "streamlit_user"),
+    user = _start_streamlit_with_retry(
+        cwd=REPO_ROOT / "streamlit_user",
         env=env_user,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+        log_path=user_log,
+        port_key="user",
     )
 
     try:
-        _wait_http_ok(f"http://127.0.0.1:{admin_port}/", timeout_s=45)
-        _wait_http_ok(f"http://127.0.0.1:{user_port}/", timeout_s=45)
+        _wait_streamlit_ready(f"http://127.0.0.1:{admin_port}/", timeout_s=60)
+        _wait_streamlit_ready(f"http://127.0.0.1:{user_port}/", timeout_s=60)
 
         for name, proc in [("backend", backend), ("admin", admin), ("user", user)]:
             if proc.poll() is not None:
-                raise RuntimeError(f"{name} process exited early.\n{_tail(proc)}")
+                log = {"backend": backend_log, "admin": admin_log, "user": user_log}[
+                    name
+                ]
+                raise RuntimeError(f"{name} process exited early.\n{_tail_path(log)}")
         yield
     finally:
         for p in (user, admin, backend):
@@ -220,6 +285,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
         for p in (user, admin, backend):
             if p.poll() is None:
                 p.kill()
+        # log file handles are owned by the OS; processes are terminated above.
 
 
 @pytest.fixture

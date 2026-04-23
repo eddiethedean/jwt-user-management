@@ -4,9 +4,12 @@ import os
 import socket
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import IO, Optional
+
+import httpx
 
 
 def _pick_free_port() -> int:
@@ -19,6 +22,7 @@ def _pick_free_port() -> int:
 class StreamlitSubprocess:
     process: subprocess.Popen
     port: int
+    log_file: Optional[IO[str]] = None
 
 
 _STATE: Optional[StreamlitSubprocess] = None
@@ -73,16 +77,38 @@ def start_streamlit_admin(
         base_path.lstrip("/"),
     ]
 
+    log_path = os.getenv("ADMIN_UI_LOG_FILE") or str(repo_root / "admin.nohup.log")
+    log_fp: Optional[IO[str]] = None
+    try:
+        log_fp = open(log_path, "a", encoding="utf-8")
+    except OSError:
+        log_fp = None
+
     proc = subprocess.Popen(
         cmd,
         cwd=str(repo_root),
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=log_fp or subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
-        text=True,
+        text=True if log_fp else False,
     )
 
-    _STATE = StreamlitSubprocess(process=proc, port=port)
+    _STATE = StreamlitSubprocess(process=proc, port=port, log_file=log_fp)
+
+    # Optional bounded readiness wait so the proxy doesn't immediately 502.
+    # Streamlit serves a lightweight health endpoint.
+    wait_s = float(os.getenv("ADMIN_UI_READY_WAIT_S") or 0) or 0.0
+    if wait_s > 0:
+        deadline = time.time() + wait_s
+        url = f"http://127.0.0.1:{port}/{base_path.lstrip('/')}/_stcore/health"
+        while time.time() < deadline and proc.poll() is None:
+            try:
+                r = httpx.get(url, timeout=1.0, follow_redirects=False)
+                if r.status_code == 200:
+                    break
+            except Exception:
+                pass
+            time.sleep(0.1)
     return _STATE
 
 
@@ -91,11 +117,22 @@ def stop_streamlit_admin() -> None:
     if not _STATE:
         return
     proc = _STATE.process
+    log_fp = _STATE.log_file
     _STATE = None
     if proc.poll() is not None:
+        if log_fp:
+            try:
+                log_fp.close()
+            except Exception:
+                pass
         return
     proc.terminate()
     try:
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
         proc.kill()
+    if log_fp:
+        try:
+            log_fp.close()
+        except Exception:
+            pass

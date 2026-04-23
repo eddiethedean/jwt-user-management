@@ -47,9 +47,22 @@ def upgrade() -> None:
 
     conn = op.get_bind()
 
+    user_table = sa.table(
+        sa.sql.quoted_name("user", quote=True),
+        sa.column("id", sa.Integer()),
+        sa.column("email", sa.String()),
+        sa.column("full_name", sa.String()),
+        sa.column("is_active", sa.Boolean()),
+        sa.column("is_admin", sa.Boolean()),
+        sa.column("permissions", sa.JSON()),
+        sa.column("email_verified", sa.Boolean()),
+        sa.column("ad_object_id", sa.String()),
+        sa.column("hashed_password", sa.String()),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+    )
+
     existing = conn.execute(
-        sa.text("SELECT id FROM user WHERE email = :email LIMIT 1"),
-        {"email": email},
+        sa.select(user_table.c.id).where(user_table.c.email == email).limit(1)
     ).fetchone()
     if existing:
         return
@@ -58,25 +71,17 @@ def upgrade() -> None:
     now = datetime.now(timezone.utc)
 
     conn.execute(
-        sa.text(
-            """
-            INSERT INTO user
-              (email, full_name, is_active, is_admin, permissions, email_verified, ad_object_id, hashed_password, created_at)
-            VALUES
-              (:email, :full_name, :is_active, :is_admin, :permissions, :email_verified, :ad_object_id, :hashed_password, :created_at)
-            """
-        ),
-        {
-            "email": email,
-            "full_name": full_name,
-            "is_active": True,
-            "is_admin": True,
-            "permissions": "[]",
-            "email_verified": True,
-            "ad_object_id": None,
-            "hashed_password": hashed,
-            "created_at": now,
-        },
+        user_table.insert().values(
+            email=email,
+            full_name=full_name,
+            is_active=True,
+            is_admin=True,
+            permissions=[],
+            email_verified=True,
+            ad_object_id=None,
+            hashed_password=hashed,
+            created_at=now,
+        )
     )
 
 
