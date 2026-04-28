@@ -152,7 +152,8 @@ class BasePathMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         debug = _debug_enabled()
         if debug and scope["type"] in {"http", "websocket"}:
-            log.warning(
+            # Workbench deployments sometimes filter WARNING logs; emit at INFO when debugging.
+            log.info(
                 "Incoming scope: type=%s method=%r scheme=%r root_path=%r path=%r raw_path=%r query_string=%r headers_host=%r headers_x_forwarded_proto=%r",
                 scope["type"],
                 scope.get("method"),
@@ -199,7 +200,7 @@ class BasePathMiddleware:
             scope = dict(scope)
             scope["root_path"] = (scope.get("root_path") or "") + forwarded_prefix
             if debug:
-                log.warning(
+                log.info(
                     "Applied X-Forwarded-Prefix to root_path: forwarded_prefix=%r new_root_path=%r path=%r",
                     forwarded_prefix,
                     scope.get("root_path") or "",
@@ -236,7 +237,7 @@ class BasePathMiddleware:
         # Keep raw_path consistent for downstream apps (e.g., StaticFiles).
         new_scope["raw_path"] = (new_scope["path"] or "/").encode()
         if debug:
-            log.warning(
+            log.info(
                 "BASE_PATH applied: prefix=%r old_root_path=%r old_path=%r new_root_path=%r new_path=%r",
                 prefix,
                 scope.get("root_path") or "",
