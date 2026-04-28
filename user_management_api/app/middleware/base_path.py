@@ -132,6 +132,8 @@ def _maybe_decode_workbench_absolute_url(scope: Scope) -> Scope:
         if override_rp and not base_rp.endswith(override_rp):
             new_scope["root_path"] = base_rp + override_rp
     new_scope["path"] = decoded_path or "/"
+    # Keep raw_path consistent with path for downstream routing/tools.
+    new_scope["raw_path"] = (new_scope["path"] or "/").encode()
     new_scope["query_string"] = (parsed.query or "").encode()
 
     if _debug_enabled():
