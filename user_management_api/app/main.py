@@ -6,6 +6,7 @@ from app.api.routes_invites import router as invites_router
 from app.api.routes_password import router as password_router
 from app.api.routes_users import router as users_router
 from app.core.config import settings
+from app.middleware.base_path import BasePathMiddleware
 from app.middleware.rate_limit import InMemoryRateLimitMiddleware, RateLimitRule
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -41,6 +42,10 @@ app.add_middleware(
         ("POST", "/invites/accept"): RateLimitRule(window_seconds=60, max_requests=10),
     },
 )
+
+if settings.base_path or settings.base_path_debug:
+    # Add BasePathMiddleware last so it executes first.
+    app.add_middleware(BasePathMiddleware, base_path=settings.base_path)
 
 
 app.include_router(auth_router)
