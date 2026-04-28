@@ -9,6 +9,7 @@ from app.middleware.security_headers import (
     should_set_csp,
 )
 
+
 def _parse_csp(csp: str) -> dict[str, str]:
     parts = [p.strip() for p in (csp or "").split(";") if p.strip()]
     out: dict[str, str] = {}

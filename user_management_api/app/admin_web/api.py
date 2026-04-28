@@ -18,6 +18,7 @@ from app.schemas.invites import InviteCreateResponse
 
 router = APIRouter(prefix="/admin/api", tags=["admin-web-api"])
 
+
 def _admin_user_dict(u: User) -> dict[str, Any]:
     return {
         "id": u.id,

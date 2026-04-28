@@ -6,6 +6,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from urllib.parse import unquote, urlparse
 import logging
 import os
+from typing import Optional
+import re
 
 
 # Use uvicorn's logger so messages reliably appear in uvicorn output.
@@ -16,16 +18,33 @@ def _debug_enabled() -> bool:
     return os.getenv("BASE_PATH_DEBUG", "").lower() in ("1", "true", "yes")
 
 
+_SAFE_PREFIX_RE = re.compile(r"^(/[A-Za-z0-9._~-]+)*$")
+
+
 def _normalize_prefix(prefix: str) -> str:
     p = (prefix or "").strip()
     if not p:
         return ""
     if not p.startswith("/"):
         p = "/" + p
+    # Reject dangerous prefixes like '//' (scheme-relative) or invalid characters.
+    if p.startswith("//") or not _SAFE_PREFIX_RE.fullmatch(p):
+        return ""
     # no trailing slash (except root)
     if len(p) > 1 and p.endswith("/"):
         p = p[:-1]
     return p
+
+
+def _header(scope: Scope, name: bytes) -> Optional[str]:
+    headers = dict(scope.get("headers") or [])
+    raw = headers.get(name)
+    if raw is None:
+        return None
+    try:
+        return raw.decode(errors="replace")
+    except Exception:
+        return None
 
 
 def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
@@ -126,6 +145,33 @@ class BasePathMiddleware:
 
         scope = _maybe_decode_encoded_absolute_url(scope)
         prefix = _normalize_prefix(self.base_path)
+
+        # Some proxies strip the prefix before proxying but communicate it via
+        # X-Forwarded-Prefix. If present, we treat it as an external root_path
+        # for URL generation and template base-path injection.
+        forwarded_prefix = _normalize_prefix(
+            _header(scope, b"x-forwarded-prefix") or ""
+        )
+        # Avoid applying root_path for static assets; they don't need URL generation
+        # and some frameworks behave differently when root_path is non-empty.
+        path_for_prefix = scope.get("path") or ""
+        should_apply_forwarded_prefix = bool(
+            forwarded_prefix
+            and path_for_prefix
+            and not path_for_prefix.startswith("/static")
+        )
+        if should_apply_forwarded_prefix and not (
+            scope.get("root_path") or ""
+        ).endswith(forwarded_prefix):
+            scope = dict(scope)
+            scope["root_path"] = (scope.get("root_path") or "") + forwarded_prefix
+            if debug:
+                log.warning(
+                    "Applied X-Forwarded-Prefix to root_path: forwarded_prefix=%r new_root_path=%r path=%r",
+                    forwarded_prefix,
+                    scope.get("root_path") or "",
+                    scope.get("path") or "",
+                )
         if not prefix or scope["type"] not in {"http", "websocket"}:
             await self.app(scope, receive, send)
             return
@@ -148,6 +194,8 @@ class BasePathMiddleware:
         new_scope = dict(scope)
         new_scope["root_path"] = (scope.get("root_path") or "") + prefix
         new_scope["path"] = new_path or "/"
+        # Keep raw_path consistent for downstream apps (e.g., StaticFiles).
+        new_scope["raw_path"] = (new_scope["path"] or "/").encode()
         if debug:
             log.warning(
                 "BASE_PATH applied: prefix=%r old_root_path=%r old_path=%r new_root_path=%r new_path=%r",

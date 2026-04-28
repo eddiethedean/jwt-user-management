@@ -99,3 +99,33 @@ uvicorn app.main:app --port 8001 --proxy-headers --forwarded-allow-ips='*'
 Then the admin UI will be available at:
 
 - `https://workbench.socom.mil/s/e886e3c9ab5a7f3d86cf3/p/0da13bad/admin`
+
+### Local Connect-like proxy setup (nginx)
+
+If you want to reproduce “served under a prefix behind a proxy” locally (similar to Posit Connect),
+there is a small nginx proxy config under `infra/connect-proxy/`.
+
+Example (backend running on port 8000; proxy serves under `/connect/app` on port 8080):
+
+```bash
+BACKEND_HOST=host.docker.internal \
+BACKEND_PORT=8000 \
+PROXY_PREFIX=/connect/app \
+PROXY_MODE=preserve \
+PROXY_PORT=8080 \
+docker compose -f infra/connect-proxy/docker-compose.yml up
+```
+
+Then access:
+- `http://127.0.0.1:8080/connect/app/docs`
+- `http://127.0.0.1:8080/connect/app/admin/`
+
+In this mode, set the backend env vars consistently:
+- `BASE_PATH=/connect/app`
+- `PUBLIC_BASE_URL=http://127.0.0.1:8080/connect/app` (so generated links include the prefix)
+
+If your proxy strips the prefix before proxying (common in some setups), run with:
+- `PROXY_MODE=strip` (nginx strips prefix and sets `X-Forwarded-Prefix`)
+
+Your backend should still have:
+- `BASE_PATH=/connect/app` (for cookie path scoping and template URL generation)

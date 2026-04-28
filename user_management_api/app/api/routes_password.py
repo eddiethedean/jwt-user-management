@@ -36,6 +36,19 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _norm_email(v: str) -> str:
+    return (v or "").strip().lower()
+
+
+def _public_url(path: str) -> str:
+    base: str = (settings.public_base_url or "http://localhost:8000").rstrip("/")
+    bp: str = (settings.base_path or "").rstrip("/")
+    p = (path or "").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    return f"{base}{bp}{p}"
+
+
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
@@ -51,7 +64,7 @@ def forgot_password(
     Always returns ok=True to avoid account enumeration.
     If the user exists, a reset email is sent with a single-use token link.
     """
-    email = str(payload.email)
+    email = _norm_email(str(payload.email))
     user: Optional[User] = db.exec(select(User).where(User.email == email)).first()
     if not user or not user.is_active:
         return ForgotPasswordResponse(ok=True)
@@ -65,8 +78,7 @@ def forgot_password(
     db.add(prt)
     db.commit()
 
-    base: str = (settings.public_base_url or "http://localhost:8000").rstrip("/")
-    reset_url: str = f"{base}/password/reset?token={token}"
+    reset_url: str = _public_url(f"/password/reset?token={token}")
     send_password_reset_email(to_email=email, reset_url=reset_url)
     return ForgotPasswordResponse(ok=True)
 
@@ -152,7 +164,12 @@ def reset_password_form(
         return templates.TemplateResponse(
             request,
             "reset_password.html",
-            {"request": request, "token": token, "error": e.detail, "base_path": base_path},
+            {
+                "request": request,
+                "token": token,
+                "error": e.detail,
+                "base_path": base_path,
+            },
             status_code=e.status_code,
         )
     return templates.TemplateResponse(

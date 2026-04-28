@@ -17,6 +17,10 @@ from app.models.user import User, UserCreate, UserPublic, UserUpdate
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def _norm_email(v: str) -> str:
+    return (v or "").strip().lower()
+
+
 def _require_admin_or_key(
     current_admin: Optional[User], x_admin_api_key: Optional[str]
 ) -> None:
@@ -52,9 +56,8 @@ def create_user(
 ) -> User:
     _require_admin_or_key(current_admin, x_admin_api_key)
 
-    existing: Optional[User] = db.exec(
-        select(User).where(User.email == payload.email)
-    ).first()
+    email = _norm_email(payload.email)
+    existing: Optional[User] = db.exec(select(User).where(User.email == email)).first()
     if existing:
         raise HTTPException(status_code=409, detail="Email already exists")
 
@@ -62,7 +65,7 @@ def create_user(
     if not raw_password:
         raise HTTPException(status_code=422, detail="Password is required")
     user = User(
-        email=payload.email,
+        email=email,
         full_name=payload.full_name,
         hashed_password=hash_password(raw_password),
         is_admin=payload.is_admin,

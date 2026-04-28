@@ -38,6 +38,19 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _norm_email(v: str) -> str:
+    return (v or "").strip().lower()
+
+
+def _public_url(path: str) -> str:
+    base = (settings.public_base_url or "http://localhost:8000").rstrip("/")
+    bp = (settings.base_path or "").rstrip("/")
+    p = (path or "").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    return f"{base}{bp}{p}"
+
+
 def _as_utc(dt: datetime) -> datetime:
     # SQLite often returns naive datetimes even if you store tz-aware.
     if dt.tzinfo is None:
@@ -60,6 +73,7 @@ async def create_invite(
     else:
         raise HTTPException(status_code=403, detail="Admin required")
 
+    email = _norm_email(payload.email)
     azure_enabled = bool(
         settings.azure_tenant_id
         and settings.azure_client_id
@@ -78,7 +92,7 @@ async def create_invite(
     expires_at: datetime = now + timedelta(days=7)
 
     invite = InviteToken(
-        email=payload.email,
+        email=email,
         full_name=payload.full_name,
         is_admin=payload.is_admin,
         permissions=payload.permissions,
@@ -90,8 +104,7 @@ async def create_invite(
     db.commit()
     db.refresh(invite)
 
-    base: str = (settings.public_base_url or "http://localhost:8000").rstrip("/")
-    invite_url: str = f"{base}/invites/accept?token={token}"
+    invite_url: str = _public_url(f"/invites/accept?token={token}")
     send_invite_email(to_email=payload.email, invite_url=invite_url)
 
     return InviteCreateResponse(ok=True, invite_url=invite_url, expires_at=expires_at)
@@ -133,7 +146,9 @@ async def _accept_invite(
             raise HTTPException(status_code=400, detail="Invite expired")
         raise HTTPException(status_code=400, detail="Invite could not be accepted")
 
-    ad_user: Optional[AzureADUser] = await validate_email_in_tenant(invite.email)
+    ad_user: Optional[AzureADUser] = await validate_email_in_tenant(
+        _norm_email(invite.email)
+    )
     azure_enabled = bool(
         settings.azure_tenant_id
         and settings.azure_client_id
@@ -151,7 +166,7 @@ async def _accept_invite(
         email_verified: bool = True if ad_user else False
 
     user: Optional[User] = db.exec(
-        select(User).where(User.email == invite.email)
+        select(User).where(User.email == _norm_email(invite.email))
     ).first()
     if user:
         user.hashed_password = hash_password(password)
@@ -162,7 +177,7 @@ async def _accept_invite(
         user.ad_object_id = ad_object_id
     else:
         user = User(
-            email=invite.email,
+            email=_norm_email(invite.email),
             full_name=full_name or invite.full_name,
             hashed_password=hash_password(password),
             is_active=True,
@@ -220,7 +235,12 @@ async def accept_invite_form(
         return templates.TemplateResponse(
             request,
             "accept_invite.html",
-            {"request": request, "token": token, "error": e.detail, "base_path": base_path},
+            {
+                "request": request,
+                "token": token,
+                "error": e.detail,
+                "base_path": base_path,
+            },
             status_code=e.status_code,
         )
     return templates.TemplateResponse(

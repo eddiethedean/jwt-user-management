@@ -68,9 +68,7 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
     def _key(self, request: Request, rule: RateLimitRule) -> str:
         ip = self._client_ip(request)
         path = _normalize_path(request.url.path)
-        return (
-            f"{ip}:{request.method}:{path}:{rule.window_seconds}:{rule.max_requests}"
-        )
+        return f"{ip}:{request.method}:{path}:{rule.window_seconds}:{rule.max_requests}"
 
     def _allow(self, key: str, rule: RateLimitRule) -> Tuple[bool, int]:
         now = time.time()

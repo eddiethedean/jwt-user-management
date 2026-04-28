@@ -22,6 +22,7 @@ templates = Jinja2Templates(
 
 router = APIRouter(prefix="/admin", tags=["admin-web"])
 
+
 def _base_path(request: Request) -> str:
     return str(request.scope.get("root_path") or "").rstrip("/")
 
@@ -98,7 +99,9 @@ def logout_submit(
 @router.get("/", response_class=HTMLResponse)
 def index_page(request: Request, db: Session = Depends(get_db)) -> Response:
     if not get_admin_session_user_id(request):
-        return RedirectResponse(url=_admin_url(request, "/admin/login"), status_code=303)
+        return RedirectResponse(
+            url=_admin_url(request, "/admin/login"), status_code=303
+        )
     # Validate admin exists/is active.
     require_admin_session(request=request, db=db)
     return templates.TemplateResponse(

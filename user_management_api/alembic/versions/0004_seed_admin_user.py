@@ -70,19 +70,24 @@ def upgrade() -> None:
     hashed = hash_password(password)
     now = datetime.now(timezone.utc)
 
-    conn.execute(
-        user_table.insert().values(
-            email=email,
-            full_name=full_name,
-            is_active=True,
-            is_admin=True,
-            permissions=[],
-            email_verified=True,
-            ad_object_id=None,
-            hashed_password=hashed,
-            created_at=now,
+    try:
+        conn.execute(
+            user_table.insert().values(
+                email=email,
+                full_name=full_name,
+                is_active=True,
+                is_admin=True,
+                permissions=[],
+                email_verified=True,
+                ad_object_id=None,
+                hashed_password=hashed,
+                created_at=now,
+            )
         )
-    )
+    except Exception:
+        # If concurrent migrations attempt to seed the same email, the unique constraint
+        # may trigger; treat that as already seeded.
+        return
 
 
 def downgrade() -> None:

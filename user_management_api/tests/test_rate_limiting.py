@@ -13,7 +13,9 @@ def _make_rate_limited_client(*, base_path: str = "") -> TestClient:
         enabled=True,
         trust_proxy_headers=False,
         rules={
-            ("POST", "/password/forgot"): RateLimitRule(window_seconds=60, max_requests=5),
+            ("POST", "/password/forgot"): RateLimitRule(
+                window_seconds=60, max_requests=5
+            ),
         },
     )
 
@@ -75,7 +77,9 @@ def test_rate_limit_key_uses_xff_when_trust_proxy_headers_enabled():
         enabled=True,
         trust_proxy_headers=True,
         rules={
-            ("POST", "/password/forgot"): RateLimitRule(window_seconds=60, max_requests=1),
+            ("POST", "/password/forgot"): RateLimitRule(
+                window_seconds=60, max_requests=1
+            ),
         },
     )
 

@@ -13,14 +13,18 @@ from app.schemas.auth import TokenResponse
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _norm_email(v: str) -> str:
+    # Normalize user identifiers for consistent lookups.
+    return (v or "").strip().lower()
+
+
 @router.post("/token", response_model=TokenResponse)
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    user: Optional[User] = db.exec(
-        select(User).where(User.email == form_data.username)
-    ).first()
+    username = _norm_email(form_data.username)
+    user: Optional[User] = db.exec(select(User).where(User.email == username)).first()
     if (
         not user
         or not user.is_active

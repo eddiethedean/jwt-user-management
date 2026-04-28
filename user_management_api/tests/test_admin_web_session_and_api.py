@@ -43,7 +43,11 @@ def test_admin_api_requires_csrf_on_state_change(client, admin_user):
     csrf_login = _extract_csrf(r0.text)
     r = client.post(
         "/admin/login",
-        data={"csrf_token": csrf_login, "email": admin_user.email, "password": "password123"},
+        data={
+            "csrf_token": csrf_login,
+            "email": admin_user.email,
+            "password": "password123",
+        },
         follow_redirects=False,
     )
     assert r.status_code in (302, 303)
@@ -76,7 +80,11 @@ def test_admin_logout_requires_csrf(client, admin_user):
     csrf_login = _extract_csrf(r0.text)
     r = client.post(
         "/admin/login",
-        data={"csrf_token": csrf_login, "email": admin_user.email, "password": "password123"},
+        data={
+            "csrf_token": csrf_login,
+            "email": admin_user.email,
+            "password": "password123",
+        },
         follow_redirects=False,
     )
     assert r.status_code in (302, 303)
@@ -108,7 +116,11 @@ def test_admin_patch_requires_csrf_and_does_not_leak_password_hash(
     csrf_login = _extract_csrf(r0.text)
     r = client.post(
         "/admin/login",
-        data={"csrf_token": csrf_login, "email": admin_user.email, "password": "password123"},
+        data={
+            "csrf_token": csrf_login,
+            "email": admin_user.email,
+            "password": "password123",
+        },
         follow_redirects=False,
     )
     assert r.status_code in (302, 303)
@@ -137,7 +149,11 @@ def test_admin_login_rejects_non_admin_user(client, admin_user, normal_user):
     csrf_login = _extract_csrf(r0.text)
     r = client.post(
         "/admin/login",
-        data={"csrf_token": csrf_login, "email": normal_user.email, "password": "password123"},
+        data={
+            "csrf_token": csrf_login,
+            "email": normal_user.email,
+            "password": "password123",
+        },
         follow_redirects=False,
     )
     assert r.status_code == 400
@@ -157,7 +173,11 @@ def test_admin_login_rejects_inactive_admin(client, admin_user, db_session):
     csrf_login = _extract_csrf(r0.text)
     r = client.post(
         "/admin/login",
-        data={"csrf_token": csrf_login, "email": admin_user.email, "password": "password123"},
+        data={
+            "csrf_token": csrf_login,
+            "email": admin_user.email,
+            "password": "password123",
+        },
         follow_redirects=False,
     )
     assert r.status_code == 400
@@ -174,7 +194,9 @@ def test_admin_api_rejects_session_user_id_wrong_type():
     from starlette.middleware.sessions import SessionMiddleware
 
     app = FastAPI()
-    app.add_middleware(SessionMiddleware, secret_key="test-session-secret-please-change")
+    app.add_middleware(
+        SessionMiddleware, secret_key="test-session-secret-please-change"
+    )
     app.add_middleware(SecurityHeadersMiddleware)
     app.include_router(admin_api_router)
 
@@ -206,7 +228,9 @@ def test_admin_base_path_redirects_include_prefix(admin_user):
 
     # Minimal app with BASE_PATH to validate redirect Location includes prefix.
     app = FastAPI()
-    app.add_middleware(SessionMiddleware, secret_key="test-session-secret-please-change")
+    app.add_middleware(
+        SessionMiddleware, secret_key="test-session-secret-please-change"
+    )
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(BasePathMiddleware, base_path="/bp")
     app.include_router(admin_router)
