@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from pathlib import Path
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
+from starlette.requests import Request
 
 from app.api.routes_auth import router as auth_router
 from app.api.routes_invites import router as invites_router
@@ -15,7 +18,10 @@ from app.admin_web.router import router as admin_web_router
 from app.admin_web.api import router as admin_web_api_router
 
 
-app = FastAPI(title="JWT User Management API")
+# Workbench can route /docs to the app but send /openapi.json elsewhere if the
+# proxy/prefix mapping differs. We provide a docs-local openapi endpoint so the
+# Swagger UI fetch stays under /docs/*.
+app = FastAPI(title="JWT User Management API", docs_url=None)
 
 _env = (settings.environment or "prod").lower()
 _cookie_path = (settings.base_path or "").rstrip("/") + "/admin"
@@ -57,3 +63,18 @@ app.include_router(admin_web_router)
 app.include_router(admin_web_api_router)
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+def docs(request: Request) -> HTMLResponse:
+    # Use a relative OpenAPI URL so the browser fetch goes to /docs/openapi.json
+    # under the same proxy mapping as /docs.
+    return get_swagger_ui_html(
+        openapi_url="openapi.json",
+        title=f"{app.title} - Swagger UI",
+    )
+
+
+@app.get("/docs/openapi.json", include_in_schema=False)
+def docs_openapi() -> dict:
+    return app.openapi()
