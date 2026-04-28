@@ -72,7 +72,6 @@ def _wait_streamlit_ready(url: str, *, timeout_s: float = 45.0) -> None:
 def ports():
     return {
         "backend": _free_port(),
-        "admin": _free_port(),
         "user": _free_port(),
     }
 
@@ -93,7 +92,7 @@ def backend_admin_api_key():
 def app_urls(ports):
     return {
         "backend": f"http://127.0.0.1:{ports['backend']}",
-        "admin": f"http://127.0.0.1:{ports['admin']}",
+        "admin": f"http://127.0.0.1:{ports['backend']}/admin",
         "user": f"http://127.0.0.1:{ports['user']}",
     }
 
@@ -101,17 +100,15 @@ def app_urls(ports):
 @pytest.fixture(scope="session", autouse=True)
 def run_apps(ports, admin_credentials, backend_admin_api_key):
     """
-    Start backend + two Streamlit apps once per test session.
+    Start backend + Streamlit user app once per test session.
     """
     run_id = f"{os.getpid()}-{int(time.time())}"
     backend_port = str(ports["backend"])
-    admin_port = str(ports["admin"])
     user_port = str(ports["user"])
 
     logs_dir = REPO_ROOT / "e2e" / "artifacts" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     backend_log = logs_dir / f"backend-{run_id}.log"
-    admin_log = logs_dir / f"admin-{run_id}.log"
     user_log = logs_dir / f"user-{run_id}.log"
 
     global _E2E_DB_PATH  # noqa: PLW0603
@@ -196,22 +193,12 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     if r_seed.status_code not in (200, 409):
         raise RuntimeError(f"seed admin failed: {r_seed.status_code} {r_seed.text}")
 
-    env_admin = os.environ.copy()
-    env_admin.update(
-        {
-            "BACKEND_URL": f"http://127.0.0.1:{backend_port}",
-            "BACKEND_ADMIN_API_KEY": backend_admin_api_key,
-            "STREAMLIT_TEST_MODE": "",
-            "DEBUG": "false",
-        }
-    )
-
     def _start_streamlit_with_retry(
         *, cwd: Path, env: dict, log_path: Path, port_key: str
     ) -> subprocess.Popen:
-        nonlocal admin_port, user_port
+        nonlocal user_port
         for _ in range(5):
-            port = admin_port if port_key == "admin" else user_port
+            port = user_port
             fp = log_path.open("a", encoding="utf-8")
             p = subprocess.Popen(
                 [
@@ -243,22 +230,12 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             if "Port" in out and "is already in use" in out:
                 new_port = str(_free_port())
                 ports[port_key] = int(new_port)
-                if port_key == "admin":
-                    admin_port = new_port
-                else:
-                    user_port = new_port
+                user_port = new_port
                 continue
             raise RuntimeError(f"{port_key} process exited early.\n{out}")
         raise RuntimeError(
             f"{port_key} failed to start after retries.\n{_tail_path(log_path)}"
         )
-
-    admin = _start_streamlit_with_retry(
-        cwd=REPO_ROOT / "user_management_api" / "admin_ui",
-        env=env_admin,
-        log_path=admin_log,
-        port_key="admin",
-    )
 
     env_user = os.environ.copy()
     env_user.update(
@@ -277,23 +254,20 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     )
 
     try:
-        _wait_streamlit_ready(f"http://127.0.0.1:{admin_port}/", timeout_s=60)
         _wait_streamlit_ready(f"http://127.0.0.1:{user_port}/", timeout_s=60)
 
-        for name, proc in [("backend", backend), ("admin", admin), ("user", user)]:
+        for name, proc in [("backend", backend), ("user", user)]:
             if proc.poll() is not None:
-                log = {"backend": backend_log, "admin": admin_log, "user": user_log}[
-                    name
-                ]
+                log = {"backend": backend_log, "user": user_log}[name]
                 raise RuntimeError(f"{name} process exited early.\n{_tail_path(log)}")
         yield
     finally:
-        for p in (user, admin, backend):
+        for p in (user, backend):
             if p.poll() is None:
                 p.terminate()
         # Best-effort drain and kill.
         time.sleep(0.5)
-        for p in (user, admin, backend):
+        for p in (user, backend):
             if p.poll() is None:
                 p.kill()
         # log file handles are owned by the OS; processes are terminated above.

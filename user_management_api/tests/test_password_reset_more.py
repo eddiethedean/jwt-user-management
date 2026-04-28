@@ -19,6 +19,25 @@ def test_forgot_password_inactive_user_is_non_enumerating(
     assert r.json()["ok"] is True
 
 
+def test_password_reset_html_form_action_includes_base_path():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.routes_password import router as password_router
+    from app.middleware.base_path import BasePathMiddleware
+    from app.middleware.security_headers import SecurityHeadersMiddleware
+
+    app = FastAPI()
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(BasePathMiddleware, base_path="/bp")
+    app.include_router(password_router)
+    c = TestClient(app)
+
+    page = c.get("/bp/password/reset", params={"token": "x"})
+    assert page.status_code == 200
+    assert 'action="/bp/password/reset-form"' in page.text
+
+
 def test_reset_password_token_not_found(client):
     r = client.post("/password/reset", json={"token": "nope", "password": "X"})
     assert r.status_code == 404

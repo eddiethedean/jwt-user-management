@@ -9,8 +9,25 @@ from app.middleware.security_headers import (
     should_set_csp,
 )
 
+def _parse_csp(csp: str) -> dict[str, str]:
+    parts = [p.strip() for p in (csp or "").split(";") if p.strip()]
+    out: dict[str, str] = {}
+    for p in parts:
+        if " " in p:
+            k, v = p.split(" ", 1)
+            out[k.strip()] = v.strip()
+        else:
+            out[p] = ""
+    return out
 
-def test_admin_csp_is_streamlit_compatible():
+
+def _assert_no_unsafe(d: dict[str, str]) -> None:
+    v = " ".join(d.values())
+    assert "'unsafe-inline'" not in v
+    assert "'unsafe-eval'" not in v
+
+
+def test_admin_csp_allows_static_js_and_fetch():
     app = FastAPI()
     app.add_middleware(SecurityHeadersMiddleware)
 
@@ -22,10 +39,11 @@ def test_admin_csp_is_streamlit_compatible():
     r = c.get("/admin/health")
     assert r.status_code == 200
     csp = r.headers.get("Content-Security-Policy") or ""
-    assert "script-src" in csp
-    assert "connect-src" in csp
-    assert "ws:" in csp
-    assert csp == csp_for_admin()
+    d = _parse_csp(csp)
+    assert d == _parse_csp(csp_for_admin())
+    assert "script-src" in d
+    assert "connect-src" in d
+    _assert_no_unsafe(d)
 
 
 def test_non_admin_html_csp_stays_strict():
@@ -40,8 +58,11 @@ def test_non_admin_html_csp_stays_strict():
     r = c.get("/password/reset")
     assert r.status_code == 200
     csp = r.headers.get("Content-Security-Policy") or ""
-    assert csp.startswith("default-src 'none'")
-    assert csp == csp_for_html_forms()
+    d = _parse_csp(csp)
+    assert d.get("default-src") == "'none'"
+    assert d == _parse_csp(csp_for_html_forms())
+    # Non-admin form pages intentionally allow inline styles.
+    assert "'unsafe-inline'" in d.get("style-src", "")
 
 
 def test_should_set_csp_skips_json():

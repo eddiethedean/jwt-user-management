@@ -8,7 +8,10 @@ from sqlmodel import Session, SQLModel, create_engine
 
 # Ensure the backend package root is importable (so `import app...` works)
 os.environ.setdefault("PYTHONPATH", os.getcwd())
+os.environ.setdefault("ENVIRONMENT", "dev")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-please-change")
+os.environ.setdefault("SESSION_SECRET", "test-session-secret-please-change")
+os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 
 from app.api.deps import get_db
 from app.core.security import hash_password

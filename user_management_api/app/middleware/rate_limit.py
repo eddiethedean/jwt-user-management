@@ -22,6 +22,13 @@ def _first_forwarded_for(xff: str) -> Optional[str]:
     return parts[0] if parts else None
 
 
+def _normalize_path(path: str) -> str:
+    p = str(path or "")
+    if p != "/" and p.endswith("/"):
+        p = p[:-1]
+    return p or "/"
+
+
 class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
     """
     Simple in-memory rate limiting middleware.
@@ -60,7 +67,10 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
 
     def _key(self, request: Request, rule: RateLimitRule) -> str:
         ip = self._client_ip(request)
-        return f"{ip}:{request.method}:{request.url.path}:{rule.window_seconds}:{rule.max_requests}"
+        path = _normalize_path(request.url.path)
+        return (
+            f"{ip}:{request.method}:{path}:{rule.window_seconds}:{rule.max_requests}"
+        )
 
     def _allow(self, key: str, rule: RateLimitRule) -> Tuple[bool, int]:
         now = time.time()
@@ -85,7 +95,8 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
         if not self._enabled:
             return await call_next(request)
 
-        rule = self._rules.get((request.method.upper(), request.url.path))
+        path = _normalize_path(request.url.path)
+        rule = self._rules.get((request.method.upper(), path))
         if not rule:
             return await call_next(request)
 

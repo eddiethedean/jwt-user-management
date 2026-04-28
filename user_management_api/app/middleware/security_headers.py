@@ -10,14 +10,14 @@ def should_set_csp(content_type: str) -> bool:
 
 
 def csp_for_admin() -> str:
-    # Streamlit uses JS bundles + websocket connections under the same origin.
+    # HTML/JS admin UI: external static JS/CSS + same-origin fetch.
     return (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "style-src 'self'; "
         "img-src 'self' data: blob:; "
         "font-src 'self' data:; "
-        "connect-src 'self' ws: wss:; "
+        "connect-src 'self'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'; "
         "object-src 'none'"

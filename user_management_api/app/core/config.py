@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # Optional: extra request logging for BASE_PATH routing/debugging.
     base_path_debug: bool = False
 
+    # Session cookie secret for admin web UI (required when enabling admin web sessions).
+    # In dev you can set a simple value; in prod use a strong random secret.
+    session_secret: str = "change-me-session"
+
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60
@@ -74,6 +78,20 @@ class Settings(BaseSettings):
             if v.lower() in {"change-me", "change-me-too"} or len(v) < 24:
                 raise ValueError(
                     "ADMIN_API_KEY must be a strong secret (>=24 chars) outside dev"
+                )
+        return v
+
+    @field_validator("session_secret")
+    @classmethod
+    def _validate_session_secret(cls, v: str, info):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("SESSION_SECRET must be set")
+        env = (info.data.get("environment") or "prod").lower()
+        if env != "dev":
+            if v.lower() in {"change-me-session", "change-me"} or len(v) < 24:
+                raise ValueError(
+                    "SESSION_SECRET must be a strong secret (>=24 chars) outside dev"
                 )
         return v
 

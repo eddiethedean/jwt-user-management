@@ -1,10 +1,6 @@
-from contextlib import asynccontextmanager
-
-import httpx
 from fastapi import FastAPI
+from pathlib import Path
 
-from app.admin_proxy import create_admin_proxy_router
-from app.admin_streamlit import start_streamlit_admin, stop_streamlit_admin
 from app.api.routes_auth import router as auth_router
 from app.api.routes_invites import router as invites_router
 from app.api.routes_password import router as password_router
@@ -13,50 +9,26 @@ from app.core.config import settings
 from app.middleware.base_path import BasePathMiddleware
 from app.middleware.rate_limit import InMemoryRateLimitMiddleware, RateLimitRule
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
+from app.admin_web.router import router as admin_web_router
+from app.admin_web.api import router as admin_web_api_router
 
 
-def mount_admin_ui(app: FastAPI) -> None:
-    # Serve Streamlit admin UI under /admin (HTTP + websocket reverse proxy).
-    def _admin_upstream_base() -> str:
-        port = int(getattr(app.state, "admin_ui_port", 0) or 0)
-        base_path = (getattr(app.state, "admin_ui_base_path", "") or "").strip("/")
-        if base_path:
-            return f"http://127.0.0.1:{port}/{base_path}"
-        return f"http://127.0.0.1:{port}/admin"
+app = FastAPI(title="JWT User Management API")
 
-    app.include_router(
-        create_admin_proxy_router(
-            upstream_base_getter=_admin_upstream_base,
-            client_getter=lambda: app.state.admin_proxy_client,
-        ),
-        prefix="/admin",
-    )
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.admin_proxy_client = httpx.AsyncClient(
-        follow_redirects=False, timeout=30.0
-    )
-    backend_url = settings.public_base_url.rstrip("/") or "http://127.0.0.1:8000"
-    # When served behind an external prefix (e.g. Workbench), Streamlit must be started
-    # with a baseUrlPath that includes the prefix so its absolute asset paths resolve.
-    base_prefix = (settings.base_path or "").strip("/")
-    base_path = f"{base_prefix}/admin" if base_prefix else "admin"
-    app.state.admin_ui_base_path = base_path
-    ui = start_streamlit_admin(backend_url=backend_url, base_path=base_path)
-    app.state.admin_ui_port = ui.port
-    try:
-        yield
-    finally:
-        stop_streamlit_admin()
-        await app.state.admin_proxy_client.aclose()
-
-
-app = FastAPI(title="JWT User Management API", lifespan=lifespan)
-
-if settings.base_path or settings.base_path_debug:
-    app.add_middleware(BasePathMiddleware, base_path=settings.base_path)
+_env = (settings.environment or "prod").lower()
+_cookie_path = (settings.base_path or "").rstrip("/") + "/admin"
+if not _cookie_path.startswith("/"):
+    _cookie_path = "/" + _cookie_path
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    session_cookie="admin_session",
+    https_only=(_env != "dev"),
+    same_site="lax",
+    path=_cookie_path,
+)
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
@@ -71,10 +43,18 @@ app.add_middleware(
     },
 )
 
+if settings.base_path or settings.base_path_debug:
+    # Add BasePathMiddleware last so it executes first and normalizes scope.path/root_path
+    # for all downstream middleware (security headers, rate limiting, sessions, routing).
+    app.add_middleware(BasePathMiddleware, base_path=settings.base_path)
+
 
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(invites_router)
 app.include_router(password_router)
 
-mount_admin_ui(app)
+app.include_router(admin_web_router)
+app.include_router(admin_web_api_router)
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")

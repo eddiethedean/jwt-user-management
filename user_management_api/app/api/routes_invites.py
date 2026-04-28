@@ -193,8 +193,11 @@ async def accept_invite(
 
 @router.get("/accept", response_class=HTMLResponse)
 def accept_invite_page(request: Request, token: str) -> HTMLResponse:
+    base_path = str(request.scope.get("root_path") or "").rstrip("/")
     return templates.TemplateResponse(
-        request, "accept_invite.html", {"request": request, "token": token}
+        request,
+        "accept_invite.html",
+        {"request": request, "token": token, "base_path": base_path},
     )
 
 
@@ -206,6 +209,7 @@ async def accept_invite_form(
     full_name: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
+    base_path = str(request.scope.get("root_path") or "").rstrip("/")
     try:
         require_same_origin(request)
     except ValueError:
@@ -216,11 +220,11 @@ async def accept_invite_form(
         return templates.TemplateResponse(
             request,
             "accept_invite.html",
-            {"request": request, "token": token, "error": e.detail},
+            {"request": request, "token": token, "error": e.detail, "base_path": base_path},
             status_code=e.status_code,
         )
     return templates.TemplateResponse(
         request,
         "accept_invite.html",
-        {"request": request, "token": token, "success": True},
+        {"request": request, "token": token, "success": True, "base_path": base_path},
     )

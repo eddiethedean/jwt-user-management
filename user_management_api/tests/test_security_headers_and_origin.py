@@ -1,21 +1,7 @@
 from app.core.config import settings
 
 
-def _reset_rate_limiter():
-    from app.main import app
-
-    cur = getattr(app, "middleware_stack", None)
-    while cur is not None:
-        if cur.__class__.__name__ == "InMemoryRateLimitMiddleware":
-            cur.reset()
-            return
-        cur = getattr(cur, "app", None)
-
-
 def test_security_headers_present_on_html_and_json(client):
-    # Other tests may have hit the limiter already; reset to avoid flakiness.
-    _reset_rate_limiter()
-
     # HTML response
     r = client.get("/password/reset", params={"token": "x"})
     assert r.status_code == 200
@@ -29,6 +15,8 @@ def test_security_headers_present_on_html_and_json(client):
     assert r2.status_code == 200
     assert r2.headers.get("Referrer-Policy") == "no-referrer"
     assert r2.headers.get("X-Content-Type-Options") == "nosniff"
+    # CSP is intentionally skipped for JSON responses.
+    assert "Content-Security-Policy" not in r2.headers
 
 
 def test_html_form_posts_reject_wrong_origin(client):

@@ -73,8 +73,11 @@ def forgot_password(
 
 @router.get("/reset", response_class=HTMLResponse)
 def reset_password_page(request: Request, token: str) -> HTMLResponse:
+    base_path = str(request.scope.get("root_path") or "").rstrip("/")
     return templates.TemplateResponse(
-        request, "reset_password.html", {"request": request, "token": token}
+        request,
+        "reset_password.html",
+        {"request": request, "token": token, "base_path": base_path},
     )
 
 
@@ -136,6 +139,7 @@ def reset_password_form(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
+    base_path = str(request.scope.get("root_path") or "").rstrip("/")
     try:
         require_same_origin(request)
     except ValueError:
@@ -148,11 +152,11 @@ def reset_password_form(
         return templates.TemplateResponse(
             request,
             "reset_password.html",
-            {"request": request, "token": token, "error": e.detail},
+            {"request": request, "token": token, "error": e.detail, "base_path": base_path},
             status_code=e.status_code,
         )
     return templates.TemplateResponse(
         request,
         "reset_password.html",
-        {"request": request, "token": token, "success": True},
+        {"request": request, "token": token, "success": True, "base_path": base_path},
     )
