@@ -97,7 +97,17 @@ def _maybe_decode_workbench_absolute_url(scope: Scope) -> Scope:
     # If the decoded path includes an unknown Workbench prefix, try to auto-detect it by
     # locating the first "real" app route and converting everything before it to root_path.
     # This handles cases where the Workbench proxy prefix changes per session/project.
+    # Prefer mounted-app prefixes (we mount backend under /api) so we don't
+    # accidentally fold "/api" into root_path_override (which would bypass the mount
+    # and cause 404s like path="/admin" on the root app).
     known_route_prefixes = (
+        "/api/admin",
+        "/api/docs",
+        "/api/auth",
+        "/api/users",
+        "/api/invites",
+        "/api/password",
+        "/api/static",
         "/admin",
         "/docs",
         "/openapi.json",
