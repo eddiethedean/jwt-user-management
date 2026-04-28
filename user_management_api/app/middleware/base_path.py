@@ -21,6 +21,23 @@ def _debug_enabled() -> bool:
 _SAFE_PREFIX_RE = re.compile(r"^(/[A-Za-z0-9._~-]+)*$")
 
 
+def _sanitize_root_path(root_path: str) -> str:
+    rp = (root_path or "").strip()
+    if not rp:
+        return ""
+    # root_path must be a path prefix, never an absolute URL.
+    lowered = rp.lower()
+    if "://" in lowered or lowered.startswith("http") or lowered.startswith("https"):
+        return ""
+    if not rp.startswith("/"):
+        return ""
+    # Collapse any accidental double slashes.
+    while "//" in rp:
+        rp = rp.replace("//", "/")
+    # Ensure it still matches our safe prefix rules.
+    return rp if _SAFE_PREFIX_RE.fullmatch(rp) else ""
+
+
 def _normalize_prefix(prefix: str) -> str:
     p = (prefix or "").strip()
     if not p:
@@ -89,7 +106,10 @@ def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
 
     new_scope = dict(scope)
     if root_path_override:
-        new_scope["root_path"] = (scope.get("root_path") or "") + root_path_override
+        base_rp = _sanitize_root_path(str(scope.get("root_path") or ""))
+        override_rp = _sanitize_root_path(root_path_override)
+        if override_rp and not base_rp.endswith(override_rp):
+            new_scope["root_path"] = base_rp + override_rp
     new_scope["path"] = decoded_path or "/"
     new_scope["query_string"] = (parsed.query or "").encode()
 
@@ -146,6 +166,13 @@ class BasePathMiddleware:
         scope = _maybe_decode_encoded_absolute_url(scope)
         prefix = _normalize_prefix(self.base_path)
 
+        # Workbench/proxies should only provide a path-like root_path. If it looks like a URL,
+        # strip it so redirects don't become malformed.
+        root_path_sane = _sanitize_root_path(str(scope.get("root_path") or ""))
+        if root_path_sane != (scope.get("root_path") or ""):
+            scope = dict(scope)
+            scope["root_path"] = root_path_sane
+
         # Some proxies strip the prefix before proxying but communicate it via
         # X-Forwarded-Prefix. If present, we treat it as an external root_path
         # for URL generation and template base-path injection.
@@ -192,7 +219,13 @@ class BasePathMiddleware:
             return
 
         new_scope = dict(scope)
-        new_scope["root_path"] = (scope.get("root_path") or "") + prefix
+        # Avoid duplicating the prefix if Workbench already injected it into root_path.
+        current_rp = _sanitize_root_path(str(scope.get("root_path") or ""))
+        if current_rp.endswith(prefix):
+            new_root_path = current_rp
+        else:
+            new_root_path = current_rp + prefix
+        new_scope["root_path"] = new_root_path
         new_scope["path"] = new_path or "/"
         # Keep raw_path consistent for downstream apps (e.g., StaticFiles).
         new_scope["raw_path"] = (new_scope["path"] or "/").encode()
