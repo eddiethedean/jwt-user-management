@@ -112,8 +112,8 @@ def backend_admin_api_key():
 @pytest.fixture(scope="session")
 def app_urls(ports):
     return {
-        "backend": f"http://127.0.0.1:{ports['backend']}",
-        "admin": f"http://127.0.0.1:{ports['backend']}/admin",
+        "backend": f"http://127.0.0.1:{ports['backend']}/api",
+        "admin": f"http://127.0.0.1:{ports['backend']}/api/admin",
         "user": f"http://127.0.0.1:{ports['user']}",
     }
 
@@ -137,7 +137,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     _E2E_DB_PATH = db_path
 
     env_backend = os.environ.copy()
-    backend_public = f"http://127.0.0.1:{backend_port}"
+    backend_public = f"http://127.0.0.1:{backend_port}/api"
     env_backend.update(
         {
             "ENVIRONMENT": "dev",
@@ -188,7 +188,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             if "Address already in use" in out:
                 backend_port = str(_free_port())
                 ports["backend"] = int(backend_port)
-                env_backend["PUBLIC_BASE_URL"] = f"http://127.0.0.1:{backend_port}"
+                env_backend["PUBLIC_BASE_URL"] = f"http://127.0.0.1:{backend_port}/api"
                 continue
             raise RuntimeError(f"backend process exited early.\n{out}")
         raise RuntimeError(
@@ -198,7 +198,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     backend = _start_uvicorn_with_retry()
 
     # Wait for backend, then seed an admin user for the admin Streamlit app to login with.
-    _wait_http_ok(f"http://127.0.0.1:{backend_port}/docs", timeout_s=45)
+    _wait_http_ok(f"http://127.0.0.1:{backend_port}/api/docs", timeout_s=45)
 
     admin_email = admin_credentials["email"]
     admin_password = admin_credentials["password"]
@@ -210,7 +210,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             "full_name": "E2E Admin",
             "password": admin_password,
             "is_admin": True,
-            "permissions": ["admin"],
+            "permissions": ["users:read", "users:write"],
         },
         timeout=10,
     )

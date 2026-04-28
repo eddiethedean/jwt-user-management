@@ -3,7 +3,7 @@
 {% block title %}Admin{% endblock %}
 
 {% block topbar %}
-  <button type="button" class="linkButton" id="logoutBtn">Sign out</button>
+  <a class="linkButton" href="{{ base_path|default('') }}/admin/logout">Sign out</a>
 {% endblock %}
 
 {% block content %}
@@ -28,7 +28,20 @@
               <th>Created</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody>
+            {% for u in users|default([]) %}
+              <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.full_name }}</td>
+                <td>{{ u.is_active }}</td>
+                <td>{{ u.is_admin }}</td>
+                <td>{{ u.email_verified }}</td>
+                <td>{{ u.permissions|join(",") }}</td>
+                <td>{{ u.created_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
         </table>
       </div>
     </section>

@@ -25,12 +25,9 @@ router = APIRouter(prefix="/admin", tags=["admin-web"])
 
 
 def _base_path(request: Request) -> str:
-    # Prefer configured BASE_PATH when set. Some proxies (Workbench) populate scope.root_path
-    # with a URL-like value, and sometimes root_path may be empty even when BASE_PATH is
-    # correctly configured.
-    if settings.base_path:
-        return str(settings.base_path).rstrip("/")
-
+    # In a mounted app (we mount under /api), Starlette composes the mount prefix
+    # into scope.root_path. We prefer root_path so generated URLs include /api.
+    # Some proxies (Workbench) populate scope.root_path with a URL-like value; strip that.
     rp = str(request.scope.get("root_path") or "").strip()
     lowered = rp.lower()
     if "://" in lowered or lowered.startswith("http") or lowered.startswith("https"):
@@ -114,6 +111,13 @@ def logout_submit(
     return {"ok": True}
 
 
+@router.get("/logout", include_in_schema=False)
+def logout_get(request: Request) -> Response:
+    # Convenience for environments where client-side JS may be blocked.
+    request.session.clear()  # type: ignore[attr-defined]
+    return RedirectResponse(url=_admin_url(request, "/admin/login"), status_code=303)
+
+
 @router.get("/", response_class=HTMLResponse)
 def index_page(request: Request, db: Session = Depends(get_db)) -> Response:
     if not get_admin_session_user_id(request):
@@ -122,8 +126,26 @@ def index_page(request: Request, db: Session = Depends(get_db)) -> Response:
         )
     # Validate admin exists/is active.
     require_admin_session(request=request, db=db)
+    users = db.exec(select(User).order_by(User.id)).all()
+    safe_users = [
+        {
+            "id": u.id,
+            "email": u.email,
+            "full_name": u.full_name,
+            "is_active": u.is_active,
+            "is_admin": u.is_admin,
+            "email_verified": u.email_verified,
+            "permissions": list(u.permissions or []),
+            "created_at": getattr(u, "created_at", None),
+        }
+        for u in users
+    ]
     return templates.TemplateResponse(
         request,
         "admin/index.html",
-        {"csrf_token": get_csrf_token(request), "base_path": _base_path(request)},
+        {
+            "csrf_token": get_csrf_token(request),
+            "base_path": _base_path(request),
+            "users": safe_users,
+        },
     )

@@ -15,7 +15,7 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 
 from app.api.deps import get_db
 from app.core.security import hash_password
-from app.main import app
+from app.main import api, app
 from app.models.invite import InviteToken
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
@@ -53,10 +53,10 @@ def client(db_session):
     def override_get_db():
         yield db_session
 
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    api.dependency_overrides[get_db] = override_get_db
+    with TestClient(app, base_url="http://testserver/api") as c:
         yield c
-    app.dependency_overrides.clear()
+    api.dependency_overrides.clear()
 
 
 @pytest.fixture()
