@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.middleware.rate_limit import InMemoryRateLimitMiddleware, RateLimitRule
 
 
-def _make_rate_limited_client(*, base_path: str = "") -> TestClient:
+def _make_rate_limited_client() -> TestClient:
     app = FastAPI()
     app.add_middleware(
         InMemoryRateLimitMiddleware,
@@ -28,10 +28,6 @@ def _make_rate_limited_client(*, base_path: str = "") -> TestClient:
     def _forgot_slash():
         return {"ok": True}
 
-    if base_path:
-        from app.middleware.base_path import BasePathMiddleware
-
-        app.add_middleware(BasePathMiddleware, base_path=base_path)
     return TestClient(app)
 
 
@@ -46,17 +42,6 @@ def test_rate_limit_trips_for_password_forgot():
     assert r6.status_code == 429
     assert r6.json()["detail"] == "Too many requests"
     assert int(r6.headers.get("Retry-After", "0")) >= 1
-
-
-def test_rate_limit_applies_under_base_path():
-    c = _make_rate_limited_client(base_path="/bp")
-
-    for _ in range(5):
-        r = c.post("/bp/password/forgot", json={"email": "a@test.local"})
-        assert r.status_code == 200
-
-    r6 = c.post("/bp/password/forgot", json={"email": "a@test.local"})
-    assert r6.status_code == 429
 
 
 def test_rate_limit_normalizes_trailing_slash():

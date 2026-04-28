@@ -216,40 +216,6 @@ def test_admin_api_rejects_session_user_id_wrong_type():
     assert r.status_code == 401
 
 
-def test_admin_base_path_redirects_include_prefix(admin_user):
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from app.admin_web.router import router as admin_router
-    from app.api.deps import get_db
-    from app.middleware.base_path import BasePathMiddleware
-    from app.middleware.security_headers import SecurityHeadersMiddleware
-    from starlette.middleware.sessions import SessionMiddleware
-
-    # Minimal app with BASE_PATH to validate redirect Location includes prefix.
-    app = FastAPI()
-    app.add_middleware(
-        SessionMiddleware, secret_key="test-session-secret-please-change"
-    )
-    app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(BasePathMiddleware, base_path="/bp")
-    app.include_router(admin_router)
-
-    # Provide a DB override that returns the admin_user from a fresh in-memory session
-    # by reusing the shared fixture data via a closure.
-    def override_get_db():
-        # This test is only checking redirect locations, not DB-backed login.
-        yield None
-
-    app.dependency_overrides[get_db] = override_get_db
-    c = TestClient(app)
-
-    r = c.get("/bp/admin/", follow_redirects=False)
-    assert r.status_code in (302, 303)
-    assert r.headers["location"].startswith("/bp/admin/login")
-
-    r2 = c.get("/bp/admin/login")
-    assert r2.status_code == 200
-    assert '<meta name="base-path" content="/bp"' in r2.text
-    assert 'href="/bp/static/admin/admin.css"' in r2.text
-    assert 'src="/bp/static/admin/admin.js"' in r2.text
+#
+# Note: BASE_PATH/prefix-handling tests were removed when we switched to a
+# "plain FastAPI" experiment without BasePathMiddleware.

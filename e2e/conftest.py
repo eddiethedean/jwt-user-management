@@ -93,7 +93,6 @@ def _wait_streamlit_ready(url: str, *, timeout_s: float = 45.0) -> None:
 def ports():
     return {
         "backend": _free_port(),
-        "proxy": _free_port(),
         "user": _free_port(),
     }
 
@@ -112,15 +111,9 @@ def backend_admin_api_key():
 
 @pytest.fixture(scope="session")
 def app_urls(ports):
-    prefix = _proxy_prefix()
-    proxy_base = f"http://localhost:{ports['proxy']}{prefix}"
     return {
-        "backend": proxy_base
-        if _truthy_env("E2E_USE_PROXY")
-        else f"http://127.0.0.1:{ports['backend']}",
-        "admin": f"{proxy_base}/admin"
-        if _truthy_env("E2E_USE_PROXY")
-        else f"http://127.0.0.1:{ports['backend']}/admin",
+        "backend": f"http://127.0.0.1:{ports['backend']}",
+        "admin": f"http://127.0.0.1:{ports['backend']}/admin",
         "user": f"http://127.0.0.1:{ports['user']}",
     }
 
@@ -132,7 +125,6 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     """
     run_id = f"{os.getpid()}-{int(time.time())}"
     backend_port = str(ports["backend"])
-    proxy_port = str(ports["proxy"])
     user_port = str(ports["user"])
 
     logs_dir = REPO_ROOT / "e2e" / "artifacts" / "logs"
@@ -145,19 +137,13 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     _E2E_DB_PATH = db_path
 
     env_backend = os.environ.copy()
-    use_proxy = _truthy_env("E2E_USE_PROXY")
-    prefix = _proxy_prefix()
-    backend_public = (
-        f"http://localhost:{proxy_port}{prefix}"
-        if use_proxy
-        else f"http://127.0.0.1:{backend_port}"
-    )
+    backend_public = f"http://127.0.0.1:{backend_port}"
     env_backend.update(
         {
             "ENVIRONMENT": "dev",
             "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
             "PUBLIC_BASE_URL": backend_public,
-            "BASE_PATH": prefix if use_proxy else "",
+            "BASE_PATH": "",
             "JWT_SECRET": "e2e-secret-e2e-secret-e2e-secret-1234",
             "JWT_ALGORITHM": "HS256",
             "JWT_EXPIRES_MINUTES": "60",
@@ -213,32 +199,6 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
 
     # Wait for backend, then seed an admin user for the admin Streamlit app to login with.
     _wait_http_ok(f"http://127.0.0.1:{backend_port}/docs", timeout_s=45)
-    proxy_proc = None
-    proxy_log = logs_dir / f"proxy-{run_id}.log"
-    if use_proxy:
-        # Start a local python reverse proxy so Playwright can reach it reliably.
-        # (Docker-published ports can be flaky in some CI/sandbox environments.)
-        proxy_port = str(ports["proxy"])
-        proxy = subprocess.Popen(
-            [
-                sys.executable,
-                str(REPO_ROOT / "e2e" / "connect_like_proxy.py"),
-                "--listen-port",
-                proxy_port,
-                "--upstream",
-                f"http://127.0.0.1:{backend_port}",
-                "--prefix",
-                prefix,
-                "--mode",
-                _proxy_mode(),
-            ],
-            cwd=str(REPO_ROOT),
-            stdout=proxy_log.open("a", encoding="utf-8"),
-            stderr=subprocess.STDOUT,
-        )
-        proxy_proc = ("python-proxy", proxy)
-
-        _wait_http_ok(f"http://localhost:{proxy_port}{prefix}/docs", timeout_s=45)
 
     admin_email = admin_credentials["email"]
     admin_password = admin_credentials["password"]
@@ -326,10 +286,6 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
                 raise RuntimeError(f"{name} process exited early.\n{_tail_path(log)}")
         yield
     finally:
-        if proxy_proc is not None and proxy_proc[0] == "python-proxy":
-            proxy = proxy_proc[1]
-            if proxy.poll() is None:
-                proxy.terminate()
         for p in (user, backend):
             if p.poll() is None:
                 p.terminate()
