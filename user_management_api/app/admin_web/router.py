@@ -12,6 +12,7 @@ from starlette.responses import Response
 from app.admin_web.auth import get_admin_session_user_id, require_admin_session
 from app.admin_web.csrf import get_csrf_token, require_csrf, validate_csrf
 from app.api.deps import get_db
+from app.core.config import settings
 from app.core.security import verify_password
 from app.models.user import User
 
@@ -24,7 +25,13 @@ router = APIRouter(prefix="/admin", tags=["admin-web"])
 
 
 def _base_path(request: Request) -> str:
-    return str(request.scope.get("root_path") or "").rstrip("/")
+    # Workbench/proxies should provide a path-like root_path. If it looks like a URL,
+    # ignore it and fall back to configured BASE_PATH (or empty).
+    rp = str(request.scope.get("root_path") or "").strip()
+    lowered = rp.lower()
+    if "://" in lowered or lowered.startswith("http") or lowered.startswith("https"):
+        rp = settings.base_path or ""
+    return str(rp or "").rstrip("/")
 
 
 def _admin_url(request: Request, path: str) -> str:
@@ -32,6 +39,13 @@ def _admin_url(request: Request, path: str) -> str:
     if not path.startswith("/"):
         path = "/" + path
     return f"{bp}{path}"
+
+
+@router.get("", include_in_schema=False)
+def admin_no_slash(request: Request) -> Response:
+    # Avoid Starlette's automatic slash-redirect using request.url (which can be malformed
+    # under some proxy setups). We generate a safe relative Location ourselves.
+    return RedirectResponse(url=_admin_url(request, "/admin/"), status_code=307)
 
 
 @router.get("/login", response_class=HTMLResponse)
