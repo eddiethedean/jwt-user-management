@@ -22,6 +22,10 @@ _API_ROOT = "/api"
 
 # Root container app. We mount the actual backend under /api so Workbench URLs
 # become .../api/docs and .../api/admin/ (avoiding Workbench-level /admin handling).
+#
+# IMPORTANT: Workbench can place an absolute URL into the ASGI `scope["path"]`.
+# BasePathMiddleware must run on the *root* app so decoding/normalization happens
+# before mount routing.
 app = FastAPI(title="JWT User Management API (root)")
 
 # Workbench can route /docs to the app but send /openapi.json elsewhere if the
@@ -57,7 +61,7 @@ api.add_middleware(
 
 if settings.base_path or settings.base_path_debug:
     # Add BasePathMiddleware last so it executes first.
-    api.add_middleware(BasePathMiddleware, base_path=settings.base_path)
+    app.add_middleware(BasePathMiddleware, base_path=settings.base_path)
 
 
 api.include_router(auth_router)
