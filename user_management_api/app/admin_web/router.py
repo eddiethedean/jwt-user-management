@@ -25,12 +25,16 @@ router = APIRouter(prefix="/admin", tags=["admin-web"])
 
 
 def _base_path(request: Request) -> str:
-    # Workbench/proxies should provide a path-like root_path. If it looks like a URL,
-    # ignore it and fall back to configured BASE_PATH (or empty).
+    # Prefer configured BASE_PATH when set. Some proxies (Workbench) populate scope.root_path
+    # with a URL-like value, and sometimes root_path may be empty even when BASE_PATH is
+    # correctly configured.
+    if settings.base_path:
+        return str(settings.base_path).rstrip("/")
+
     rp = str(request.scope.get("root_path") or "").strip()
     lowered = rp.lower()
     if "://" in lowered or lowered.startswith("http") or lowered.startswith("https"):
-        rp = settings.base_path or ""
+        rp = ""
     return str(rp or "").rstrip("/")
 
 
