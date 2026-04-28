@@ -94,36 +94,40 @@ def _maybe_decode_workbench_absolute_url(scope: Scope) -> Scope:
     while "//" in decoded_path:
         decoded_path = decoded_path.replace("//", "/")
 
-    # If the decoded path includes an unknown Workbench prefix, try to auto-detect it by
-    # locating the first "real" app route and converting everything before it to root_path.
-    # This handles cases where the Workbench proxy prefix changes per session/project.
-    # Prefer mounted-app prefixes (we mount backend under /api) so we don't
-    # accidentally fold "/api" into root_path_override (which would bypass the mount
-    # and cause 404s like path="/admin" on the root app).
-    known_route_prefixes = (
-        "/api/admin",
-        "/api/docs",
-        "/api/auth",
-        "/api/users",
-        "/api/invites",
-        "/api/password",
-        "/api/static",
-        "/admin",
-        "/docs",
-        "/openapi.json",
-        "/redoc",
-        "/auth",
-        "/users",
-        "/invites",
-        "/password",
-    )
+    # If BASE_PATH is configured, prefer keeping the full decoded path and let the
+    # normal BASE_PATH stripping logic handle it. This avoids mis-detecting a
+    # root_path_override that can interfere with mount routing (e.g. /api/*).
     root_path_override = ""
-    for rp in known_route_prefixes:
-        idx = decoded_path.find(rp)
-        if idx > 0:
-            root_path_override = decoded_path[:idx]
-            decoded_path = decoded_path[idx:]
-            break
+    if not _normalize_prefix(os.getenv("BASE_PATH", "")):
+        # If the decoded path includes an unknown Workbench prefix, try to auto-detect it by
+        # locating the first "real" app route and converting everything before it to root_path.
+        # This handles cases where the Workbench proxy prefix changes per session/project.
+        # Prefer mounted-app prefixes (we mount backend under /api) so we don't
+        # accidentally fold "/api" into root_path_override (which would bypass the mount
+        # and cause 404s like path="/admin" on the root app).
+        known_route_prefixes = (
+            "/api/admin",
+            "/api/docs",
+            "/api/auth",
+            "/api/users",
+            "/api/invites",
+            "/api/password",
+            "/api/static",
+            "/admin",
+            "/docs",
+            "/openapi.json",
+            "/redoc",
+            "/auth",
+            "/users",
+            "/invites",
+            "/password",
+        )
+        for rp in known_route_prefixes:
+            idx = decoded_path.find(rp)
+            if idx > 0:
+                root_path_override = decoded_path[:idx]
+                decoded_path = decoded_path[idx:]
+                break
 
     new_scope = dict(scope)
     if root_path_override:
