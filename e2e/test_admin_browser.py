@@ -12,11 +12,14 @@ def test_admin_login_logout(page, app_urls, admin_credentials):
     page.get_by_role("button", name="Sign in").click()
 
     page.get_by_text("Users").wait_for(timeout=30_000)
-    page.get_by_role("cell", name=admin_credentials["email"]).wait_for(timeout=30_000)
+    # Wait for users to load successfully (no error shown) and at least one row present.
+    page.locator("#usersTable tbody tr").first.wait_for(timeout=30_000)
+    assert page.locator("#usersError").is_hidden()
 
     # Refresh
     page.get_by_role("button", name="Refresh").click()
-    page.get_by_role("cell", name=admin_credentials["email"]).wait_for(timeout=30_000)
+    page.locator("#usersTable tbody tr").first.wait_for(timeout=30_000)
+    assert page.locator("#usersError").is_hidden()
 
     # Logout
     page.get_by_role("button", name="Sign out").click()

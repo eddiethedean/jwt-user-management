@@ -1,0 +1,29 @@
+server {
+  listen 8080;
+
+  large_client_header_buffers 4 32k;
+
+  # Strip prefix when proxying (backend sees /...).
+  location ${PROXY_PREFIX}/ {
+    proxy_http_version 1.1;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+    # Tell the app what the external prefix is.
+    proxy_set_header X-Forwarded-Prefix ${PROXY_PREFIX};
+
+    # Trailing slash => strips the matched prefix.
+    proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT}/;
+
+    # Rewrite cookie Path so session cookies are still valid under the external prefix.
+    proxy_cookie_path / "${PROXY_PREFIX}/";
+
+    # Rewrite relative redirects emitted by the backend.
+    proxy_redirect ~^(/.*)$ ${PROXY_PREFIX}$1;
+  }
+}
+

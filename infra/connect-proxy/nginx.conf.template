@@ -1,0 +1,7 @@
+##
+# Deprecated: use nginx_preserve.conf.template or nginx_strip.conf.template.
+#
+# Kept temporarily for backward compatibility with any local scripts.
+##
+include /etc/nginx/conf.d/default.conf;
+
