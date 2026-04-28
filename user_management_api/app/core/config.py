@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     azure_client_id: Optional[str] = None
     azure_client_secret: Optional[str] = None
 
+    # Airgapped intranet deployments: disable external integrations at runtime.
+    offline_mode: bool = False
+
     rate_limit_enabled: bool = True
     rate_limit_trust_proxy_headers: bool = False
 

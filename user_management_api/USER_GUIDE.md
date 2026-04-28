@@ -60,6 +60,14 @@ Edit `user_management_api/.env` (copy from `.env.example`).
 
 - **`AZURE_*`**: if set, invite acceptance and invite creation can validate emails against your tenant
 
+### Airgapped / offline mode
+
+If deployed on an airgapped intranet with no internet access, set:
+
+- **`OFFLINE_MODE=true`**
+
+This disables outbound SaaS integrations (notably Azure AD / Microsoft Graph validation), while keeping intranet integrations like SMTP available.
+
 ## How to use the API
 
 ### 1) Obtain a JWT
@@ -220,4 +228,7 @@ E2E_USE_PROXY=1 E2E_PROXY_MODE=strip pytest -q e2e
 
 ## Troubleshooting
 
-- **Admin UI redirects to login repeatedly**: confirm `SESSION_SECRET` is set and you’re accessing the app under the same prefix as `BASE_PATH` (if any).\n+- **Invite/reset links point to the wrong place**: set `PUBLIC_BASE_URL` and `BASE_PATH` correctly for your deployment.\n+- **Running behind a proxy**: ensure the proxy forwards `X-Forwarded-*` headers and (for strip mode) sets `X-Forwarded-Prefix`.\n+
+- **Admin UI redirects to login repeatedly**: confirm `SESSION_SECRET` is set and you’re accessing the app under the same prefix as `BASE_PATH` (if any).
+- **Invite/reset links point to the wrong place**: set `PUBLIC_BASE_URL` and `BASE_PATH` correctly for your deployment.
+- **Running behind a proxy**: ensure the proxy forwards `X-Forwarded-*` headers and (for strip mode) sets `X-Forwarded-Prefix`.
+- **Airgapped intranet**: set `OFFLINE_MODE=true` and do not set `AZURE_*`.

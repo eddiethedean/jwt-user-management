@@ -62,8 +62,8 @@ def test_non_admin_html_csp_stays_strict():
     d = _parse_csp(csp)
     assert d.get("default-src") == "'none'"
     assert d == _parse_csp(csp_for_html_forms())
-    # Non-admin form pages intentionally allow inline styles.
-    assert "'unsafe-inline'" in d.get("style-src", "")
+    # Non-admin form pages load CSS from /static (no inline styles needed).
+    assert d.get("style-src") == "'self'"
 
 
 def test_should_set_csp_skips_json():

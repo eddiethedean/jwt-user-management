@@ -46,7 +46,7 @@ async def validate_email_in_tenant(email: str) -> Optional[AzureADUser]:
     """
     Returns an AzureADUser if the email exists in the tenant. If Azure AD is not configured, returns None.
     """
-    if not _enabled():
+    if settings.offline_mode or not _enabled():
         return None
 
     token = _get_graph_token()

@@ -25,10 +25,10 @@ def csp_for_admin() -> str:
 
 
 def csp_for_html_forms() -> str:
-    # HTML endpoints render inline styles in templates; allow only what's needed.
+    # HTML endpoints load a small shared CSS file from /static.
     return (
         "default-src 'none'; "
-        "style-src 'unsafe-inline'; "
+        "style-src 'self'; "
         "img-src 'self' data:; "
         "form-action 'self'; "
         "base-uri 'none'; "
