@@ -67,19 +67,24 @@ def _header(scope: Scope, name: bytes) -> Optional[str]:
         return None
 
 
-def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
+def _maybe_decode_workbench_absolute_url(scope: Scope) -> Scope:
     """
-    Workbench-style proxies may pass an encoded absolute URL as the request path, e.g.
-      https%3A//workbench.example/s/<service>/p/<project>/admin
+    Workbench-style proxies may pass an absolute URL as the request path, either:
+
+    - percent-encoded, e.g. https%3A//workbench.example/s/<service>/p/<project>/admin
+    - already decoded, e.g. https://workbench.example/s/<service>/p/<project>/admin
 
     This normalizes scope["path"] to the real URL path so downstream routing works.
     """
     raw_path = scope.get("path") or ""
     candidate = raw_path.lstrip("/")
-    if "http%3a" not in candidate.lower() and "https%3a" not in candidate.lower():
+    lowered = candidate.lower()
+    is_encoded = ("http%3a" in lowered) or ("https%3a" in lowered)
+    is_decoded = lowered.startswith("http://") or lowered.startswith("https://")
+    if not is_encoded and not is_decoded:
         return scope
 
-    decoded = unquote(candidate)
+    decoded = unquote(candidate) if is_encoded else candidate
     if not (decoded.startswith("http://") or decoded.startswith("https://")):
         return scope
 
@@ -170,7 +175,7 @@ class BasePathMiddleware:
                 .decode(errors="replace"),
             )
 
-        scope = _maybe_decode_encoded_absolute_url(scope)
+        scope = _maybe_decode_workbench_absolute_url(scope)
         prefix = _normalize_prefix(self.base_path)
 
         # Workbench/proxies should only provide a path-like root_path. If it looks like a URL,
