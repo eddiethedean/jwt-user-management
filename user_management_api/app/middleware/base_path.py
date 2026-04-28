@@ -34,6 +34,9 @@ def _sanitize_root_path(root_path: str) -> str:
     # Collapse any accidental double slashes.
     while "//" in rp:
         rp = rp.replace("//", "/")
+    # No trailing slash (except root) so it matches our safe-prefix regex.
+    if len(rp) > 1 and rp.endswith("/"):
+        rp = rp[:-1]
     # Ensure it still matches our safe prefix rules.
     return rp if _SAFE_PREFIX_RE.fullmatch(rp) else ""
 
@@ -82,6 +85,9 @@ def _maybe_decode_encoded_absolute_url(scope: Scope) -> Scope:
 
     parsed = urlparse(decoded)
     decoded_path = parsed.path or "/"
+    # Some proxies produce paths with double slashes (e.g. "...//admin").
+    while "//" in decoded_path:
+        decoded_path = decoded_path.replace("//", "/")
 
     # If the decoded path includes an unknown Workbench prefix, try to auto-detect it by
     # locating the first "real" app route and converting everything before it to root_path.
