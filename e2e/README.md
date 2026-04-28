@@ -1,6 +1,6 @@
 # E2E (browser) tests
 
-These tests run the **real apps** (FastAPI backend + Streamlit apps) and drive a **real browser** via Playwright.
+These tests run the **real apps** (FastAPI backend + Streamlit user demo) and drive a **real browser** via Playwright.
 
 ## Prereqs
 
@@ -26,7 +26,7 @@ pytest -q e2e
 
 ## Notes
 
-- The suite starts backend + Streamlit on **ephemeral ports** to avoid clashing with your dev servers.
+- The suite starts backend + Streamlit user app on **ephemeral ports** to avoid clashing with your dev servers.
 - Each run uses a **unique SQLite DB file** under `e2e/` to avoid shared state.
 - Process logs are written to `e2e/artifacts/logs/` for easier debugging on failures.
 

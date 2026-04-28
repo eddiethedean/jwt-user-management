@@ -17,7 +17,7 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 - API docs: `http://127.0.0.1:8000/docs`
-- Admin UI: `http://127.0.0.1:8000/admin/` (served by backend; Streamlit runs internally)
+- Admin UI: `http://127.0.0.1:8000/admin/` (served by backend; server-rendered HTML + JS)
 
 ## Key endpoints
 
@@ -45,14 +45,12 @@ Configured via `user_management_api/.env`:
 - `PUBLIC_BASE_URL`: used to generate invite/reset links (e.g. `http://localhost:8000`)
 - `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench). Example: `/s/<service>/p/<project>`
 - `JWT_SECRET`: JWT signing key (rotate if compromised). Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
+- `SESSION_SECRET`: secret used to sign the admin session cookie. Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
 - `ADMIN_API_KEY`: admin key (rotate if compromised)
 - `SMTP_*`: send invite/reset emails
 - `AZURE_*`: optional Microsoft Graph (Azure AD) validation
 - `RATE_LIMIT_ENABLED`: optional (default true). In-memory rate limiting for sensitive endpoints (login/reset/invite accept).
 - `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional. Only enable if you trust your proxy headers.
-- `ADMIN_UI_REQUIRE_JWT`: optional. If set, `/admin/*` requires an admin JWT for both HTTP and websocket.
-- `ADMIN_UI_LOG_FILE`: optional. Streamlit subprocess log file (default: `admin.nohup.log` in repo root).
-- `ADMIN_UI_READY_WAIT_S`: optional. Startup readiness wait (seconds) for embedded Streamlit.
 
 ### Seeding an initial admin user (optional)
 
@@ -72,17 +70,15 @@ source .venv/bin/activate
 pytest
 ```
 
-## Admin UI (embedded Streamlit)
+## Admin UI (admin_web)
 
-The backend starts the Streamlit admin app as a **local subprocess** and reverse-proxies it under `/admin`.
+The backend serves a small server-rendered admin UI under `/admin` that uses:
 
-- **URL**: `http://127.0.0.1:8000/admin`
-- **How it talks to the API**: server-side HTTP to `BACKEND_URL` (set automatically by the backend when it spawns Streamlit).
-- **Internal port**: set `ADMIN_UI_INTERNAL_PORT` to force a fixed port (optional).
+- **Session auth** (signed cookie; requires `SESSION_SECRET`)
+- **CSRF protection** for state-changing admin actions
+- **Same-origin fetch** to `/admin/api/*` from `app/static/admin/admin.js`
 
-### Securing `/admin`
-
-For production, set `ADMIN_UI_REQUIRE_JWT=1` so `/admin/*` requires an **admin JWT** (HTTP + websocket).
+**URL**: `http://127.0.0.1:8000/admin/`
 
 ## Running behind a reverse proxy (Workbench / path prefix)
 
@@ -90,7 +86,7 @@ If your deployment serves the app under a URL prefix like:
 
 - `https://workbench.socom.mil/s/<service>/p/<project>/...`
 
-set `BASE_PATH` to that prefix (the `/s/.../p/...` part). This enables correct routing and ensures the embedded Streamlit admin UI serves assets under the same prefix.
+set `BASE_PATH` to that prefix (the `/s/.../p/...` part). This enables correct routing and ensures the admin UI and HTML form endpoints generate correct links and asset URLs under the same prefix.
 
 Example:
 

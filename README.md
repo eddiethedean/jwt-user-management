@@ -1,14 +1,13 @@
-# JWT User Management (FastAPI + Streamlit Admin)
+# JWT User Management (FastAPI + Admin Web UI)
 
 This repo contains:
 
 - `user_management_api/`: FastAPI API using SQLModel for user management + JWT issuance.
-- `user_management_api/admin_ui/`: Streamlit admin UI (now served behind the backend at `/admin/`).
+- `user_management_api/app/admin_web/`: Server-rendered admin UI (served by the backend at `/admin/`).
 - `streamlit_user/`: Streamlit demo of a user-facing app (login + forgot/reset password) using the backend.
 
 App-specific READMEs:
 - `user_management_api/README.md`
-- `user_management_api/admin_ui/README.md`
 - `streamlit_user/README.md`
 
 ## Quickstart (local, SQLite)
@@ -31,7 +30,7 @@ API docs: `http://localhost:8000/docs`
 
 ### 2) Admin UI
 
-The backend serves the admin UI at `/admin/` (it runs Streamlit internally).
+The backend serves the admin UI at `/admin/` (server-rendered HTML + JS).
 
 - Admin UI: `http://localhost:8000/admin/`
 
@@ -57,15 +56,13 @@ User demo: `http://localhost:8502`
 - `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench). Example: `/s/<service>/p/<project>`
 - `JWT_SECRET`: secret used to sign JWTs (use a strong secret outside `ENVIRONMENT=dev`)
 - `JWT_EXPIRES_MINUTES`: default `60`
-- `ADMIN_API_KEY`: if set, Streamlit can call admin endpoints via `X-Admin-Api-Key`
+- `SESSION_SECRET`: secret used to sign the admin session cookie (use a strong secret outside `ENVIRONMENT=dev`)
+- `ADMIN_API_KEY`: if set, admin endpoints can be called via `X-Admin-Api-Key`
 - `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_FULL_NAME`: optional admin seed during `alembic upgrade head` (idempotent)
 - `SMTP_*`: optional SMTP settings to send invite emails
 - `AZURE_*`: optional Azure AD (Microsoft Graph) settings to validate emails
 - `RATE_LIMIT_ENABLED`: optional (default true) in-memory rate limiting for sensitive endpoints
 - `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional; only enable if you trust your proxy headers
-- `ADMIN_UI_REQUIRE_JWT`: optional. If set (`1`/`true`/`yes`), the `/admin/*` reverse proxy requires an admin JWT for HTTP + websocket.
-- `ADMIN_UI_LOG_FILE`: optional. Where the embedded Streamlit subprocess writes logs (default: `admin.nohup.log` in repo root).
-- `ADMIN_UI_READY_WAIT_S`: optional. Bounded startup wait (seconds) for Streamlit health endpoint to avoid initial `/admin` 502s.
 
 ### Streamlit apps (`streamlit_user/.env`, optional)
 
