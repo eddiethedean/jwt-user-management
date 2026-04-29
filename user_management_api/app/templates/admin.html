@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2 style="margin: 0 0 8px;">Admin</h2>
+    <p class="muted" style="margin-top: 0;">Signed in as <code>{{ email }}</code></p>
+
+    <div class="row" style="margin: 8px 0 12px;">
+      <a href="/users?token={{ token }}" class="muted">Open users page</a>
+    </div>
+
+    <h3 style="margin: 16px 0 8px;">All users</h3>
+    <table style="width:100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">ID</th>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Email</th>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.id }}</td>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;"><code>{{ u.email }}</code></td>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.created_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}
+

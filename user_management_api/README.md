@@ -26,6 +26,7 @@ uvicorn app.main:app --reload --port 8001
 - Register: `GET /register`
 - Login: `GET /login`
 - Users page: `GET /users?token=...` (paste token from `/login`)
+- Admin page: `GET /admin?token=...` (paste token from `/login`)
 
 ## JSON API
 
@@ -51,3 +52,15 @@ Configured via `user_management_api/.env`:
 - `JWT_SECRET`: secret used to sign JWTs
 - `JWT_EXPIRES_MINUTES`: default `60`
 - `JWT_ALGORITHM`: default `HS256`
+
+### Seed an initial admin user (optional)
+
+On `alembic upgrade head`, a default admin account is created if it doesn't exist:
+
+- Email: `admin@example.com`
+- Password: `admin123`
+
+You can override these with:
+
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`
