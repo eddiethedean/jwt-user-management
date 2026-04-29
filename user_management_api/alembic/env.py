@@ -18,9 +18,7 @@ from app.core.config import settings  # noqa: E402
 from sqlmodel import SQLModel  # noqa: E402
 
 # Import models so they register with SQLModel.metadata
-from app.models.invite import InviteToken  # noqa: F401, E402
-from app.models.password_reset import PasswordResetToken  # noqa: F401, E402
-from app.models.user import User  # noqa: F401, E402
+from app.models import User  # noqa: F401, E402
 
 config = context.config
 

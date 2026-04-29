@@ -1,6 +1,9 @@
-# Backend (FastAPI + SQLModel + Alembic)
+# Backend (bare-bones)
 
-FastAPI API for user management, JWT issuance, invites, and password resets.
+Minimal FastAPI + SQLModel + Alembic app with:
+- **HTML forms**: register + login + user list page
+- **JWT auth**: obtain token via form login or API token endpoint
+- **SQLite** persistence
 
 ## Run locally
 
@@ -13,119 +16,38 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-- API docs: `http://127.0.0.1:8000/docs`
-- Admin UI: `http://127.0.0.1:8000/admin/` (served by backend; server-rendered HTML + JS)
+- Docs: `http://127.0.0.1:8001/docs`
 
-## Key endpoints
+## HTML pages
 
-- **JWT login**: `POST /auth/token` (form-encoded: `username` = email, `password`)
-- **Users (admin)**: `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}`
-  - Admin auth is either:
-    - Bearer JWT for a backend user with `is_admin=true`, OR
-    - `X-Admin-Api-Key` header matching `ADMIN_API_KEY`
-- **Invites**:
-  - Admin creates invite: `POST /invites`
-  - User accepts invite:
-    - HTML page: `GET /invites/accept?token=...`
-    - API: `POST /invites/accept`
-- **Password reset**:
-  - Request reset email (non-enumerating): `POST /password/forgot`
-  - Reset:
-    - HTML page: `GET /password/reset?token=...`
-    - API: `POST /password/reset`
+- Register: `GET /register`
+- Login: `GET /login`
+- Users page: `GET /users?token=...` (paste token from `/login`)
+
+## JSON API
+
+- JWT token: `POST /auth/token` (form-encoded: `username` = email, `password`)
+- Current user: `GET /users/me` (Bearer)
+- List users: `GET /users` (Bearer)
+
+Example:
+
+```bash
+TOKEN="$(curl -sS -X POST http://127.0.0.1:8001/auth/token \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'username=test@example.com&password=pass' | python -c 'import sys, json; print(json.load(sys.stdin)[\"access_token\"])')"
+
+curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
+```
 
 ## Environment
 
 Configured via `user_management_api/.env`:
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
-- `PUBLIC_BASE_URL`: used to generate invite/reset links (e.g. `http://localhost:8000`)
-- `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench). Example: `/s/<service>/p/<project>`
-- `JWT_SECRET`: JWT signing key (rotate if compromised). Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
-- `SESSION_SECRET`: secret used to sign the admin session cookie. Outside `ENVIRONMENT=dev` this must be a strong secret (>=24 chars).
-- `ADMIN_API_KEY`: admin key (rotate if compromised)
-- `SMTP_*`: send invite/reset emails
-- `AZURE_*`: optional Microsoft Graph (Azure AD) validation
-- `RATE_LIMIT_ENABLED`: optional (default true). In-memory rate limiting for sensitive endpoints (login/reset/invite accept).
-- `RATE_LIMIT_TRUST_PROXY_HEADERS`: optional. Only enable if you trust your proxy headers.
-
-### Seeding an initial admin user (optional)
-
-When running `alembic upgrade head`, you can optionally seed an initial admin user by setting:
-
-- `SEED_ADMIN_EMAIL`
-- `SEED_ADMIN_PASSWORD`
-- `SEED_ADMIN_FULL_NAME` (optional)
-
-If the email already exists, the migration does nothing.
-
-## Run tests
-
-```bash
-cd user_management_api
-source .venv/bin/activate
-pytest
-```
-
-## Admin UI (admin_web)
-
-The backend serves a small server-rendered admin UI under `/admin` that uses:
-
-- **Session auth** (signed cookie; requires `SESSION_SECRET`)
-- **CSRF protection** for state-changing admin actions
-- **Same-origin fetch** to `/admin/api/*` from `app/static/admin/admin.js`
-
-**URL**: `http://127.0.0.1:8000/admin/`
-
-## Running behind a reverse proxy (Workbench / path prefix)
-
-If your deployment serves the app under a URL prefix like:
-
-- `https://workbench.socom.mil/s/<service>/p/<project>/...`
-
-set `BASE_PATH` to that prefix (the `/s/.../p/...` part). This enables correct routing and ensures the admin UI and HTML form endpoints generate correct links and asset URLs under the same prefix.
-
-Example:
-
-```bash
-BASE_PATH=/s/e886e3c9ab5a7f3d86cf3/p/0da13bad
-PUBLIC_BASE_URL=https://workbench.socom.mil
-uvicorn app.main:app --port 8001 --proxy-headers --forwarded-allow-ips='*'
-```
-
-Then the admin UI will be available at:
-
-- `https://workbench.socom.mil/s/e886e3c9ab5a7f3d86cf3/p/0da13bad/admin`
-
-### Local Connect-like proxy setup (nginx)
-
-If you want to reproduce “served under a prefix behind a proxy” locally (similar to Posit Connect),
-there is a small nginx proxy config under `infra/connect-proxy/`.
-
-Example (backend running on port 8000; proxy serves under `/connect/app` on port 8080):
-
-```bash
-BACKEND_HOST=host.docker.internal \
-BACKEND_PORT=8000 \
-PROXY_PREFIX=/connect/app \
-PROXY_MODE=preserve \
-PROXY_PORT=8080 \
-docker compose -f infra/connect-proxy/docker-compose.yml up
-```
-
-Then access:
-- `http://127.0.0.1:8080/connect/app/docs`
-- `http://127.0.0.1:8080/connect/app/admin/`
-
-In this mode, set the backend env vars consistently:
-- `BASE_PATH=/connect/app`
-- `PUBLIC_BASE_URL=http://127.0.0.1:8080/connect/app` (so generated links include the prefix)
-
-If your proxy strips the prefix before proxying (common in some setups), run with:
-- `PROXY_MODE=strip` (nginx strips prefix and sets `X-Forwarded-Prefix`)
-
-Your backend should still have:
-- `BASE_PATH=/connect/app` (for cookie path scoping and template URL generation)
+- `JWT_SECRET`: secret used to sign JWTs
+- `JWT_EXPIRES_MINUTES`: default `60`
+- `JWT_ALGORITHM`: default `HS256`

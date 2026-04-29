@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2 style="margin: 0 0 8px;">Users</h2>
+    <p class="muted" style="margin-top: 0;">Viewing as <code>{{ email }}</code></p>
+
+    <table style="width:100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">ID</th>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Email</th>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.id }}</td>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;"><code>{{ u.email }}</code></td>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.created_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="muted" style="margin-bottom: 0; margin-top: 12px;">
+      Tip: JSON list is also available at <code>GET /users</code> with <code>Authorization: Bearer ...</code>.
+    </p>
+  </div>
+{% endblock %}
+

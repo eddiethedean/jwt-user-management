@@ -26,11 +26,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-- **API docs**: `http://127.0.0.1:8000/docs`
-- **Admin UI**: `http://127.0.0.1:8000/admin/`
+- **API docs**: `http://127.0.0.1:8001/docs`
+- **Admin UI**: `http://127.0.0.1:8001/admin/`
 
 ## Configuration (`.env`)
 
@@ -39,7 +39,7 @@ Edit `user_management_api/.env` (copy from `.env.example`).
 ### Core settings
 
 - **`DATABASE_URL`**: default `sqlite:///./app.db`
-- **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://localhost:8000`)
+- **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://localhost:8001`)
 - **`BASE_PATH`**: optional external path prefix when behind a reverse proxy (e.g. `/connect/app`)
 - **`ENVIRONMENT`**: `dev` or `prod`
 
@@ -75,7 +75,7 @@ This disables outbound SaaS integrations (notably Azure AD / Microsoft Graph val
 `POST /auth/token` uses **form data** (OAuth2 password flow shape):
 
 ```bash
-curl -sS -X POST "http://127.0.0.1:8000/auth/token" \
+curl -sS -X POST "http://127.0.0.1:8001/auth/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=user@example.com&password=your-password"
 ```
@@ -91,7 +91,7 @@ Example: get current user:
 
 ```bash
 TOKEN="...jwt..."
-curl -sS "http://127.0.0.1:8000/users/me" \
+curl -sS "http://127.0.0.1:8001/users/me" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -105,7 +105,7 @@ Admin authorization is either:
 Example: list users with an admin API key:
 
 ```bash
-curl -sS "http://127.0.0.1:8000/users" \
+curl -sS "http://127.0.0.1:8001/users" \
   -H "X-Admin-Api-Key: $ADMIN_API_KEY"
 ```
 
@@ -121,7 +121,7 @@ The admin UI is served by the backend under `/admin/` and uses:
 
 Open:
 
-- `http://127.0.0.1:8000/admin/`
+- `http://127.0.0.1:8001/admin/`
 
 Then sign in with an admin user account.
 
@@ -183,7 +183,7 @@ Example:
 
 ```bash
 BACKEND_HOST=host.docker.internal \
-BACKEND_PORT=8000 \
+BACKEND_PORT=8001 \
 PROXY_PREFIX=/connect/app \
 PROXY_MODE=preserve \
 PROXY_PORT=8080 \

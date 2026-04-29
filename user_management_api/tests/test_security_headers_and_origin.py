@@ -23,7 +23,7 @@ def test_html_form_posts_reject_wrong_origin(client):
     # Ensure a stable expected origin for this test.
     old = settings.public_base_url
     try:
-        settings.public_base_url = "http://localhost:8000"
+        settings.public_base_url = "http://localhost:8001"
 
         r = client.post(
             "/password/reset-form",

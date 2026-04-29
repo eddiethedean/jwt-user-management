@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}User Management{% endblock %}</title>
+    <style>
+      :root { --fg:#111; --muted:#666; --bg:#fff; --border:#ddd; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+      .wrap { max-width: 720px; margin: 32px auto; padding: 0 16px; }
+      .card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+      label { display: block; margin: 12px 0 6px; font-weight: 600; }
+      input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+      button { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: #f7f7f7; cursor: pointer; }
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .muted { color: var(--muted); font-size: 13px; }
+      .err { background: #fff2f2; border: 1px solid #ffcccc; padding: 10px 12px; border-radius: 8px; }
+      .ok { background: #f1fff1; border: 1px solid #c8f3c8; padding: 10px 12px; border-radius: 8px; }
+      code, pre { background: #f7f7f7; border: 1px solid var(--border); border-radius: 8px; }
+      pre { padding: 12px; overflow: auto; }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="row" style="justify-content: space-between; margin-bottom: 16px;">
+        <div>
+          <div style="font-weight: 800;">User Management</div>
+          <div class="muted">Bare-bones demo (FastAPI + SQLModel + JWT)</div>
+        </div>
+        <div class="row">
+          <a href="/register" class="muted">Register</a>
+          <a href="/login" class="muted">Login</a>
+        </div>
+      </div>
+      {% block body %}{% endblock %}
+    </div>
+  </body>
+</html>
+

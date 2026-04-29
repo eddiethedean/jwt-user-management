@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Token{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2 style="margin: 0 0 8px;">JWT issued</h2>
+    <p class="muted" style="margin-top: 0;">Signed in as <code>{{ email }}</code></p>
+
+    <p class="muted">Use this token for API calls (Bearer) or open the HTML users page:</p>
+    <div class="row" style="margin: 8px 0 12px;">
+      <a href="/users?token={{ token }}" class="muted">Open users page</a>
+    </div>
+
+    <label>Token</label>
+    <pre style="margin: 6px 0 0;">{{ token }}</pre>
+  </div>
+{% endblock %}
+
