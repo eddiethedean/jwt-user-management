@@ -171,7 +171,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--listen-host", default="127.0.0.1")
     ap.add_argument("--listen-port", type=int, required=True)
-    ap.add_argument("--upstream", required=True)  # e.g. http://127.0.0.1:8000
+    ap.add_argument("--upstream", required=True)  # e.g. http://127.0.0.1:8001
     ap.add_argument("--prefix", default="/connect/app")
     ap.add_argument("--mode", choices=["preserve", "strip"], default="preserve")
     args = ap.parse_args()

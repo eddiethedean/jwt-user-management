@@ -23,7 +23,7 @@ load_dotenv()
 st.set_page_config(page_title="User App • Demo", layout="centered")
 st.title("User app (demo)")
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001").rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
 

@@ -6,7 +6,7 @@ services:
     environment:
       # e.g. host.docker.internal
       BACKEND_HOST: ${BACKEND_HOST:-host.docker.internal}
-      BACKEND_PORT: ${BACKEND_PORT:-8000}
+      BACKEND_PORT: ${BACKEND_PORT:-8001}
       PROXY_PREFIX: ${PROXY_PREFIX:-/connect/app}
       PROXY_MODE: ${PROXY_MODE:-preserve} # preserve|strip
     volumes:

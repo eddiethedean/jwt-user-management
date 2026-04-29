@@ -1,6 +1,6 @@
 # Streamlit User App (Demo)
 
-User-facing demo Streamlit app that logs in against the backend and demonstrates a password reset flow.
+User-facing demo Streamlit app that logs in against the backend.
 
 ## Run locally
 
@@ -11,7 +11,7 @@ Prereqs: **Python 3.10+**.
 ```bash
 cd user_management_api
 source .venv/bin/activate
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
 2) Start the user demo app.
@@ -39,12 +39,6 @@ The user app validates `BACKEND_URL`:
 - It must be a full `http(s)://` URL and must not include credentials.
 - It rejects targeting private / link-local / reserved IP ranges.
 - For hostnames, it resolves A/AAAA records and rejects any private/link-local/etc resolution (hostnames like `localhost` are allowed).
-
-## Password reset behavior
-
-- “Forgot password” calls `POST /password/forgot` (always returns ok to avoid account enumeration).
-- For a real reset, users click the link emailed by the backend (`/password/reset?token=...`).
-- The app also includes a “Reset using token” demo that calls `POST /password/reset`.
 
 ## Run tests
 
