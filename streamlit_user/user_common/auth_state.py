@@ -38,6 +38,7 @@ def logout(*, session_key: str = "auth") -> None:
     state = get_auth_state(session_key=session_key)
     state.access_token = ""
     state.email = ""
+    st.session_state.pop("jwt", None)
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
 

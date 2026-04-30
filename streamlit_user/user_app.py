@@ -74,9 +74,11 @@ if st.session_state.pop("_flash_signed_in", False):
 
 # Backwards-compatible session keys used by existing tests/E2E.
 if auth.is_authenticated:
+    st.session_state["jwt"] = auth.access_token
     st.session_state["access_token"] = auth.access_token
     st.session_state["username"] = auth.email
 else:
+    st.session_state.pop("jwt", None)
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
 
@@ -154,6 +156,37 @@ if auth.is_authenticated:
     st.success("Authenticated session is active.")
     if auth.email:
         st.caption(f"Signed in as `{auth.email}`")
+
+    st.subheader("API demo (user_management_api)")
+    st.caption(
+        "These calls use `Authorization: Bearer <jwt>` from Streamlit session state."
+    )
+    authed_client = BackendClient(base_url=BACKEND_URL, access_token=auth.access_token)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Get /users/me", key="me_btn"):
+            try:
+                r = authed_client.get("/users/me")
+            except requests.RequestException:
+                st.error("Backend request failed (is it running?)")
+            else:
+                if r.ok:
+                    st.json(safe_json(r))
+                else:
+                    show_http_error("Request failed", r)
+    with col2:
+        if st.button("List /users", key="users_btn"):
+            try:
+                r = authed_client.get("/users")
+            except requests.RequestException:
+                st.error("Backend request failed (is it running?)")
+            else:
+                if r.ok:
+                    st.json(safe_json(r))
+                else:
+                    show_http_error("Request failed", r)
+
     if st.button("Sign out", type="primary", key="user_sign_out_main"):
         st.session_state["_sign_out_clicked"] = True
         st.rerun()
