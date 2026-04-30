@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import sys
 import socket
 import subprocess
 import webbrowser
 from urllib.parse import urlparse
 import re
+from pathlib import Path
 
 import uvicorn
 
@@ -31,6 +33,26 @@ def _get_root_path_for_workbench(port: int) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def _run_migrations_if_enabled() -> None:
+    """
+    Ensure the DB schema is up to date for local/Workbench runs.
+
+    Default: enabled. Disable with RUN_MIGRATIONS=0/false.
+    """
+    val = (os.environ.get("RUN_MIGRATIONS") or "").strip()
+    if val and not _truthy(val):
+        return
+    here = Path(__file__).resolve().parent
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
+            cwd=str(here),
+            env=os.environ.copy(),
+        )
+    except Exception as e:  # noqa: BLE001
+        print("Failed to run migrations via Alembic:", e)
 
 
 def start_app(
@@ -96,6 +118,8 @@ def start_app(
             webbrowser.open(docs_url)
         except Exception:
             pass
+
+    _run_migrations_if_enabled()
 
     uvicorn.run(
         f"{app_module_name}:{app_variable_name}",
