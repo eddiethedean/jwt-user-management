@@ -9,3 +9,4 @@ pydantic-settings
 jinja2
 python-multipart
 pytest
+-e ..

@@ -5,6 +5,7 @@ This repo contains:
 - `user_management_api/`: **Bare-bones FastAPI + SQLModel + Alembic** backend with **JWT auth** and **simple HTML forms** (register/login/users page).
 - `streamlit_user/`: Streamlit demo that logs in against the backend.
 - `e2e/`: Browser E2E tests (Playwright).
+- `fastapi_workbench/`: Reusable helpers for Posit Workbench / RStudio Server proxy prefixes.
 
 App-specific READMEs:
 - `user_management_api/README.md`
@@ -60,5 +61,11 @@ User demo: `http://localhost:8502`
 ```bash
 source .venv/bin/activate
 python -m pytest
+```
+
+If you only want the backend + `fastapi_workbench` tests (no Streamlit deps), run:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q user_management_api/tests fastapi_workbench/tests
 ```
  

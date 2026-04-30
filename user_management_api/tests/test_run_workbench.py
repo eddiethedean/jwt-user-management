@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-import run_workbench
+from fastapi_workbench import runner as run_workbench
 
 
 def test_start_app_local_uses_free_port_and_no_root_path(monkeypatch) -> None:

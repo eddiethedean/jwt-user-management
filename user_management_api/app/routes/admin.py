@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlmodel import Session, select
 
+from fastapi_workbench import external_url, safe_redirect
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
@@ -31,16 +32,12 @@ def _norm_email(v: str) -> str:
     return (v or "").strip().lower()
 
 
-def _external_base(request: Request) -> str:
-    base = (settings.public_base_url or "").strip().rstrip("/")
-    if not base:
-        return str(request.base_url).rstrip("/")
-    return base
-
-
 def _invite_url(request: Request, token: str) -> str:
-    root_path = str(request.scope.get("root_path") or "").rstrip("/")
-    return f"{_external_base(request)}{root_path}/invites/accept?token={token}"
+    return external_url(
+        request,
+        f"/invites/accept?token={token}",
+        public_base_url=settings.public_base_url,
+    )
 
 
 def _require_admin_user(*, db: Session, token: str) -> User:
@@ -75,7 +72,7 @@ def admin_page(
                 request.url.path,
                 "admin/login",
             )
-        return RedirectResponse(url="admin/login", status_code=303)
+        return safe_redirect(request, "/admin/login", status_code=303)
     user = _require_admin_user(db=db, token=token)
 
     users = db.exec(select(User).order_by(text("id"))).all()

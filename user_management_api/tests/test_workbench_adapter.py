@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from app.workbench_adapter import WorkbenchPathAdapter
+from fastapi_workbench import workbenchify
 
 
 def _client(*, root_path: str) -> TestClient:
@@ -25,7 +25,7 @@ def _client(*, root_path: str) -> TestClient:
     def admin() -> dict:
         return {"ok": True}
 
-    wrapped = WorkbenchPathAdapter(app)
+    wrapped = workbenchify(app)
     return TestClient(wrapped, base_url="http://testserver", root_path=root_path)
 
 

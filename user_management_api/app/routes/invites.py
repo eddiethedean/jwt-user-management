@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlmodel import Session, select
 
+from fastapi_workbench import external_base, external_url
 from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
@@ -31,17 +32,13 @@ def _norm_email(v: str) -> str:
     return (v or "").strip().lower()
 
 
-def _external_base(request: Request) -> str:
-    base = (settings.public_base_url or "").strip().rstrip("/")
-    if not base:
-        # Best effort fallback; may be internal behind some proxies.
-        return str(request.base_url).rstrip("/")
-    return base
-
-
 def _invite_url(request: Request, token: str) -> str:
-    root_path = str(request.scope.get("root_path") or "").rstrip("/")
-    return f"{_external_base(request)}{root_path}/invites/accept?token={token}"
+    # Prefer an explicitly configured browser-routable host (PUBLIC_BASE_URL) if set.
+    return external_url(
+        request,
+        f"/invites/accept?token={token}",
+        public_base_url=settings.public_base_url,
+    )
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -161,7 +158,10 @@ def accept_invite_form(
         )
     # Use a full external URL so Workbench doesn't rewrite it to /proxy/<port>/...
     # and so the browser doesn't resolve relative paths incorrectly.
-    return RedirectResponse(url=f"{_external_base(request)}{bp}/login", status_code=303)
+    return RedirectResponse(
+        url=external_url(request, "/login", public_base_url=settings.public_base_url),
+        status_code=303,
+    )
 
 
 @router.post("/accept")

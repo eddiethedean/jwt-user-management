@@ -32,7 +32,11 @@ python run_workbench.py
 ```
 
 Notes:
-- If Workbench sets `RS_SERVER_URL`, the script calls `rserver-url` to infer the prefix automatically.\n+- You can also set `BASE_PATH=/s/<service>/p/<project>` explicitly.\n+- You can override the port with `PORT=8001` (default is 8001).
+- The Workbench-specific logic (path normalization, safe redirects, external URL building) lives in the reusable package `fastapi_workbench/` at the repo root.
+- If Workbench sets `RS_SERVER_URL`, the runner calls `rserver-url` to infer the prefix automatically.
+- You can also set `BASE_PATH=/s/<service>/p/<project>` explicitly.
+- You can override the port with `PORT=8001` (otherwise a free port is chosen).
+- For browser-routable invite links, set `PUBLIC_BASE_URL=https://<your-workbench-host>` (the runner sets this automatically when `rserver-url` returns a full external URL).
 
 ## HTML pages
 

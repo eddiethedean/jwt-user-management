@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastapi-workbench"
+version = "0.1.0"
+description = "FastAPI helpers for Posit Workbench / RStudio Server proxy prefixes"
+readme = "fastapi_workbench/README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "jwt-user-management contributors" }]
+dependencies = [
+  "starlette>=0.27",
+  "uvicorn>=0.23",
+]
+
+[project.urls]
+Repository = "https://example.invalid/jwt-user-management"
+
+[tool.setuptools]
+packages = ["fastapi_workbench"]
+
+[tool.pytest.ini_options]
+testpaths = ["user_management_api/tests", "fastapi_workbench/tests"]
+pythonpath = ["."]
+
