@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +17,7 @@ from app.models import User
 
 
 router = APIRouter(tags=["admin"])
+log = logging.getLogger("uvicorn.error")
 templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parents[1] / "templates")
 )
@@ -31,7 +33,16 @@ def admin_page(
 ) -> Response:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
     if not token:
-        return RedirectResponse(url=f"{bp}/admin/login", status_code=303)
+        # Use a relative redirect to avoid Workbench rewriting absolute-path
+        # redirects into /proxy/<port>/... (which may not be browser-routable).
+        if os.getenv("WORKBENCH_DEBUG"):
+            log.warning(
+                "Admin redirect: scope.root_path=%r path=%r -> Location=%r",
+                request.scope.get("root_path"),
+                request.url.path,
+                "admin/login",
+            )
+        return RedirectResponse(url="admin/login", status_code=303)
     try:
         payload: dict[str, Any] = decode_token(token)
         user_id = int(payload.get("sub") or 0)

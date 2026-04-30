@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
+import os
 from urllib.parse import unquote, urlparse
 
 from starlette.types import ASGIApp, Receive, Scope, Send
+
+
+log = logging.getLogger("uvicorn.error")
+
+
+def _debug_enabled() -> bool:
+    return os.getenv("WORKBENCH_DEBUG", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
 
 
 @dataclass(frozen=True)
@@ -94,6 +109,25 @@ class WorkbenchPathAdapter:
             await self.app(scope, receive, send)
             return
 
+        debug = _debug_enabled()
+        if debug:
+            log.warning(
+                "Workbench adapter incoming: method=%r root_path=%r path=%r raw_path=%r query_string=%r",
+                scope.get("method"),
+                scope.get("root_path"),
+                scope.get("path"),
+                scope.get("raw_path"),
+                (scope.get("query_string") or b"").decode(errors="replace"),
+            )
         scope = self._maybe_decode_absolute_url_path(scope)
-        scope = self._strip_root_path_from_path(scope)
+        scope2 = self._strip_root_path_from_path(scope)
+        if debug and scope2 is not scope:
+            log.warning(
+                "Workbench adapter normalized: root_path=%r path=%r (was root_path=%r path=%r)",
+                scope2.get("root_path"),
+                scope2.get("path"),
+                scope.get("root_path"),
+                scope.get("path"),
+            )
+        scope = scope2
         await self.app(scope, receive, send)
