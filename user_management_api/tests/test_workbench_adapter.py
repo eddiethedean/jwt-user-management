@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app.workbench_adapter import WorkbenchPathAdapter
@@ -12,6 +12,14 @@ def _client(*, root_path: str) -> TestClient:
     @app.get("/ping")
     def ping() -> dict:
         return {"ok": True}
+
+    @app.get("/scope")
+    def scope_dump(request: Request) -> dict:
+        s = request.scope
+        return {
+            "root_path": str(s.get("root_path") or ""),
+            "path": str(s.get("path") or ""),
+        }
 
     @app.get("/admin")
     def admin() -> dict:
@@ -57,3 +65,10 @@ def test_strips_suffix_of_root_path_when_proxy_prefix_stripped_upstream() -> Non
 
     r = client.get(f"{forwarded_prefix}/ping")
     assert r.status_code == 200
+
+    # Adapter should also normalize scope['root_path'] so redirects/templates don't
+    # emit /proxy/<port>/... URLs that Workbench can't route.
+    r2 = client.get(f"{forwarded_prefix}/scope")
+    assert r2.status_code == 200
+    s = r2.json()
+    assert s["root_path"] == forwarded_prefix

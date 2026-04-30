@@ -57,6 +57,7 @@ class WorkbenchPathAdapter:
 
         # Prefer stripping the full root_path when it is present.
         new_path = path
+        new_root_path = rp
         if path == rp:
             new_path = "/"
         elif path.startswith(rp + "/"):
@@ -74,15 +75,18 @@ class WorkbenchPathAdapter:
                 suffix = "/" + "/".join(rp_parts[i:])
                 if path_norm == suffix:
                     new_path = "/"
+                    new_root_path = suffix.rstrip("/")
                     break
                 if path_norm.startswith(suffix + "/"):
                     new_path = path_norm[len(suffix) :] or "/"
+                    new_root_path = suffix.rstrip("/")
                     break
-        if new_path == path:
+        if new_path == path and new_root_path == rp:
             return scope
         new_scope = dict(scope)
         new_scope["path"] = new_path
         new_scope["raw_path"] = new_path.encode()
+        new_scope["root_path"] = new_root_path
         return new_scope
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
