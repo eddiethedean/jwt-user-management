@@ -5,6 +5,19 @@
     <h2>Users</h2>
     <p class="muted">Viewing as <code>{{ email }}</code></p>
 
+    {% if admin_error %}
+      <div class="err">{{ admin_error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ base_path }}/admin/open" style="margin: 10px 0 14px;">
+      <input type="hidden" name="return_to" value="users" />
+      <button type="submit" style="margin-top: 0;">Open admin page</button>
+    </form>
+
+    <form method="post" action="{{ base_path }}/logout" style="margin: 10px 0 14px;">
+      <button type="submit">Log out</button>
+    </form>
+
     <table>
       <thead>
         <tr>

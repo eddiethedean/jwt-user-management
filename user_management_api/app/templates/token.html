@@ -5,11 +5,22 @@
     <h2>JWT issued</h2>
     <p class="muted">Signed in as <code>{{ email }}</code></p>
 
+    {% if admin_error %}
+      <div class="err">{{ admin_error }}</div>
+    {% endif %}
+
     <p class="muted">Use this token for API calls (Bearer) or open the HTML users page:</p>
     <div class="nav pillRow" style="margin: 10px 0 12px;">
-      <a href="{{ base_path }}/users?token={{ token }}">Open users page</a>
-      <a href="{{ base_path }}/admin?token={{ token }}">Open admin page</a>
+      <a href="{{ base_path }}/users">Open users page</a>
+      <form method="post" action="{{ base_path }}/admin/open" style="display:inline; margin: 0;">
+        <input type="hidden" name="return_to" value="token" />
+        <button type="submit" style="margin-top: 0;">Open admin page</button>
+      </form>
     </div>
+
+    <form method="post" action="{{ base_path }}/logout" style="margin-top: 10px;">
+      <button type="submit">Log out</button>
+    </form>
 
     <label>Token</label>
     <pre style="margin: 6px 0 0;">{{ token }}</pre>

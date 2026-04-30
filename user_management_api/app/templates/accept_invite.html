@@ -12,6 +12,16 @@
     <form method="post" action="{{ base_path }}/invites/accept-form">
       <input type="hidden" name="token" value="{{ token }}" />
 
+      <label for="email">Email</label>
+      <input
+        id="email"
+        type="email"
+        value="{{ invite_email or '' }}"
+        readonly
+        aria-readonly="true"
+      />
+      <div class="muted" style="margin-top: 6px;">This invite is tied to this email address.</div>
+
       <label for="password">Password</label>
       <input id="password" name="password" type="password" autocomplete="new-password" required />
 

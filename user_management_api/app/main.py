@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import Response
 
+from fastapi_workbench import safe_redirect
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.invites import router as invites_router
@@ -16,6 +17,5 @@ app.include_router(users_router)
 
 
 @app.get("/", include_in_schema=False)
-def root(request: Request) -> RedirectResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
-    return RedirectResponse(url=f"{bp}/register", status_code=302)
+def root(request: Request) -> Response:
+    return safe_redirect(request, "/register", status_code=302)

@@ -117,15 +117,13 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None
         follow_redirects=False,
     )
     assert r2.status_code == 303
-    loc = r2.headers["location"]
-    assert loc.startswith("../admin?token=")
-    token = loc.split("token=", 1)[1]
-    assert token
+    assert r2.headers["location"] == "../admin"
+    assert "set-cookie" in {k.lower() for k in r2.headers.keys()}
 
     # Admin page should accept invite creation via form POST and render invite URL.
     r3 = client.post(
         f"{prefix}/admin/invite",
-        data={"token": token, "email": "new.user@example.com"},
+        data={"email": "new.user@example.com"},
         follow_redirects=False,
     )
     assert r3.status_code == 200
@@ -138,6 +136,10 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None
     m = re.search(r"invites/accept\?token=([^\s\"<]+)", r3.text)
     assert m
     invite_token = m.group(1)
+
+    r_accept_get = client.get(f"{prefix}/invites/accept?token={invite_token}")
+    assert r_accept_get.status_code == 200
+    assert "new.user@example.com" in r_accept_get.text
 
     r4 = client.post(
         f"{prefix}/invites/accept-form",

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlmodel import Session, select
@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.web.session import get_auth_token, set_auth_cookie
 
 
 router = APIRouter(tags=["admin"])
@@ -40,7 +41,7 @@ def _invite_url(request: Request, token: str) -> str:
     )
 
 
-def _require_admin_user(*, db: Session, token: str) -> User:
+def _require_user(*, db: Session, token: str) -> User:
     try:
         payload: dict[str, Any] = decode_token(token)
         user_id = int(payload.get("sub") or 0)
@@ -50,6 +51,11 @@ def _require_admin_user(*, db: Session, token: str) -> User:
     user = db.exec(select(User).where(User.id == user_id)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
+    return user
+
+
+def _require_admin_user(*, db: Session, token: str) -> User:
+    user = _require_user(db=db, token=token)
     if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
@@ -62,6 +68,32 @@ def admin_page(
     db: Session = Depends(get_db),
 ) -> Response:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
+    cookie_token = get_auth_token(request)
+    if token:
+        # If we were given a token via URL (legacy/demo mode), promote it into the
+        # HttpOnly cookie and clean up the URL. If the user is not an admin, keep
+        # them on the users page with a friendly message.
+        user = _require_user(db=db, token=token)
+        resp = safe_redirect(request, "/admin", status_code=303)
+        set_auth_cookie(resp, request=request, token=token)
+        if not getattr(user, "is_admin", False):
+            users = db.exec(select(User).order_by(text("id"))).all()
+            return templates.TemplateResponse(
+                request,
+                "users.html",
+                {
+                    "request": request,
+                    "users": users,
+                    "email": user.email,
+                    "is_admin": False,
+                    "admin_error": "You don’t have admin privileges for this app.",
+                    "base_path": bp,
+                },
+                status_code=403,
+            )
+        return resp
+
+    token = cookie_token
     if not token:
         # Use a relative redirect to avoid Workbench rewriting absolute-path
         # redirects into /proxy/<port>/... (which may not be browser-routable).
@@ -73,7 +105,22 @@ def admin_page(
                 "admin/login",
             )
         return safe_redirect(request, "/admin/login", status_code=303)
-    user = _require_admin_user(db=db, token=token)
+    user = _require_user(db=db, token=token)
+    if not getattr(user, "is_admin", False):
+        users = db.exec(select(User).order_by(text("id"))).all()
+        return templates.TemplateResponse(
+            request,
+            "users.html",
+            {
+                "request": request,
+                "users": users,
+                "email": user.email,
+                "is_admin": False,
+                "admin_error": "You don’t have admin privileges for this app.",
+                "base_path": bp,
+            },
+            status_code=403,
+        )
 
     users = db.exec(select(User).order_by(text("id"))).all()
     return templates.TemplateResponse(
@@ -90,6 +137,57 @@ def admin_page(
             "invite_email": "",
             "invite_grant_admin": False,
         },
+    )
+
+
+@router.post("/admin/open", response_class=HTMLResponse, include_in_schema=False)
+def open_admin_from_page(
+    request: Request,
+    return_to: str = Form(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    """
+    Used by "Open admin page" buttons so we can render a friendly message and keep
+    the user on their current page if they are not an admin.
+    """
+    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    token = get_auth_token(request)
+    if not token:
+        return safe_redirect(request, "/login", status_code=303)
+
+    user = _require_user(db=db, token=token)
+    if getattr(user, "is_admin", False):
+        # We are at /admin/open, so use a relative redirect.
+        return safe_redirect(request, "../admin", status_code=303)
+
+    msg = "You don’t have admin privileges for this app."
+    if return_to == "token":
+        return templates.TemplateResponse(
+            request,
+            "token.html",
+            {
+                "request": request,
+                "token": token,
+                "email": user.email,
+                "admin_error": msg,
+                "base_path": bp,
+            },
+            status_code=403,
+        )
+
+    users = db.exec(select(User).order_by(text("id"))).all()
+    return templates.TemplateResponse(
+        request,
+        "users.html",
+        {
+            "request": request,
+            "users": users,
+            "email": user.email,
+            "is_admin": False,
+            "admin_error": msg,
+            "base_path": bp,
+        },
+        status_code=403,
     )
 
 
@@ -133,19 +231,25 @@ def admin_login_submit(
     token = create_access_token(subject=str(user.id))
     # Relative redirect so Workbench doesn't rewrite into /proxy/<port>/...
     # We are at /admin/login, so ../admin resolves correctly under any prefix.
-    return RedirectResponse(url=f"../admin?token={token}", status_code=303)
+    resp = safe_redirect(request, "../admin", status_code=303)
+    set_auth_cookie(resp, request=request, token=token)
+    return resp
 
 
 @router.post("/admin/invite", response_class=HTMLResponse, include_in_schema=False)
 def admin_invite_submit(
     request: Request,
-    token: str = Form(...),
+    token: Optional[str] = Form(default=None),
     email: str = Form(...),
     grant_admin: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Response:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
-    admin_user = _require_admin_user(db=db, token=token)
+    cookie_token = get_auth_token(request)
+    active_token = cookie_token or token
+    if not active_token:
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+    admin_user = _require_admin_user(db=db, token=active_token)
 
     email_n = _norm_email(email)
     if not email_n:
@@ -174,7 +278,7 @@ def admin_invite_submit(
             "request": request,
             "users": users,
             "email": admin_user.email,
-            "token": token,
+            "token": active_token,
             "base_path": bp,
             "invite_url": _invite_url(request, raw),
             "invite_error": None,
