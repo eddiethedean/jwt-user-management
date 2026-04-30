@@ -21,18 +21,34 @@ uvicorn app.main:app --reload --port 8001
 
 - Docs: `http://127.0.0.1:8001/docs`
 
+## Run on Workbench (behind a proxy prefix)
+
+If you’re running behind Posit Workbench / RStudio Server (URLs like `/s/<service>/p/<project>/...`),
+use the runner script so Uvicorn is started with the correct `root_path`:
+
+```bash
+cd user_management_api
+python run_workbench.py
+```
+
+Notes:
+- If Workbench sets `RS_SERVER_URL`, the script calls `rserver-url` to infer the prefix automatically.\n+- You can also set `BASE_PATH=/s/<service>/p/<project>` explicitly.\n+- You can override the port with `PORT=8001` (default is 8001).
+
 ## HTML pages
 
 - Register: `GET /register`
 - Login: `GET /login`
 - Users page: `GET /users?token=...` (paste token from `/login`)
 - Admin page: `GET /admin?token=...` (paste token from `/login`)
+- Invite accept page: `GET /invites/accept?token=...`
 
 ## JSON API
 
 - JWT token: `POST /auth/token` (form-encoded: `username` = email, `password`)
 - Current user: `GET /users/me` (Bearer)
 - List users: `GET /users` (Bearer)
+- Create invite (admin only): `POST /invites` (Bearer; body: `{ "email": "..." }`)
+- Accept invite: `POST /invites/accept` (body: `{ "token": "...", "password": "..." }`)
 
 Example:
 
@@ -50,6 +66,7 @@ Configured via `user_management_api/.env`:
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
 - `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench)
+- `PUBLIC_BASE_URL`: external scheme+host used to generate invite URLs (e.g. `https://workbench.socom.mil`)
 - `JWT_SECRET`: secret used to sign JWTs
 - `JWT_EXPIRES_MINUTES`: default `60`
 - `JWT_ALGORITHM`: default `HS256`

@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.middleware.root_path import RootPathMiddleware
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
+from app.routes.invites import router as invites_router
 from app.routes.users import router as users_router
 
 
@@ -14,6 +15,7 @@ app.add_middleware(RootPathMiddleware, base_path=settings.base_path)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(invites_router)
 app.include_router(users_router)
 
 

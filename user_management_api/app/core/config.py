@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # Optional external path prefix when behind a reverse proxy (e.g. Workbench):
     # Example: /s/<service>/p/<project>
     base_path: str = ""
+    # External base URL used to generate invite links (scheme + host).
+    # Example: https://workbench.socom.mil
+    public_base_url: str = "http://127.0.0.1:8001"
     jwt_secret: str = "dev-secret"
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60

@@ -3,9 +3,11 @@ from __future__ import annotations
 import importlib
 import os
 import sys
+import uuid
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlmodel import SQLModel
 
 
 def _reload_app_with_env(*, base_path: str) -> FastAPI:
@@ -14,6 +16,8 @@ def _reload_app_with_env(*, base_path: str) -> FastAPI:
     """
     os.environ["BASE_PATH"] = base_path
     os.environ.setdefault("JWT_SECRET", "test-secret")
+    db_path = f"./test-{uuid.uuid4().hex}.db"
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
 
     # Ensure backend package root is importable so `import app...` works.
     cwd = os.getcwd()
@@ -25,9 +29,18 @@ def _reload_app_with_env(*, base_path: str) -> FastAPI:
 
     importlib.reload(config)
 
+    # Reload modules that import `settings` at import time.
+    import app.routes.invites as invites
+
+    importlib.reload(invites)
+
     import app.main as main
 
     importlib.reload(main)
+    # Ensure tables exist for tests that hit DB-backed routes.
+    import app.db as db
+
+    SQLModel.metadata.create_all(db.engine)
     return main.app
 
 
@@ -96,3 +109,35 @@ def test_workbench_autodetects_prefix_when_base_path_unset() -> None:
     encoded = "/https%3A//workbench.socom.mil" + bp + "//docs"
     r = client.get(encoded)
     assert r.status_code == 200
+
+
+def test_invite_url_uses_public_base_url_and_root_path() -> None:
+    bp = "/s/e886e3c9ab5a7e147ea97/p/a693b2fa"
+    os.environ["PUBLIC_BASE_URL"] = "https://workbench.socom.mil"
+    os.environ["SEED_ADMIN_EMAIL"] = "admin@example.com"
+    os.environ["SEED_ADMIN_PASSWORD"] = "admin123"
+    app = _reload_app_with_env(base_path="")
+    client = TestClient(app, base_url="http://testserver")
+
+    # Create admin user via register (simplest) then login for token.
+    client.post(
+        "/register", data={"email": "admin@example.com", "password": "admin123"}
+    )
+    token = client.post(
+        "/auth/token",
+        data={"username": "admin@example.com", "password": "admin123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    ).json()["access_token"]
+
+    # Simulate Workbench encoded path to /invites (so root_path is inferred).
+    encoded_create = "/https%3A//workbench.socom.mil" + bp + "//invites"
+    r = client.post(
+        encoded_create,
+        headers={"Authorization": f"Bearer {token}"},
+        json={"email": "new.user@example.com"},
+    )
+    assert r.status_code == 200
+    invite_url = r.json()["invite_url"]
+    assert invite_url.startswith(
+        f"https://workbench.socom.mil{bp}/invites/accept?token="
+    )
