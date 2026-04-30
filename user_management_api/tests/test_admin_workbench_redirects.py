@@ -137,6 +137,10 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None
     assert m
     invite_token = m.group(1)
 
+    r_accept_get = client.get(f"{prefix}/invites/accept?token={invite_token}")
+    assert r_accept_get.status_code == 200
+    assert "new.user@example.com" in r_accept_get.text
+
     r4 = client.post(
         f"{prefix}/invites/accept-form",
         data={"token": invite_token, "password": "NewPassw0rd!123"},

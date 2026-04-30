@@ -108,12 +108,35 @@ def create_invite(
 
 
 @router.get("/accept", response_class=HTMLResponse, include_in_schema=False)
-def accept_invite_page(request: Request, token: str) -> HTMLResponse:
+def accept_invite_page(
+    request: Request, token: str, db: Session = Depends(get_db)
+) -> HTMLResponse:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
+    token_hash = InviteToken.hash_token(token)
+    invite: Optional[InviteToken] = db.exec(
+        select(InviteToken).where(InviteToken.token_hash == token_hash)
+    ).first()
+    if not invite:
+        return templates.TemplateResponse(
+            request,
+            "accept_invite.html",
+            {
+                "request": request,
+                "token": token,
+                "error": "Invite not found",
+                "base_path": bp,
+            },
+            status_code=404,
+        )
     return templates.TemplateResponse(
         request,
         "accept_invite.html",
-        {"request": request, "token": token, "base_path": bp},
+        {
+            "request": request,
+            "token": token,
+            "invite_email": invite.email,
+            "base_path": bp,
+        },
     )
 
 
@@ -157,10 +180,20 @@ def accept_invite_form(
     try:
         _accept(db=db, token=token, password=password)
     except HTTPException as e:
+        token_hash = InviteToken.hash_token(token)
+        invite: Optional[InviteToken] = db.exec(
+            select(InviteToken).where(InviteToken.token_hash == token_hash)
+        ).first()
         return templates.TemplateResponse(
             request,
             "accept_invite.html",
-            {"request": request, "token": token, "error": e.detail, "base_path": bp},
+            {
+                "request": request,
+                "token": token,
+                "invite_email": invite.email if invite else "",
+                "error": e.detail,
+                "base_path": bp,
+            },
             status_code=e.status_code,
         )
     # Use a full external URL so Workbench doesn't rewrite it to /proxy/<port>/...
