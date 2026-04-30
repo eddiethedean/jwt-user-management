@@ -15,6 +15,15 @@ dependencies = [
   "uvicorn>=0.23",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "fastapi[standard]",
+  "httpx",
+  "pytest",
+  "ruff",
+  "ty",
+]
+
 [project.urls]
 Repository = "https://example.invalid/jwt-user-management"
 
