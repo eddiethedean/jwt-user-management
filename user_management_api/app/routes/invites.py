@@ -44,6 +44,16 @@ def _invite_url(request: Request, token: str) -> str:
     return f"{_external_base(request)}{root_path}/invites/accept?token={token}"
 
 
+def _as_utc_aware(dt: datetime) -> datetime:
+    """
+    SQLite commonly returns naive datetimes even when we store timezone-aware values.
+    Treat naive DB timestamps as UTC to keep comparisons consistent.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _require_admin(db: Session, creds: Optional[HTTPAuthorizationCredentials]) -> User:
     if not creds:
         raise HTTPException(status_code=401, detail="Missing bearer token")
@@ -118,7 +128,7 @@ def _accept(*, db: Session, token: str, password: str) -> None:
     now = datetime.now(timezone.utc)
     if invite.used_at is not None:
         raise HTTPException(status_code=400, detail="Invite already used")
-    if invite.expires_at < now:
+    if _as_utc_aware(invite.expires_at) < now:
         raise HTTPException(status_code=400, detail="Invite expired")
 
     user = db.exec(select(User).where(User.email == invite.email)).first()

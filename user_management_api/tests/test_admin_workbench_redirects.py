@@ -101,3 +101,18 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None
     )
     assert r3.status_code == 200
     assert "/invites/accept?token=" in r3.text
+
+    # Ensure accept-form flow works even if DB returns naive datetimes (SQLite).
+    # This is a regression test for Workbench where `expires_at` came back naive.
+    import re
+
+    m = re.search(r"invites/accept\?token=([^\s\"<]+)", r3.text)
+    assert m
+    invite_token = m.group(1)
+
+    r4 = client.post(
+        f"{prefix}/invites/accept-form",
+        data={"token": invite_token, "password": "NewPassw0rd!123"},
+        follow_redirects=False,
+    )
+    assert r4.status_code == 303
