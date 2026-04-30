@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +22,8 @@ templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parents[1] / "templates")
 )
 
+ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
+
 
 def _as_utc_aware(dt: datetime) -> datetime:
     if dt.tzinfo is None:
@@ -32,6 +35,7 @@ def _as_utc_aware(dt: datetime) -> datetime:
 def forgot_password_form(
     request: Request,
     email: str = Form(...),
+    return_to: str = Form(default="login"),
     db: Session = Depends(get_db),
 ) -> Response:
     """
@@ -66,17 +70,18 @@ def forgot_password_form(
             public_base_url=settings.public_base_url,
         )
 
-    return templates.TemplateResponse(
-        request,
-        "login.html",
-        {
-            "request": request,
-            "base_path": bp,
-            "success": "If the account exists, a reset link has been created.",
-            "reset_email": email_n,
-            "reset_url": reset_url,
-        },
-    )
+    template_name = "login.html"
+    ctx: dict = {
+        "request": request,
+        "base_path": bp,
+        "success": "If the account exists, a reset link has been created.",
+        "reset_email": email_n,
+        "reset_url": reset_url,
+    }
+    if return_to == "admin_login":
+        template_name = "admin_login.html"
+        ctx["admin_email"] = ADMIN_EMAIL
+    return templates.TemplateResponse(request, template_name, ctx)
 
 
 @router.get("/reset", response_class=HTMLResponse, include_in_schema=False)
