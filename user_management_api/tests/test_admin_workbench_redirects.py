@@ -41,7 +41,9 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
     # package explicitly.
     app_pkg_dir = os.path.join(api_root, "app")
     app_init = os.path.join(app_pkg_dir, "__init__.py")
-    spec = spec_from_file_location("app", app_init, submodule_search_locations=[app_pkg_dir])
+    spec = spec_from_file_location(
+        "app", app_init, submodule_search_locations=[app_pkg_dir]
+    )
     assert spec and spec.loader
     app_pkg = module_from_spec(spec)
     sys.modules["app"] = app_pkg

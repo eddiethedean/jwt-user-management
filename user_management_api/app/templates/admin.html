@@ -77,7 +77,7 @@
       </script>
     {% endif %}
 
-    <form method="post" action="admin/invite">
+    <form method="post" action="{{ base_path }}/admin/invite">
       <input type="hidden" name="token" value="{{ token }}" />
       <label for="invite_email">Email</label>
       <input id="invite_email" name="email" type="email" value="{{ invite_email or '' }}" required />

@@ -8,7 +8,6 @@ import uuid
 from datetime import datetime, timezone
 from importlib.util import module_from_spec, spec_from_file_location
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, select
 from starlette.types import ASGIApp
@@ -103,7 +102,10 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
     import app.db as db
 
     _seed_user(
-        db_engine=db.engine, email="admin@example.com", password="admin123", is_admin=True
+        db_engine=db.engine,
+        email="admin@example.com",
+        password="admin123",
+        is_admin=True,
     )
 
     client = TestClient(app, base_url="http://testserver", root_path=prefix)
@@ -128,6 +130,8 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
         follow_redirects=False,
     )
     assert r_inv.status_code == 200
+    # Regression: form action must be absolute under Workbench prefix.
+    assert f'action="{prefix}/admin/invite"' in r_inv.text
     raw_invite = _extract_invite_token(r_inv.text)
 
     # Accept invite (HTML form flow).
@@ -137,6 +141,19 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
         follow_redirects=False,
     )
     assert r_accept.status_code == 303
+
+    # Regression: invited admin can log in and access /admin (previously gated by SEED_ADMIN_EMAIL).
+    r_admin_login = client.post(
+        f"{prefix}/admin/login",
+        data={"email": "new.admin@example.com", "password": "NewPassw0rd!123"},
+        follow_redirects=False,
+    )
+    assert r_admin_login.status_code == 303
+    loc = r_admin_login.headers["location"]
+    assert loc.startswith("../admin?token=")
+
+    r_admin = client.get(f"{prefix}/admin?token={loc.split('token=', 1)[1]}")
+    assert r_admin.status_code == 200
 
     from app.models import User
 
@@ -154,7 +171,10 @@ def test_invite_without_checkbox_does_not_grant_admin() -> None:
     import app.db as db
 
     _seed_user(
-        db_engine=db.engine, email="admin@example.com", password="admin123", is_admin=True
+        db_engine=db.engine,
+        email="admin@example.com",
+        password="admin123",
+        is_admin=True,
     )
 
     client = TestClient(app, base_url="http://testserver", root_path=prefix)
@@ -196,7 +216,6 @@ def test_non_admin_cannot_create_invite_api() -> None:
 
     import app.db as db
     from app.core.security import create_access_token
-    from app.models import User
 
     user_id = _seed_user(
         db_engine=db.engine, email="user@example.com", password="pw", is_admin=False
@@ -210,4 +229,3 @@ def test_non_admin_cannot_create_invite_api() -> None:
         json={"email": "x@example.com", "grant_admin": True},
     )
     assert r.status_code == 403
-

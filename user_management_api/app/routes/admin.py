@@ -115,7 +115,7 @@ def admin_login_submit(
     user: Optional[User] = db.exec(select(User).where(User.email == email_n)).first()
     if (
         not user
-        or user.email != ADMIN_EMAIL
+        or not getattr(user, "is_admin", False)
         or not verify_password(password, user.hashed_password)
     ):
         return templates.TemplateResponse(
@@ -124,7 +124,7 @@ def admin_login_submit(
             {
                 "request": request,
                 "error": "Invalid credentials",
-                "admin_email": ADMIN_EMAIL,
+                "admin_email": email_n or ADMIN_EMAIL,
                 "base_path": bp,
             },
             status_code=400,
