@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
+from fastapi_workbench import safe_redirect
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models import User
@@ -115,9 +116,8 @@ def login_submit(
 
 
 @router.post("/logout", include_in_schema=False)
-def logout(request: Request) -> RedirectResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
-    resp = RedirectResponse(url=f"{bp}/login", status_code=303)
+def logout(request: Request) -> Response:
+    resp = safe_redirect(request, "/login", status_code=303)
     clear_auth_cookie(resp, request=request)
     return resp
 
