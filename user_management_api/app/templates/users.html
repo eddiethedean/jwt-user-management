@@ -2,23 +2,23 @@
 {% block title %}Users{% endblock %}
 {% block body %}
   <div class="card">
-    <h2 style="margin: 0 0 8px;">Users</h2>
-    <p class="muted" style="margin-top: 0;">Viewing as <code>{{ email }}</code></p>
+    <h2>Users</h2>
+    <p class="muted">Viewing as <code>{{ email }}</code></p>
 
-    <table style="width:100%; border-collapse: collapse;">
+    <table>
       <thead>
         <tr>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">ID</th>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Email</th>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Created</th>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Created</th>
         </tr>
       </thead>
       <tbody>
         {% for u in users %}
           <tr>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.id }}</td>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;"><code>{{ u.email }}</code></td>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.created_at }}</td>
+            <td>{{ u.id }}</td>
+            <td><code>{{ u.email }}</code></td>
+            <td>{{ u.created_at }}</td>
           </tr>
         {% endfor %}
       </tbody>

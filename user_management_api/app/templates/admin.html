@@ -2,15 +2,15 @@
 {% block title %}Admin{% endblock %}
 {% block body %}
   <div class="card">
-    <h2 style="margin: 0 0 8px;">Admin</h2>
-    <p class="muted" style="margin-top: 0;">Signed in as <code>{{ email }}</code></p>
+    <h2>Admin</h2>
+    <p class="muted">Signed in as <code>{{ email }}</code></p>
 
-    <div class="row" style="margin: 8px 0 12px;">
-      <a href="{{ base_path }}/users?token={{ token }}" class="muted">Open users page</a>
+    <div class="nav pillRow" style="margin: 10px 0 14px;">
+      <a href="{{ base_path }}/users?token={{ token }}">Open users page</a>
     </div>
 
-    <h3 style="margin: 16px 0 8px;">Invite user</h3>
-    <p class="muted" style="margin-top: 0;">Generate an invite link for a new user.</p>
+    <h3>Invite user</h3>
+    <p class="muted">Generate an invite link for a new user.</p>
 
     {% if invite_error %}
       <div class="err">{{ invite_error }}</div>
@@ -77,34 +77,62 @@
       </script>
     {% endif %}
 
-    <form method="post" action="{{ base_path }}/admin/invite">
+    <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;">
       <input type="hidden" name="token" value="{{ token }}" />
-      <label for="invite_email">Email</label>
-      <input id="invite_email" name="email" type="email" value="{{ invite_email or '' }}" required />
-      <label style="display:flex; gap:8px; align-items:center; margin-top:10px;">
-        <input type="checkbox" name="grant_admin" value="1" {% if invite_grant_admin %}checked{% endif %} />
-        Grant admin privileges
-      </label>
-      <button type="submit">Create invite</button>
+      <div class="row" style="align-items:flex-end;">
+        <div style="flex: 1; min-width: 240px;">
+          <label for="invite_email" style="margin-top: 0;">Email</label>
+          <input
+            id="invite_email"
+            name="email"
+            type="email"
+            value="{{ invite_email or '' }}"
+            placeholder="name@example.com"
+            autocomplete="email"
+            required
+          />
+          <div class="muted" style="margin-top: 6px;">We’ll generate a one-time link to set a password.</div>
+        </div>
+
+        <div style="min-width: 200px;">
+          <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 600;">
+            <input
+              type="checkbox"
+              name="grant_admin"
+              value="1"
+              style="width:auto; margin-top: 3px;"
+              {% if invite_grant_admin %}checked{% endif %}
+            />
+            <span>
+              Grant admin privileges
+              <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+        <button type="submit">Create invite</button>
+      </div>
     </form>
 
-    <h3 style="margin: 16px 0 8px;">All users</h3>
-    <table style="width:100%; border-collapse: collapse;">
+    <h3>All users</h3>
+    <table>
       <thead>
         <tr>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">ID</th>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Email</th>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Admin</th>
-          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Created</th>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Admin</th>
+          <th>Created</th>
         </tr>
       </thead>
       <tbody>
         {% for u in users %}
           <tr>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.id }}</td>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;"><code>{{ u.email }}</code></td>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{% if u.is_admin %}Yes{% else %}No{% endif %}</td>
-            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.created_at }}</td>
+            <td>{{ u.id }}</td>
+            <td><code>{{ u.email }}</code></td>
+            <td>{% if u.is_admin %}Yes{% else %}No{% endif %}</td>
+            <td>{{ u.created_at }}</td>
           </tr>
         {% endfor %}
       </tbody>

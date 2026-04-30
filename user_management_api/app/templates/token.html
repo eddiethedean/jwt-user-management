@@ -2,13 +2,13 @@
 {% block title %}Token{% endblock %}
 {% block body %}
   <div class="card">
-    <h2 style="margin: 0 0 8px;">JWT issued</h2>
-    <p class="muted" style="margin-top: 0;">Signed in as <code>{{ email }}</code></p>
+    <h2>JWT issued</h2>
+    <p class="muted">Signed in as <code>{{ email }}</code></p>
 
     <p class="muted">Use this token for API calls (Bearer) or open the HTML users page:</p>
-    <div class="row" style="margin: 8px 0 12px;">
-      <a href="{{ base_path }}/users?token={{ token }}" class="muted">Open users page</a>
-      <a href="{{ base_path }}/admin?token={{ token }}" class="muted">Open admin page</a>
+    <div class="nav pillRow" style="margin: 10px 0 12px;">
+      <a href="{{ base_path }}/users?token={{ token }}">Open users page</a>
+      <a href="{{ base_path }}/admin?token={{ token }}">Open admin page</a>
     </div>
 
     <label>Token</label>
