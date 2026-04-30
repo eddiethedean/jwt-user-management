@@ -71,7 +71,7 @@ def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
         "python",
         "-m",
         "uvicorn",
-        "fastapi_workbench.tests.real_workbench_app:app",
+        "tests.real_workbench_app:app",
         "--host",
         "127.0.0.1",
         "--port",

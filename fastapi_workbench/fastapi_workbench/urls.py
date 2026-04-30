@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from urllib.parse import urljoin
 
 from starlette.requests import Request
 
@@ -34,7 +33,9 @@ def external_url(
     - `path` may be absolute ('/login') or relative ('login'); we normalize it.
     - If include_root_path is True, prepends `scope['root_path']` (without trailing '/').
     """
-    root_path = str(request.scope.get("root_path") or "").rstrip("/") if include_root_path else ""
+    root_path = (
+        str(request.scope.get("root_path") or "").rstrip("/") if include_root_path else ""
+    )
     p = (path or "").strip()
     if not p.startswith("/"):
         p = "/" + p

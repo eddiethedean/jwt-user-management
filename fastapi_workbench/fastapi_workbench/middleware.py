@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import unquote, urlparse
 
 from starlette.types import ASGIApp, Receive, Scope, Send
