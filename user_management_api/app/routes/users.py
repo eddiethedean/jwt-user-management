@@ -97,7 +97,13 @@ def users(
         return templates.TemplateResponse(
             request,
             "users.html",
-            {"request": request, "users": users, "email": user.email, "base_path": bp},
+            {
+                "request": request,
+                "users": users,
+                "email": user.email,
+                "is_admin": bool(getattr(user, "is_admin", False)),
+                "base_path": bp,
+            },
         )
 
     if not creds:

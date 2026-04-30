@@ -41,7 +41,7 @@ def _invite_url(request: Request, token: str) -> str:
     )
 
 
-def _require_admin_user(*, db: Session, token: str) -> User:
+def _require_user(*, db: Session, token: str) -> User:
     try:
         payload: dict[str, Any] = decode_token(token)
         user_id = int(payload.get("sub") or 0)
@@ -51,6 +51,11 @@ def _require_admin_user(*, db: Session, token: str) -> User:
     user = db.exec(select(User).where(User.id == user_id)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
+    return user
+
+
+def _require_admin_user(*, db: Session, token: str) -> User:
+    user = _require_user(db=db, token=token)
     if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
@@ -66,10 +71,26 @@ def admin_page(
     cookie_token = get_auth_token(request)
     if token:
         # If we were given a token via URL (legacy/demo mode), promote it into the
-        # HttpOnly cookie and clean up the URL.
-        _ = _require_admin_user(db=db, token=token)
+        # HttpOnly cookie and clean up the URL. If the user is not an admin, keep
+        # them on the users page with a friendly message.
+        user = _require_user(db=db, token=token)
         resp = safe_redirect(request, "/admin", status_code=303)
         set_auth_cookie(resp, request=request, token=token)
+        if not getattr(user, "is_admin", False):
+            users = db.exec(select(User).order_by(text("id"))).all()
+            return templates.TemplateResponse(
+                request,
+                "users.html",
+                {
+                    "request": request,
+                    "users": users,
+                    "email": user.email,
+                    "is_admin": False,
+                    "admin_error": "You don’t have admin privileges for this app.",
+                    "base_path": bp,
+                },
+                status_code=403,
+            )
         return resp
 
     token = cookie_token
@@ -84,7 +105,22 @@ def admin_page(
                 "admin/login",
             )
         return safe_redirect(request, "/admin/login", status_code=303)
-    user = _require_admin_user(db=db, token=token)
+    user = _require_user(db=db, token=token)
+    if not getattr(user, "is_admin", False):
+        users = db.exec(select(User).order_by(text("id"))).all()
+        return templates.TemplateResponse(
+            request,
+            "users.html",
+            {
+                "request": request,
+                "users": users,
+                "email": user.email,
+                "is_admin": False,
+                "admin_error": "You don’t have admin privileges for this app.",
+                "base_path": bp,
+            },
+            status_code=403,
+        )
 
     users = db.exec(select(User).order_by(text("id"))).all()
     return templates.TemplateResponse(
@@ -101,6 +137,56 @@ def admin_page(
             "invite_email": "",
             "invite_grant_admin": False,
         },
+    )
+
+
+@router.post("/admin/open", response_class=HTMLResponse, include_in_schema=False)
+def open_admin_from_page(
+    request: Request,
+    return_to: str = Form(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    """
+    Used by "Open admin page" buttons so we can render a friendly message and keep
+    the user on their current page if they are not an admin.
+    """
+    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    token = get_auth_token(request)
+    if not token:
+        return safe_redirect(request, "/login", status_code=303)
+
+    user = _require_user(db=db, token=token)
+    if getattr(user, "is_admin", False):
+        return safe_redirect(request, "/admin", status_code=303)
+
+    msg = "You don’t have admin privileges for this app."
+    if return_to == "token":
+        return templates.TemplateResponse(
+            request,
+            "token.html",
+            {
+                "request": request,
+                "token": token,
+                "email": user.email,
+                "admin_error": msg,
+                "base_path": bp,
+            },
+            status_code=403,
+        )
+
+    users = db.exec(select(User).order_by(text("id"))).all()
+    return templates.TemplateResponse(
+        request,
+        "users.html",
+        {
+            "request": request,
+            "users": users,
+            "email": user.email,
+            "is_admin": False,
+            "admin_error": msg,
+            "base_path": bp,
+        },
+        status_code=403,
     )
 
 
