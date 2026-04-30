@@ -54,11 +54,30 @@ class WorkbenchPathAdapter:
         if not rp:
             return scope
         path = str(scope.get("path") or "")
+
+        # Prefer stripping the full root_path when it is present.
         new_path = path
         if path == rp:
             new_path = "/"
         elif path.startswith(rp + "/"):
             new_path = path[len(rp) :] or "/"
+        else:
+            # Some Workbench deployments include an external /proxy/<port> prefix in
+            # root_path but strip it before forwarding to the upstream. In that case,
+            # the incoming path starts with a suffix of root_path (e.g. root_path is
+            # /proxy/<port>/s/.../p/... but path is /s/.../p/.../docs). Strip the
+            # longest suffix of root_path that matches the beginning of path.
+            rp_parts = [p for p in rp.split("/") if p]
+            path_norm = path
+            # try suffixes from longest to shortest (must include leading '/')
+            for i in range(len(rp_parts)):
+                suffix = "/" + "/".join(rp_parts[i:])
+                if path_norm == suffix:
+                    new_path = "/"
+                    break
+                if path_norm.startswith(suffix + "/"):
+                    new_path = path_norm[len(suffix) :] or "/"
+                    break
         if new_path == path:
             return scope
         new_scope = dict(scope)

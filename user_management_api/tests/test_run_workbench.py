@@ -37,7 +37,7 @@ def test_start_app_workbench_full_url_sets_root_path_and_docs_url(monkeypatch) -
     monkeypatch.setattr(
         run_workbench,
         "_get_root_path_for_workbench",
-        lambda port: "https://workbench.socom.mil/s/x/p/y",
+        lambda port: "https://workbench.socom.mil/proxy/23456/s/x/p/y",
     )
     monkeypatch.setattr(run_workbench.uvicorn, "run", uvicorn_run)
     monkeypatch.setattr(run_workbench.webbrowser, "open", web_open)
@@ -50,11 +50,11 @@ def test_start_app_workbench_full_url_sets_root_path_and_docs_url(monkeypatch) -
 
     run_workbench.start_app(open_with_browser=True)
 
-    web_open.assert_called_once_with("https://workbench.socom.mil/s/x/p/y/docs")
+    web_open.assert_called_once_with("https://workbench.socom.mil/proxy/23456/s/x/p/y/docs")
     uvicorn_run.assert_called_once()
     _, kwargs = uvicorn_run.call_args
     assert kwargs["port"] == 23456
-    assert kwargs["root_path"] == "/s/x/p/y"
+    assert kwargs["root_path"] == "/proxy/23456/s/x/p/y"
 
 
 def test_start_app_workbench_prefix_only(monkeypatch) -> None:
@@ -74,9 +74,9 @@ def test_start_app_workbench_prefix_only(monkeypatch) -> None:
     run_workbench.start_app(open_with_browser=True)
 
     # When rserver-url returns only a prefix, we fall back to the internal base URL.
-    web_open.assert_called_once_with("http://127.0.0.1:34567/s/a/p/b/docs")
+    web_open.assert_called_once_with("http://127.0.0.1:34567/proxy/34567/s/a/p/b/docs")
     _, kwargs = uvicorn_run.call_args
-    assert kwargs["root_path"] == "/s/a/p/b"
+    assert kwargs["root_path"] == "/proxy/34567/s/a/p/b"
 
 
 def test_start_app_prefers_explicit_base_path(monkeypatch) -> None:

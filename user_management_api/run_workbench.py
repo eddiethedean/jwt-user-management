@@ -66,6 +66,12 @@ def start_app(
             else:
                 # Some setups may return just the path prefix.
                 root_path = raw.rstrip("/")
+
+            # Workbench commonly serves apps under /proxy/<port>/... externally while
+            # stripping that portion before forwarding to the upstream. If we don't
+            # include /proxy/<port> in root_path, redirects can drop it and 404.
+            if root_path and not root_path.startswith("/proxy/"):
+                root_path = f"/proxy/{port}{root_path}"
         except Exception as e:  # noqa: BLE001
             print("Failed to retrieve root_path via rserver-url:", e)
 
