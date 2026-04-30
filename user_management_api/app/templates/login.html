@@ -22,6 +22,33 @@
       <button type="submit">Sign in</button>
     </form>
 
+    <div style="margin-top: 14px;">
+      <div class="muted" style="margin-bottom: 6px;">
+        Forgot your password? <span style="font-weight: 650;">Reset</span>
+      </div>
+      <form method="post" action="{{ base_path }}/password/forgot-form">
+        <label for="reset_email" style="margin-top: 0;">Email</label>
+        <input
+          id="reset_email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          placeholder="name@example.com"
+          value="{{ reset_email or '' }}"
+          required
+        />
+        <button type="submit">Send reset link</button>
+      </form>
+
+      {% if reset_url %}
+        <div class="ok" style="margin-top: 10px;">
+          Reset link created for <code>{{ reset_email }}</code>
+        </div>
+        <label>Reset link</label>
+        <pre style="margin: 6px 0 0;">{{ reset_url }}</pre>
+      {% endif %}
+    </div>
+
     <p class="muted" style="margin-bottom: 0;">No account? <a href="{{ base_path }}/register">Register</a></p>
   </div>
 {% endblock %}
