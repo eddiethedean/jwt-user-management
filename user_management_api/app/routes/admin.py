@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlmodel import Session, select
@@ -230,7 +230,7 @@ def admin_login_submit(
     token = create_access_token(subject=str(user.id))
     # Relative redirect so Workbench doesn't rewrite into /proxy/<port>/...
     # We are at /admin/login, so ../admin resolves correctly under any prefix.
-    resp = RedirectResponse(url="../admin", status_code=303)
+    resp = safe_redirect(request, "../admin", status_code=303)
     set_auth_cookie(resp, request=request, token=token)
     return resp
 

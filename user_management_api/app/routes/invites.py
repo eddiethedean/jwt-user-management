@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlmodel import Session, select
 
-from fastapi_workbench import external_url
+from fastapi_workbench import external_url, safe_external_redirect
 from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
@@ -165,9 +165,11 @@ def accept_invite_form(
         )
     # Use a full external URL so Workbench doesn't rewrite it to /proxy/<port>/...
     # and so the browser doesn't resolve relative paths incorrectly.
-    return RedirectResponse(
-        url=external_url(request, "/login", public_base_url=settings.public_base_url),
+    return safe_external_redirect(
+        request,
+        "/login",
         status_code=303,
+        public_base_url=settings.public_base_url,
     )
 
 
