@@ -21,7 +21,60 @@
         Invite created for <code>{{ invite_email }}</code>
       </div>
       <label>Invite link</label>
-      <pre style="margin: 6px 0 0;">{{ invite_url }}</pre>
+      <pre id="inviteLink" style="margin: 6px 0 0;">{{ invite_url }}</pre>
+      <div class="row" style="margin-top: 8px;">
+        <button type="button" id="copyInviteBtn">Copy to clipboard</button>
+        <span class="muted" id="copyInviteStatus" style="display:none;"></span>
+      </div>
+      <script>
+        (function () {
+          var btn = document.getElementById("copyInviteBtn");
+          var pre = document.getElementById("inviteLink");
+          var status = document.getElementById("copyInviteStatus");
+          if (!btn || !pre) return;
+
+          function setStatus(text) {
+            if (!status) return;
+            status.textContent = text;
+            status.style.display = "inline";
+            window.clearTimeout(status._t);
+            status._t = window.setTimeout(function () {
+              status.style.display = "none";
+            }, 2500);
+          }
+
+          function fallbackCopy(text) {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+              document.execCommand("copy");
+              setStatus("Copied");
+            } catch (e) {
+              setStatus("Copy failed");
+            } finally {
+              document.body.removeChild(ta);
+            }
+          }
+
+          btn.addEventListener("click", function () {
+            var text = (pre.textContent || "").trim();
+            if (!text) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard
+                .writeText(text)
+                .then(function () { setStatus("Copied"); })
+                .catch(function () { fallbackCopy(text); });
+            } else {
+              fallbackCopy(text);
+            }
+          });
+        })();
+      </script>
     {% endif %}
 
     <form method="post" action="admin/invite">
