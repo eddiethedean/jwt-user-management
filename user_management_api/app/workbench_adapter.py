@@ -93,4 +93,3 @@ class WorkbenchPathAdapter:
         scope = self._maybe_decode_absolute_url_path(scope)
         scope = self._strip_root_path_from_path(scope)
         await self.app(scope, receive, send)
-

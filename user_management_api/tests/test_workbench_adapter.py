@@ -57,4 +57,3 @@ def test_strips_suffix_of_root_path_when_proxy_prefix_stripped_upstream() -> Non
 
     r = client.get(f"{forwarded_prefix}/ping")
     assert r.status_code == 200
-

@@ -5,6 +5,7 @@ import socket
 import subprocess
 import webbrowser
 from urllib.parse import urlparse
+import re
 
 import uvicorn
 
@@ -66,12 +67,19 @@ def start_app(
             else:
                 # Some setups may return just the path prefix.
                 root_path = raw.rstrip("/")
-
-            # Workbench commonly serves apps under /proxy/<port>/... externally while
-            # stripping that portion before forwarding to the upstream. If we don't
-            # include /proxy/<port> in root_path, redirects can drop it and 404.
-            if root_path and not root_path.startswith("/proxy/"):
-                root_path = f"/proxy/{port}{root_path}"
+            # Workbench may surface internal URLs with /proxy/<port>/..., but the
+            # browser-reachable prefix is typically /s/<service>/p/<project>/...
+            # Strip /proxy/<port> when present to avoid double-prefix redirects and
+            # Swagger fetching OpenAPI from an unroutable /proxy/<port>/... path.
+            m = re.match(r"^/proxy/\d+(?P<rest>/.*)$", root_path)
+            if m:
+                root_path = (m.group("rest") or "").rstrip("/") or ""
+                if external_base_is_full_url:
+                    external_base_url = (
+                        f"{parsed.scheme}://{parsed.netloc}{root_path}"
+                        if root_path
+                        else f"{parsed.scheme}://{parsed.netloc}"
+                    )
         except Exception as e:  # noqa: BLE001
             print("Failed to retrieve root_path via rserver-url:", e)
 
