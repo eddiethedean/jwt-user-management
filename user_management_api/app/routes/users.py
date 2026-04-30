@@ -4,10 +4,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from jose import JWTError
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app.core.security import decode_token
@@ -63,8 +64,9 @@ def users(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Response:
     """
-    One route with two modes:\n+    - HTML mode: provide `?token=...`.\n+    - JSON mode: provide `Authorization: Bearer <token>`.\n+    """
+    One route with two modes:\n+    - HTML mode: provide `?token=...`.\n+    - JSON mode: provide `Authorization: Bearer <token>`.\n+"""
     if token:
+        bp = str(request.scope.get("root_path") or "").rstrip("/")
         try:
             payload: dict[str, Any] = decode_token(token)
             user_id = int(payload.get("sub") or 0)
@@ -73,11 +75,17 @@ def users(
         user = db.exec(select(User).where(User.id == user_id)).first()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
-        users = db.exec(select(User).order_by(User.id)).all()
+        users = db.exec(select(User).order_by(text("id"))).all()
         return templates.TemplateResponse(
             request,
             "users.html",
-            {"request": request, "users": users, "email": user.email, "token": token},
+            {
+                "request": request,
+                "users": users,
+                "email": user.email,
+                "token": token,
+                "base_path": bp,
+            },
         )
 
     if not creds:
@@ -86,11 +94,10 @@ def users(
             detail="Provide Authorization: Bearer <token> (or use /users?token=... for HTML)",
         )
     _ = get_current_user(db=db, creds=creds)
-    users = db.exec(select(User).order_by(User.id)).all()
+    users = db.exec(select(User).order_by(text("id"))).all()
     return JSONResponse(
         content=[
             {"id": u.id, "email": u.email, "created_at": u.created_at.isoformat()}
             for u in users
         ]
     )
-

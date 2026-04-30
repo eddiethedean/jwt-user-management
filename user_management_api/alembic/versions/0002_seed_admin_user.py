@@ -69,4 +69,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Don't delete rows on downgrade; leave as no-op.
     return
-

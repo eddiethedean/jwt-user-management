@@ -1,2 +1,1 @@
 """API and HTML routes."""
-

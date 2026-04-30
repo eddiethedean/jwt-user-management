@@ -49,6 +49,7 @@ curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
 Configured via `user_management_api/.env`:
 
 - `DATABASE_URL`: e.g. `sqlite:///./app.db`
+- `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench)
 - `JWT_SECRET`: secret used to sign JWTs
 - `JWT_EXPIRES_MINUTES`: default `60`
 - `JWT_ALGORITHM`: default `HS256`
@@ -64,3 +65,12 @@ You can override these with:
 
 - `SEED_ADMIN_EMAIL`
 - `SEED_ADMIN_PASSWORD`
+
+## Run tests
+
+In some environments, globally installed pytest plugins can break test runs. Use:
+
+```bash
+cd user_management_api
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests
+```
