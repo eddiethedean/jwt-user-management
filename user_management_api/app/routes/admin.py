@@ -157,7 +157,8 @@ def open_admin_from_page(
 
     user = _require_user(db=db, token=token)
     if getattr(user, "is_admin", False):
-        return safe_redirect(request, "/admin", status_code=303)
+        # We are at /admin/open, so use a relative redirect.
+        return safe_redirect(request, "../admin", status_code=303)
 
     msg = "You don’t have admin privileges for this app."
     if return_to == "token":
