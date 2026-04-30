@@ -4,7 +4,14 @@ import sys
 
 from pathlib import Path
 
-from fastapi_workbench import start_app as _start_app
+here = Path(__file__).resolve()
+# Ensure the fastapi_workbench project root is importable when running from
+# `user_management_api/` without an installed wheel.
+fastapi_workbench_root = str(here.parents[1] / "fastapi_workbench")
+if fastapi_workbench_root not in sys.path:
+    sys.path.insert(0, fastapi_workbench_root)
+
+from fastapi_workbench import start_app as _start_app  # noqa: E402
 
 
 def start_app(
@@ -16,14 +23,6 @@ def start_app(
     """
     Start the FastAPI app in Posit Workbench-friendly mode.
     """
-    # Ensure the repo root is importable when running from `user_management_api/`.
-    # This allows importing `fastapi_workbench` (top-level package) without requiring
-    # a separate pip install step during development.
-    here = Path(__file__).resolve()
-    repo_root = str(here.parents[1])
-    if repo_root not in sys.path:
-        sys.path.insert(0, repo_root)
-
     _start_app(
         app_module_name=app_module_name,
         app_variable_name=app_variable_name,
