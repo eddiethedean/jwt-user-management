@@ -48,6 +48,7 @@ def upgrade() -> None:
         sa.column("id", sa.Integer()),
         sa.column("email", sa.String()),
         sa.column("hashed_password", sa.String()),
+        sa.column("is_admin", sa.Boolean()),
         sa.column("created_at", sa.DateTime(timezone=True)),
     )
 
@@ -61,6 +62,7 @@ def upgrade() -> None:
         users.insert().values(
             email=email,
             hashed_password=hash_password(password),
+            is_admin=True,
             created_at=datetime.now(timezone.utc),
         )
     )

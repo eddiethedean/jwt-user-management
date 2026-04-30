@@ -85,6 +85,7 @@ def _seed_admin(*, db_engine) -> None:
             User(
                 email="admin@example.com",
                 hashed_password=hash_password("admin123"),
+                is_admin=True,
                 created_at=datetime.now(timezone.utc),
             )
         )

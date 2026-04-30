@@ -50,7 +50,7 @@ def _require_admin_user(*, db: Session, token: str) -> User:
     user = db.exec(select(User).where(User.id == user_id)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
-    if user.email != ADMIN_EMAIL:
+    if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
@@ -88,6 +88,7 @@ def admin_page(
             "invite_url": None,
             "invite_error": None,
             "invite_email": "",
+            "invite_grant_admin": False,
         },
     )
 
@@ -140,6 +141,7 @@ def admin_invite_submit(
     request: Request,
     token: str = Form(...),
     email: str = Form(...),
+    grant_admin: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Response:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
@@ -149,6 +151,7 @@ def admin_invite_submit(
     if not email_n:
         raise HTTPException(status_code=422, detail="email is required")
 
+    make_admin = bool(grant_admin)
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
     now = datetime.now(timezone.utc)
@@ -158,6 +161,7 @@ def admin_invite_submit(
         created_at=now,
         expires_at=now + timedelta(days=7),
         used_at=None,
+        grant_admin=make_admin,
     )
     db.add(invite)
     db.commit()
@@ -175,5 +179,6 @@ def admin_invite_submit(
             "invite_url": _invite_url(request, raw),
             "invite_error": None,
             "invite_email": email_n,
+            "invite_grant_admin": make_admin,
         },
     )

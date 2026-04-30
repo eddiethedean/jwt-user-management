@@ -81,6 +81,10 @@
       <input type="hidden" name="token" value="{{ token }}" />
       <label for="invite_email">Email</label>
       <input id="invite_email" name="email" type="email" value="{{ invite_email or '' }}" required />
+      <label style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+        <input type="checkbox" name="grant_admin" value="1" {% if invite_grant_admin %}checked{% endif %} />
+        Grant admin privileges
+      </label>
       <button type="submit">Create invite</button>
     </form>
 

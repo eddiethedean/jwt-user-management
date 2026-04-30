@@ -25,6 +25,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "grant_admin",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.false(),
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -36,9 +42,19 @@ def upgrade() -> None:
         ["token_hash"],
         unique=True,
     )
+    op.create_index(
+        op.f("ix_invite_tokens_grant_admin"),
+        "invite_tokens",
+        ["grant_admin"],
+        unique=False,
+    )
+
+    with op.batch_alter_table("invite_tokens") as batch:
+        batch.alter_column("grant_admin", server_default=None)
 
 
 def downgrade() -> None:
     op.drop_index(op.f("ix_invite_tokens_token_hash"), table_name="invite_tokens")
     op.drop_index(op.f("ix_invite_tokens_email"), table_name="invite_tokens")
+    op.drop_index(op.f("ix_invite_tokens_grant_admin"), table_name="invite_tokens")
     op.drop_table("invite_tokens")
