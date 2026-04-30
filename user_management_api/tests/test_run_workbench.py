@@ -49,6 +49,7 @@ def test_start_app_workbench_full_url_sets_root_path_and_docs_url(monkeypatch) -
 
     monkeypatch.setenv("RS_SERVER_URL", "1")
     monkeypatch.delenv("BASE_PATH", raising=False)
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
     monkeypatch.delenv("PORT", raising=False)
     monkeypatch.delenv("HOST", raising=False)
     monkeypatch.delenv("RELOAD", raising=False)
@@ -56,6 +57,9 @@ def test_start_app_workbench_full_url_sets_root_path_and_docs_url(monkeypatch) -
     run_workbench.start_app(open_with_browser=True)
 
     web_open.assert_called_once_with("https://workbench.socom.mil/s/x/p/y/docs")
+    assert (
+        run_workbench.os.environ.get("PUBLIC_BASE_URL") == "https://workbench.socom.mil"
+    )
     check_call.assert_called_once()
     uvicorn_run.assert_called_once()
     _, kwargs = uvicorn_run.call_args
@@ -78,6 +82,7 @@ def test_start_app_workbench_prefix_only(monkeypatch) -> None:
 
     monkeypatch.setenv("RS_SERVER_URL", "1")
     monkeypatch.delenv("BASE_PATH", raising=False)
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
 
     run_workbench.start_app(open_with_browser=True)
 
@@ -98,6 +103,7 @@ def test_start_app_prefers_explicit_base_path(monkeypatch) -> None:
 
     monkeypatch.setenv("BASE_PATH", "/explicit/prefix")
     monkeypatch.setenv("RS_SERVER_URL", "1")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.com")
 
     # If BASE_PATH is explicitly set, we won't call rserver-url.
     get_root = Mock(return_value="https://workbench.socom.mil/s/x/p/y")
@@ -107,6 +113,7 @@ def test_start_app_prefers_explicit_base_path(monkeypatch) -> None:
 
     get_root.assert_not_called()
     check_call.assert_called_once()
+    assert run_workbench.os.environ.get("PUBLIC_BASE_URL") == "https://example.com"
     _, kwargs = uvicorn_run.call_args
     assert kwargs["root_path"] == "/explicit/prefix"
 
