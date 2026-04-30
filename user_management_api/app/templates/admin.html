@@ -9,6 +9,28 @@
       <a href="{{ base_path }}/users?token={{ token }}" class="muted">Open users page</a>
     </div>
 
+    <h3 style="margin: 16px 0 8px;">Invite user</h3>
+    <p class="muted" style="margin-top: 0;">Generate an invite link for a new user.</p>
+
+    {% if invite_error %}
+      <div class="err">{{ invite_error }}</div>
+    {% endif %}
+
+    {% if invite_url %}
+      <div class="ok">
+        Invite created for <code>{{ invite_email }}</code>
+      </div>
+      <label>Invite link</label>
+      <pre style="margin: 6px 0 0;">{{ invite_url }}</pre>
+    {% endif %}
+
+    <form method="post" action="admin/invite">
+      <input type="hidden" name="token" value="{{ token }}" />
+      <label for="invite_email">Email</label>
+      <input id="invite_email" name="email" type="email" value="{{ invite_email or '' }}" required />
+      <button type="submit">Create invite</button>
+    </form>
+
     <h3 style="margin: 16px 0 8px;">All users</h3>
     <table style="width:100%; border-collapse: collapse;">
       <thead>

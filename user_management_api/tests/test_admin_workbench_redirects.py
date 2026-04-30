@@ -92,3 +92,12 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None
     assert loc.startswith("../admin?token=")
     token = loc.split("token=", 1)[1]
     assert token
+
+    # Admin page should accept invite creation via form POST and render invite URL.
+    r3 = client.post(
+        f"{prefix}/admin/invite",
+        data={"token": token, "email": "new.user@example.com"},
+        follow_redirects=False,
+    )
+    assert r3.status_code == 200
+    assert "/invites/accept?token=" in r3.text
