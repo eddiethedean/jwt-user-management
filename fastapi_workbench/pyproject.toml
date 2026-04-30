@@ -19,8 +19,6 @@ dependencies = [
 Repository = "https://example.invalid/jwt-user-management"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
 packages = ["fastapi_workbench"]
-
-[tool.setuptools.package-dir]
-fastapi_workbench = "fastapi_workbench/fastapi_workbench"
 

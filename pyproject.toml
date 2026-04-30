@@ -1,0 +1,6 @@
+[tool.ty.environment]
+root = ["fastapi_workbench", "fastapi_workbench/src", "user_management_api"]
+
+[tool.ty.src]
+include = ["fastapi_workbench", "user_management_api"]
+

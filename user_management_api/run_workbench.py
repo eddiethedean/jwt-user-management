@@ -7,7 +7,7 @@ from pathlib import Path
 here = Path(__file__).resolve()
 # Ensure the fastapi_workbench project root is importable when running from
 # `user_management_api/` without an installed wheel.
-fastapi_workbench_root = str(here.parents[1] / "fastapi_workbench")
+fastapi_workbench_root = str(here.parents[1] / "fastapi_workbench" / "src")
 if fastapi_workbench_root not in sys.path:
     sys.path.insert(0, fastapi_workbench_root)
 

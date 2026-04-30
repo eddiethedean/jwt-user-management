@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlmodel import Session, select
 
-from fastapi_workbench import external_base, external_url
+from fastapi_workbench import external_url
 from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db

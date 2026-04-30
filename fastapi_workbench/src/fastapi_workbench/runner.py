@@ -23,10 +23,6 @@ def _free_port() -> int:
 
 
 def _get_root_path_for_workbench(port: int) -> str:
-    """
-    When running under Posit Workbench / RStudio Server, `rserver-url` returns an
-    external URL (or URL prefix) for this port.
-    """
     proc: subprocess.CompletedProcess[str] = subprocess.run(
         ["/usr/lib/rstudio-server/bin/rserver-url", "-l", str(port)],
         stdout=subprocess.PIPE,
@@ -37,12 +33,6 @@ def _get_root_path_for_workbench(port: int) -> str:
 
 
 def _run_migrations_if_enabled(*, cwd: str | None = None) -> None:
-    """
-    Default: enabled. Disable with RUN_MIGRATIONS=0/false.
-
-    This is intentionally a best-effort helper for local/Workbench runs and should
-    not be used in production.
-    """
     val: str = (os.environ.get("RUN_MIGRATIONS") or "").strip()
     if val and not _truthy(val):
         return
@@ -65,14 +55,6 @@ def start_app(
     open_with_browser: bool = True,
     migrations_cwd: str | None = None,
 ) -> None:
-    """
-    Start an ASGI app in Workbench-friendly mode.
-
-    - Picks a free ephemeral port (unless PORT is set / port passed).
-    - If RS_SERVER_URL is set and BASE_PATH is not set, uses `rserver-url` to infer
-      the external URL/prefix.
-    - Runs uvicorn with `root_path` so redirects + docs work under the proxy prefix.
-    """
     host = host or os.environ.get("HOST") or "127.0.0.1"
     port = port or int(os.environ.get("PORT") or str(_free_port()))
 
@@ -88,7 +70,7 @@ def start_app(
     if os.environ.get("RS_SERVER_URL") and not root_path:
         try:
             raw = _get_root_path_for_workbench(port)
-            if raw.startswith("http://") or raw.startswith("https://"):
+            if raw.startswith(("http://", "https://")):
                 external_base_url = raw.rstrip("/")
                 external_base_is_full_url = True
                 parsed = urlparse(external_base_url)
@@ -99,7 +81,9 @@ def start_app(
             else:
                 root_path = raw.rstrip("/")
 
-            m: Optional[re.Match[str]] = re.match(r"^/proxy/\d+(?P<rest>/.*)$", root_path)
+            m: Optional[re.Match[str]] = re.match(
+                r"^/proxy/\d+(?P<rest>/.*)$", root_path
+            )
             if m:
                 root_path = (m.group("rest") or "").rstrip("/") or ""
                 if external_base_is_full_url and parsed_scheme and parsed_netloc:
@@ -118,7 +102,9 @@ def start_app(
     if external_base_is_full_url:
         docs_url = f"{external_base_url}/docs"
     else:
-        docs_url = f"{external_url}{root_path}/docs" if root_path else f"{external_url}/docs"
+        docs_url = (
+            f"{external_url}{root_path}/docs" if root_path else f"{external_url}/docs"
+        )
 
     if open_with_browser:
         try:
@@ -135,7 +121,7 @@ def start_app(
         root_path=root_path,
         proxy_headers=True,
         forwarded_allow_ips="*",
-        reload=_truthy(os.environ.get("RELOAD")) or bool(os.environ.get("RS_SERVER_URL")),
+        reload=_truthy(os.environ.get("RELOAD"))
+        or bool(os.environ.get("RS_SERVER_URL")),
         log_level=os.environ.get("LOG_LEVEL") or "info",
     )
-

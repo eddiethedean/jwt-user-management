@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import quote
 
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -59,4 +58,3 @@ class MockWorkbenchProxy:
         #   /https%3A//workbench.host/s/...//docs
         # Encode ':' and a few other reserved characters, but keep '/' intact.
         return "/" + quote(absolute, safe="/")
-

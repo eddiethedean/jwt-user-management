@@ -4,7 +4,6 @@ import os
 import socket
 import subprocess
 import time
-from typing import Optional
 from urllib.parse import urlparse
 
 import pytest
@@ -48,7 +47,9 @@ def _wait_for_url(curl_bin: str, url: str, *, timeout_s: float = 15.0) -> None:
 def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
     info = detect_real_workbench()
     if not info:
-        pytest.skip("Not in a real Workbench environment (or missing rserver-url/curl).")
+        raise pytest.skip.Exception(
+            "Not in a real Workbench environment (or missing rserver-url/curl)."
+        )
 
     port = _free_port()
     raw = get_rserver_external(port, rserver_url_bin=info.rserver_url_bin)
@@ -98,12 +99,16 @@ def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
         _wait_for_url(info.curl_bin, ping_url, timeout_s=25.0)
 
         # Validate ping response via Workbench proxy.
-        out = subprocess.check_output([info.curl_bin, "-sk", ping_url], text=True).strip()
+        out = subprocess.check_output(
+            [info.curl_bin, "-sk", ping_url], text=True
+        ).strip()
         assert '"ok"' in out
 
         # Validate that scope root_path is normalized to the browser prefix (not /proxy/<port>/...).
         scope_url = f"{base_for_requests}/scope"
-        scope_out = subprocess.check_output([info.curl_bin, "-sk", scope_url], text=True).strip()
+        scope_out = subprocess.check_output(
+            [info.curl_bin, "-sk", scope_url], text=True
+        ).strip()
         # The response is JSON; we just check expected substrings to avoid extra deps.
         assert f'"root_path":"{root_path}"' in scope_out.replace(" ", "")
     finally:
@@ -112,4 +117,3 @@ def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
-

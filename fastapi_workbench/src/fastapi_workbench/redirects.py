@@ -26,21 +26,7 @@ def safe_redirect(
     public_base_url: str | None = None,
     include_root_path: bool = True,
 ) -> Response:
-    """
-    Redirect helper tuned for Workbench-style proxies.
-
-    If `to` is an absolute URL, it is used as-is.
-
-    If `to` starts with '/', we treat it as an application path:
-    - In Workbench and prefer_relative_in_workbench=True: emit a relative redirect
-      (strip leading '/') so Workbench doesn't rewrite to /proxy/<port>/...
-    - Otherwise: emit an absolute-path redirect (Location: /...).
-
-    If `to` is a relative path, it is used as-is.
-    """
-    dest = (to or "").strip()
-    if not dest:
-        dest = "/"
+    dest = (to or "").strip() or "/"
 
     if _is_absolute_url(dest):
         return RedirectResponse(url=dest, status_code=status_code)
@@ -61,9 +47,6 @@ def safe_external_redirect(
     public_base_url: str | None = None,
     include_root_path: bool = True,
 ) -> Response:
-    """
-    Always redirect to a fully qualified external URL (browser-routable).
-    """
     return RedirectResponse(
         url=external_url(
             request,
@@ -73,4 +56,3 @@ def safe_external_redirect(
         ),
         status_code=status_code,
     )
-

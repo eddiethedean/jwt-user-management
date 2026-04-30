@@ -28,11 +28,6 @@ class WorkbenchPathMiddleware:
     """
     ASGI wrapper that normalizes Workbench/RStudio Server oddities around path
     prefixes (root_path) so Starlette/FastAPI routing matches correctly.
-
-    Features (can be toggled):
-    - Decode Workbench's occasional "absolute URL encoded as a path" format:
-        /https%3A//workbench.../s/.../p/.../docs
-    - Strip scope['root_path'] (or best matching suffix) from scope['path'].
     """
 
     app: ASGIApp
@@ -145,17 +140,9 @@ def workbenchify(
     decode_absolute_url_path: bool = True,
     strip_root_path_from_path: bool = True,
 ) -> ASGIApp:
-    """
-    Wrap an ASGI app (FastAPI/Starlette) with Workbench path normalization.
-
-    Usage:
-        from fastapi_workbench import workbenchify
-        app = workbenchify(app)
-    """
     return WorkbenchPathMiddleware(
         app,
         mode=mode,
         decode_absolute_url_path=decode_absolute_url_path,
         strip_root_path_from_path=strip_root_path_from_path,
     )
-

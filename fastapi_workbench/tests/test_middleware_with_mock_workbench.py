@@ -9,7 +9,7 @@ from .mock_workbench import MockWorkbenchProxy
 from .workbench_env import detect_real_workbench
 
 
-def _wrapped_upstream() -> FastAPI:
+def _wrapped_upstream():
     app = FastAPI()
 
     @app.get("/ping")
@@ -19,10 +19,13 @@ def _wrapped_upstream() -> FastAPI:
     @app.get("/scope")
     def scope_dump(request: Request) -> dict:
         s = request.scope
-        return {"root_path": str(s.get("root_path") or ""), "path": str(s.get("path") or "")}
+        return {
+            "root_path": str(s.get("root_path") or ""),
+            "path": str(s.get("path") or ""),
+        }
 
     # Wrap the upstream app like a consumer would.
-    return workbenchify(app)  # type: ignore[return-value]
+    return workbenchify(app)
 
 
 def test_workbench_proxy_prefix_embedded_in_path_routes_correctly() -> None:
@@ -53,7 +56,9 @@ def test_workbench_encoded_absolute_url_path_routes_correctly() -> None:
     assert r.status_code == 200
 
 
-def test_workbench_proxy_root_path_contains_proxy_port_but_forwarded_path_does_not() -> None:
+def test_workbench_proxy_root_path_contains_proxy_port_but_forwarded_path_does_not() -> (
+    None
+):
     if detect_real_workbench():
         return
     prefix = "/s/abc/p/proj"
@@ -75,4 +80,3 @@ def test_workbench_proxy_root_path_contains_proxy_port_but_forwarded_path_does_n
     assert r2.status_code == 200
     s = r2.json()
     assert s["root_path"] == prefix
-

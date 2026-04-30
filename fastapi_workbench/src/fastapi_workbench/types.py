@@ -8,4 +8,3 @@ ScopeMapping = MutableMapping[str, Any]
 Headers = Mapping[str, str]
 
 __all__ = ["ASGIApp", "Scope", "ScopeMapping", "Headers"]
-

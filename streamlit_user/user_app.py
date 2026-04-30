@@ -1,23 +1,11 @@
-"""
-Compatibility entrypoint for local running:
-
-    streamlit run app.py
-
-The test suite targets `user_app.py` to avoid importing a module named `app`,
-which can conflict with the backend's `user_management_api/app` package during
-`pytest` runs.
-"""
-
-from streamlit_user.user_app import *  # noqa: F403
-
 import os
 import sys
 from pathlib import Path
+from typing import Dict, Optional
 
 import requests
 import streamlit as st
 from dotenv import load_dotenv
-from typing import Dict, Optional
 
 # ruff: noqa: E402
 
@@ -101,12 +89,9 @@ with tab_login:
         st.info("You're signed in. Use **Sign out** below the tabs.")
     else:
         st.subheader("Login")
-        with st.form("login_form"):
-            email = st.text_input("Email", key="login_email")
-            password = st.text_input("Password", type="password", key="login_password")
-            submitted = st.form_submit_button("Sign in")
-
-        if submitted:
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Sign in", key="login_submit"):
             resp = _post_form(
                 "/auth/token", data={"username": email, "password": password}
             )
@@ -119,9 +104,7 @@ with tab_login:
                     show_http_error("Login failed", resp)
                     st.stop()
                 login_success(
-                    access_token=access_token,
-                    email=email,
-                    session_key="user_auth",
+                    access_token=access_token, email=email, session_key="user_auth"
                 )
                 st.session_state["_flash_signed_in"] = True
                 st.rerun()
@@ -133,11 +116,8 @@ with tab_reset:
     st.caption(
         "Enter your email and we’ll send you a reset link (if the account exists)."
     )
-    with st.form("forgot_form"):
-        forgot_email = st.text_input("Email", key="forgot_email")
-        forgot_submit = st.form_submit_button("Send reset link")
-
-    if forgot_submit:
+    forgot_email = st.text_input("Email", key="forgot_email")
+    if st.button("Send reset link", key="forgot_submit"):
         resp = _post_json("/password/forgot", json={"email": forgot_email})
         if resp is None:
             st.stop()
@@ -154,14 +134,11 @@ with tab_reset:
     st.caption(
         "If you have a reset token (from email), you can reset here without leaving Streamlit."
     )
-    with st.form("reset_form"):
-        token = st.text_input("Reset token", key="reset_token")
-        new_password = st.text_input(
-            "New password", type="password", key="reset_new_password"
-        )
-        reset_submit = st.form_submit_button("Reset password")
-
-    if reset_submit:
+    token = st.text_input("Reset token", key="reset_token")
+    new_password = st.text_input(
+        "New password", type="password", key="reset_new_password"
+    )
+    if st.button("Reset password", key="reset_submit"):
         resp = _post_json(
             "/password/reset", json={"token": token, "password": new_password}
         )

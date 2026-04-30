@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib
 import os
+import sys
 import uuid
 from datetime import datetime, timezone
+from importlib.util import module_from_spec, spec_from_file_location
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel
@@ -20,6 +22,30 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
 
     # Avoid SQLAlchemy table redefinition issues across reloads.
     SQLModel.metadata.clear()
+
+    # Streamlit tests (or other tools) can leave a non-package module named `app` in
+    # sys.modules, which breaks our backend imports (`import app.core...`). Ensure
+    # we start from a clean state.
+    for k in list(sys.modules.keys()):
+        if k == "app" or k.startswith("app."):
+            sys.modules.pop(k, None)
+
+    # Ensure the backend package root wins module resolution.
+    here = os.path.dirname(__file__)
+    api_root = os.path.abspath(os.path.join(here, ".."))
+    if api_root not in sys.path:
+        sys.path.insert(0, api_root)
+
+    # Streamlit (and AppTest) can create a non-package module named `app`. To make
+    # backend imports robust, force-load the backend `app/` directory as the `app`
+    # package explicitly.
+    app_pkg_dir = os.path.join(api_root, "app")
+    app_init = os.path.join(app_pkg_dir, "__init__.py")
+    spec = spec_from_file_location("app", app_init, submodule_search_locations=[app_pkg_dir])
+    assert spec and spec.loader
+    app_pkg = module_from_spec(spec)
+    sys.modules["app"] = app_pkg
+    spec.loader.exec_module(app_pkg)
 
     import app.core.config as config
 

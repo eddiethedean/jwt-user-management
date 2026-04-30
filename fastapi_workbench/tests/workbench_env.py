@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -57,4 +56,3 @@ def get_rserver_external(port: int, *, rserver_url_bin: str) -> str:
         check=True,
     )
     return proc.stdout.strip()
-

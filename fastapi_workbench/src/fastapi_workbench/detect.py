@@ -27,14 +27,9 @@ def is_workbench_env() -> bool:
 def is_workbench_scope(scope: Scope) -> bool:
     """
     Scope-level heuristic for whether Workbench-like path normalization is needed.
-
-    Even outside Workbench, some reverse proxies can yield a similar shape (root_path
-    set and incoming path includes it). We normalize when it looks necessary.
     """
     path = str(scope.get("path") or "")
 
-    # Encoded-absolute-URL requests should always be normalized if enabled, because
-    # their path won't start with root_path until decoded.
     candidate = path.lstrip("/").lower()
     if candidate.startswith(("http%3a", "https%3a", "http://", "https://")):
         return True
@@ -45,9 +40,6 @@ def is_workbench_scope(scope: Scope) -> bool:
     if path == root_path or path.startswith(root_path + "/"):
         return True
 
-    # Workbench sometimes sets root_path with a /proxy/<port>/... prefix but forwards
-    # only a suffix of that root_path upstream. If the incoming path matches a suffix
-    # of root_path, normalization is needed as well.
     rp_parts = [p for p in root_path.split("/") if p]
     for i in range(len(rp_parts)):
         suffix = "/" + "/".join(rp_parts[i:])
@@ -57,9 +49,6 @@ def is_workbench_scope(scope: Scope) -> bool:
 
 
 def is_workbench_request(request: Request) -> bool:
-    # After normalization, request.scope['path'] no longer includes the external
-    # prefix, so is_workbench_scope() may not fire. A non-empty root_path is still a
-    # strong indicator that we are operating behind a prefixing proxy (Workbench-like).
     root_path = str(request.scope.get("root_path") or "").rstrip("/")
     return bool(root_path) or is_workbench_scope(request.scope) or is_workbench_env()
 
@@ -78,4 +67,3 @@ def should_normalize(*, scope: Scope, mode: str) -> bool:
     if m == "off":
         return False
     return is_workbench_scope(scope) or is_workbench_env()
-
