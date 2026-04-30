@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 
@@ -11,7 +13,14 @@ from app.routes.users import router as users_router
 
 app = FastAPI(title="User Management API")
 
-app.add_middleware(RootPathMiddleware, base_path=settings.base_path)
+if not (os.getenv("DISABLE_ROOT_PATH_MIDDLEWARE") or "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}:
+    app.add_middleware(RootPathMiddleware, base_path=settings.base_path)
 
 app.include_router(auth_router)
 app.include_router(admin_router)

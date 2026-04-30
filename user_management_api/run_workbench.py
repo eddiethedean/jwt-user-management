@@ -49,7 +49,8 @@ def start_app(
     port = int(os.environ.get("PORT") or str(_free_port()))
 
     # Prefer explicit BASE_PATH if provided. Otherwise infer from rserver-url.
-    root_path = (os.environ.get("BASE_PATH") or "").strip()
+    explicit_base_path = (os.environ.get("BASE_PATH") or "").strip()
+    root_path = explicit_base_path
     external_url = f"http://{host}:{port}"
     external_base_url = external_url
     external_base_is_full_url = False
@@ -67,6 +68,11 @@ def start_app(
                 root_path = raw.rstrip("/")
         except Exception as e:  # noqa: BLE001
             print("Failed to retrieve root_path via rserver-url:", e)
+
+    # Ensure the app sees the inferred prefix as BASE_PATH so the app middleware can
+    # strip it from incoming paths for routing (Uvicorn does not strip `root_path`).
+    if not explicit_base_path and root_path:
+        os.environ["BASE_PATH"] = root_path
 
     # If rserver-url returns a full external URL, it already includes the prefix.
     if external_base_is_full_url:
