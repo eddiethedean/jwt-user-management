@@ -94,6 +94,7 @@
         <tr>
           <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">ID</th>
           <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Email</th>
+          <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Admin</th>
           <th style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px 6px;">Created</th>
         </tr>
       </thead>
@@ -102,6 +103,7 @@
           <tr>
             <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.id }}</td>
             <td style="padding: 8px 6px; border-bottom: 1px solid #eee;"><code>{{ u.email }}</code></td>
+            <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{% if u.is_admin %}Yes{% else %}No{% endif %}</td>
             <td style="padding: 8px 6px; border-bottom: 1px solid #eee;">{{ u.created_at }}</td>
           </tr>
         {% endfor %}
