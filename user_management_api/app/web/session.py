@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import Request, Response
 
+from fastapi_workbench import base_path
+
 
 AUTH_COOKIE_NAME = "um_access_token"
 
@@ -14,7 +16,7 @@ def _is_https(request: Request) -> bool:
 
 
 def cookie_path(request: Request) -> str:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     return bp or "/"
 
 

@@ -3,16 +3,16 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import os
 import logging
-from pathlib import Path
+from pathlib import Path as FsPath
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlmodel import Session, select
 
-from fastapi_workbench import external_url, safe_redirect
+from fastapi_workbench import base_path, external_url, safe_redirect
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
@@ -23,7 +23,7 @@ from app.web.session import get_auth_token, set_auth_cookie
 router = APIRouter(tags=["admin"])
 log = logging.getLogger("uvicorn.error")
 templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[1] / "templates")
+    directory=str(FsPath(__file__).resolve().parents[1] / "templates")
 )
 
 ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
@@ -67,7 +67,7 @@ def admin_page(
     token: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ) -> Response:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     cookie_token = get_auth_token(request)
     if token:
         # If we were given a token via URL (legacy/demo mode), promote it into the
@@ -150,7 +150,7 @@ def open_admin_from_page(
     Used by "Open admin page" buttons so we can render a friendly message and keep
     the user on their current page if they are not an admin.
     """
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     token = get_auth_token(request)
     if not token:
         return safe_redirect(request, "/login", status_code=303)
@@ -193,7 +193,7 @@ def open_admin_from_page(
 
 @router.get("/admin/login", response_class=HTMLResponse, include_in_schema=False)
 def admin_login_page(request: Request) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     return templates.TemplateResponse(
         request,
         "admin_login.html",
@@ -208,7 +208,7 @@ def admin_login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> Response:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     email_n = _norm_email(email)
     user: Optional[User] = db.exec(select(User).where(User.email == email_n)).first()
     if (
@@ -244,7 +244,7 @@ def admin_invite_submit(
     grant_admin: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Response:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     cookie_token = get_auth_token(request)
     active_token = cookie_token or token
     if not active_token:
@@ -286,3 +286,122 @@ def admin_invite_submit(
             "invite_grant_admin": make_admin,
         },
     )
+
+
+@router.get(
+    "/admin/users/{user_id}",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def admin_user_edit_page(
+    request: Request,
+    user_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+) -> Response:
+    bp = base_path(request)
+    token = get_auth_token(request)
+    if not token:
+        return safe_redirect(request, "/admin/login", status_code=303)
+    admin_user = _require_admin_user(db=db, token=token)
+
+    user = db.exec(select(User).where(User.id == user_id)).first()
+    if not user:
+        return templates.TemplateResponse(
+            request,
+            "admin_user_edit.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "admin_email": admin_user.email,
+                "error": "User not found",
+                "user": {
+                    "id": user_id,
+                    "email": "",
+                    "created_at": "",
+                    "is_admin": False,
+                    "is_active": False,
+                },
+            },
+            status_code=404,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "admin_user_edit.html",
+        {
+            "request": request,
+            "base_path": bp,
+            "admin_email": admin_user.email,
+            "user": user,
+        },
+    )
+
+
+@router.post(
+    "/admin/users/{user_id}/update",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def admin_user_update(
+    request: Request,
+    user_id: int = Path(..., ge=1),
+    is_admin: Optional[str] = Form(default=None),
+    is_active: Optional[str] = Form(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    token = get_auth_token(request)
+    if not token:
+        return safe_redirect(request, "/admin/login", status_code=303)
+    _ = _require_admin_user(db=db, token=token)
+
+    user = db.exec(select(User).where(User.id == user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_admin = bool(is_admin)
+    user.is_active = bool(is_active)
+    db.add(user)
+    db.commit()
+
+    # We are at /admin/users/<id>/update so redirect back relatively.
+    return safe_redirect(request, "../" + str(user_id), status_code=303)
+
+
+@router.post(
+    "/admin/users/{user_id}/delete",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def admin_user_delete(
+    request: Request,
+    user_id: int = Path(..., ge=1),
+    confirm: Optional[str] = Form(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    bp = base_path(request)
+    token = get_auth_token(request)
+    if not token:
+        return safe_redirect(request, "/admin/login", status_code=303)
+    admin_user = _require_admin_user(db=db, token=token)
+
+    user = db.exec(select(User).where(User.id == user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not confirm:
+        return templates.TemplateResponse(
+            request,
+            "admin_user_edit.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "admin_email": admin_user.email,
+                "user": user,
+                "error": "Please confirm deletion.",
+            },
+            status_code=400,
+        )
+
+    db.delete(user)
+    db.commit()
+    return safe_redirect(request, "/admin", status_code=303)

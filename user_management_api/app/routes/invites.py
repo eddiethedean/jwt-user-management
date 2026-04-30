@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlmodel import Session, select
 
-from fastapi_workbench import external_url, safe_external_redirect
+from fastapi_workbench import base_path, external_url, safe_external_redirect
 from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
@@ -111,7 +111,7 @@ def create_invite(
 def accept_invite_page(
     request: Request, token: str, db: Session = Depends(get_db)
 ) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     token_hash = InviteToken.hash_token(token)
     invite: Optional[InviteToken] = db.exec(
         select(InviteToken).where(InviteToken.token_hash == token_hash)
@@ -176,7 +176,7 @@ def accept_invite_form(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> Response:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     try:
         _accept(db=db, token=token, password=password)
     except HTTPException as e:

@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from fastapi_workbench import external_url, safe_external_redirect
+from fastapi_workbench import base_path, external_url, safe_external_redirect
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db import get_db
@@ -42,7 +42,7 @@ def forgot_password_form(
     Demo UX: generate a reset link and render it on the login page.
     For real deployments, you'd email the link instead.
     """
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     email_n = (email or "").strip().lower()
     # Non-enumerating response: we always show the same success message.
     reset_url: Optional[str] = None
@@ -90,7 +90,7 @@ def reset_page(
     token: str,
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = db.exec(
         select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
@@ -126,7 +126,7 @@ def reset_form(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> Response:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = db.exec(
         select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)

@@ -5,6 +5,16 @@ import os
 from starlette.requests import Request
 
 
+def base_path(request: Request) -> str:
+    """
+    Return the normalized mount prefix for this request (Workbench root_path).
+
+    - If the app is mounted at the domain root, returns \"\".
+    - If mounted under a prefix, returns that prefix without a trailing slash.
+    """
+    return str(request.scope.get("root_path") or "").rstrip("/")
+
+
 def external_base(request: Request, public_base_url: str | None = None) -> str:
     base = (public_base_url or os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
     return base if base else str(request.base_url).rstrip("/")
@@ -17,11 +27,7 @@ def external_url(
     include_root_path: bool = True,
     public_base_url: str | None = None,
 ) -> str:
-    root_path = (
-        str(request.scope.get("root_path") or "").rstrip("/")
-        if include_root_path
-        else ""
-    )
+    root_path = base_path(request) if include_root_path else ""
     p = (path or "").strip()
     if not p.startswith("/"):
         p = "/" + p

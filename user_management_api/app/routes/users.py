@@ -11,7 +11,7 @@ from jose import JWTError
 from sqlalchemy import text
 from sqlmodel import Session, select
 
-from fastapi_workbench import safe_redirect
+from fastapi_workbench import base_path, safe_redirect
 from app.core.security import decode_token
 from app.db import get_db
 from app.models import User
@@ -67,7 +67,7 @@ def users(
 ) -> Response:
     """
     One route with two modes:\n+    - HTML mode: uses the HttpOnly cookie (or legacy `?token=...`).\n+    - JSON mode: provide `Authorization: Bearer <token>`.\n+"""
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
 
     if token:
         # Promote legacy/demo URL token into the cookie and clean up the URL.

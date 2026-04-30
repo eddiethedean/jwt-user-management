@@ -14,6 +14,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True)
     hashed_password: str
+    is_active: bool = Field(default=True, index=True)
     is_admin: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from fastapi_workbench import safe_redirect
+from fastapi_workbench import base_path, safe_redirect
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models import User
@@ -28,7 +28,7 @@ def _norm_email(v: str) -> str:
 
 @router.get("/register", response_class=HTMLResponse, include_in_schema=False)
 def register_page(request: Request) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     return templates.TemplateResponse(
         request, "register.html", {"request": request, "base_path": bp}
     )
@@ -41,7 +41,7 @@ def register_submit(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     email_n = _norm_email(email)
     if not email_n or not password:
         return templates.TemplateResponse(
@@ -82,7 +82,7 @@ def register_submit(
 
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 def login_page(request: Request) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     return templates.TemplateResponse(
         request, "login.html", {"request": request, "base_path": bp}
     )
@@ -95,10 +95,14 @@ def login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    bp = base_path(request)
     email_n = _norm_email(email)
     user: Optional[User] = db.exec(select(User).where(User.email == email_n)).first()
-    if not user or not verify_password(password, user.hashed_password):
+    if (
+        not user
+        or not getattr(user, "is_active", True)
+        or not verify_password(password, user.hashed_password)
+    ):
         return templates.TemplateResponse(
             request,
             "login.html",
@@ -129,7 +133,11 @@ def token(
 ) -> dict:
     username = _norm_email(form.username)
     user: Optional[User] = db.exec(select(User).where(User.email == username)).first()
-    if not user or not verify_password(form.password, user.hashed_password):
+    if (
+        not user
+        or not getattr(user, "is_active", True)
+        or not verify_password(form.password, user.hashed_password)
+    ):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     access_token = create_access_token(subject=str(user.id))
     return {"access_token": access_token, "token_type": "bearer"}
