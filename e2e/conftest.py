@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import pytest
 import requests
@@ -11,7 +12,12 @@ import requests
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-_E2E_DB_PATH: Path | None = None
+_E2E_DB_PATH: Optional[Path] = None
+
+# Use the service virtualenvs for launching backend/Streamlit, since the e2e
+# environment only carries pytest/playwright dependencies.
+BACKEND_PY = REPO_ROOT / "user_management_api" / ".venv" / "bin" / "python"
+STREAMLIT_PY = REPO_ROOT / "streamlit_user" / ".venv" / "bin" / "python"
 
 
 def _truthy_env(name: str) -> bool:
@@ -99,27 +105,21 @@ def ports():
 
 @pytest.fixture(scope="session")
 def admin_credentials():
-    # E2E creates a backend admin user with these credentials.
+    # Seeded by Alembic migration in the minimal backend.
     return {"email": "admin@example.com", "password": "admin123"}
-
-
-@pytest.fixture(scope="session")
-def backend_admin_api_key():
-    # Matches the env we pass to backend and Streamlit admin.
-    return "e2e-admin-key-please-change"
 
 
 @pytest.fixture(scope="session")
 def app_urls(ports):
     return {
-        "backend": f"http://127.0.0.1:{ports['backend']}/api",
-        "admin": f"http://127.0.0.1:{ports['backend']}/api/admin",
+        "backend": f"http://127.0.0.1:{ports['backend']}",
+        "admin": f"http://127.0.0.1:{ports['backend']}/admin",
         "user": f"http://127.0.0.1:{ports['user']}",
     }
 
 
 @pytest.fixture(scope="session", autouse=True)
-def run_apps(ports, admin_credentials, backend_admin_api_key):
+def run_apps(ports, admin_credentials):
     """
     Start backend + Streamlit user app once per test session.
     """
@@ -137,24 +137,17 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
     _E2E_DB_PATH = db_path
 
     env_backend = os.environ.copy()
-    backend_public = f"http://127.0.0.1:{backend_port}/api"
+    backend_public = f"http://127.0.0.1:{backend_port}"
     env_backend.update(
         {
-            "ENVIRONMENT": "dev",
             "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
             "PUBLIC_BASE_URL": backend_public,
-            "BASE_PATH": "",
-            "JWT_SECRET": "e2e-secret-e2e-secret-e2e-secret-1234",
-            "JWT_ALGORITHM": "HS256",
-            "JWT_EXPIRES_MINUTES": "60",
-            "ADMIN_API_KEY": backend_admin_api_key,
-            "RATE_LIMIT_ENABLED": "false",
         }
     )
 
     # Apply migrations.
     subprocess.check_call(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [str(BACKEND_PY), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
         cwd=str(REPO_ROOT / "user_management_api"),
         env=env_backend,
     )
@@ -165,12 +158,14 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             backend_fp = backend_log.open("a", encoding="utf-8")
             p = subprocess.Popen(
                 [
-                    sys.executable,
+                    str(BACKEND_PY),
                     "-m",
                     "uvicorn",
-                    "app.main:app",
+                    "app.asgi:app",
                     "--port",
                     backend_port,
+                    "--root-path",
+                    _proxy_prefix(),
                 ],
                 cwd=str(REPO_ROOT / "user_management_api"),
                 env=env_backend,
@@ -188,7 +183,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             if "Address already in use" in out:
                 backend_port = str(_free_port())
                 ports["backend"] = int(backend_port)
-                env_backend["PUBLIC_BASE_URL"] = f"http://127.0.0.1:{backend_port}/api"
+                env_backend["PUBLIC_BASE_URL"] = f"http://127.0.0.1:{backend_port}"
                 continue
             raise RuntimeError(f"backend process exited early.\n{out}")
         raise RuntimeError(
@@ -197,25 +192,8 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
 
     backend = _start_uvicorn_with_retry()
 
-    # Wait for backend, then seed an admin user for the admin Streamlit app to login with.
-    _wait_http_ok(f"http://127.0.0.1:{backend_port}/api/docs", timeout_s=45)
-
-    admin_email = admin_credentials["email"]
-    admin_password = admin_credentials["password"]
-    r_seed = requests.post(
-        f"{backend_public}/users",
-        headers={"X-Admin-Api-Key": backend_admin_api_key},
-        json={
-            "email": admin_email,
-            "full_name": "E2E Admin",
-            "password": admin_password,
-            "is_admin": True,
-            "permissions": ["users:read", "users:write"],
-        },
-        timeout=10,
-    )
-    if r_seed.status_code not in (200, 409):
-        raise RuntimeError(f"seed admin failed: {r_seed.status_code} {r_seed.text}")
+    # Wait for backend.
+    _wait_http_ok(f"http://127.0.0.1:{backend_port}/docs", timeout_s=45)
 
     def _start_streamlit_with_retry(
         *, cwd: Path, env: dict, log_path: Path, port_key: str
@@ -226,7 +204,7 @@ def run_apps(ports, admin_credentials, backend_admin_api_key):
             fp = log_path.open("a", encoding="utf-8")
             p = subprocess.Popen(
                 [
-                    sys.executable,
+                    str(STREAMLIT_PY),
                     "-m",
                     "streamlit",
                     "run",
@@ -305,25 +283,16 @@ def e2e_db_path() -> Path:
 
 
 @pytest.fixture
-def create_backend_user(app_urls, backend_admin_api_key):
-    """
-    Helper to create a backend user via admin API key.
-    """
+def create_backend_user(app_urls):
+    """Helper to create a backend user via HTML register form."""
 
     def _create(email: str, password: str):
         r = requests.post(
-            f"{app_urls['backend']}/users",
-            headers={"X-Admin-Api-Key": backend_admin_api_key},
-            json={
-                "email": email,
-                "full_name": "E2E User",
-                "password": password,
-                "is_admin": False,
-                "permissions": ["demo"],
-            },
+            f"{app_urls['backend']}/register",
+            data={"email": email, "password": password},
             timeout=10,
         )
-        if r.status_code not in (200, 409):
+        if r.status_code not in (200, 400):
             raise RuntimeError(f"create user failed: {r.status_code} {r.text}")
         return r
 
@@ -331,15 +300,18 @@ def create_backend_user(app_urls, backend_admin_api_key):
 
 
 @pytest.fixture
-def backend_admin_headers(backend_admin_api_key):
-    return {"X-Admin-Api-Key": backend_admin_api_key}
-
-
-@pytest.fixture
-def list_backend_users(app_urls, backend_admin_headers):
+def list_backend_users(app_urls):
     def _list():
+        tok = requests.post(
+            f"{app_urls['backend']}/auth/token",
+            data={"username": "admin@example.com", "password": "admin123"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        ).json()["access_token"]
         r = requests.get(
-            f"{app_urls['backend']}/users", headers=backend_admin_headers, timeout=10
+            f"{app_urls['backend']}/users",
+            headers={"Authorization": f"Bearer {tok}"},
+            timeout=10,
         )
         if not r.ok:
             raise RuntimeError(f"list users failed: {r.status_code} {r.text}")

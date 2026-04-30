@@ -21,7 +21,6 @@ def test_start_app_local_uses_free_port_and_no_root_path(monkeypatch) -> None:
 
     run_workbench.start_app(open_with_browser=True)
 
-    assert "BASE_PATH" not in run_workbench.os.environ
     web_open.assert_called_once_with("http://127.0.0.1:12345/docs")
     uvicorn_run.assert_called_once()
     _, kwargs = uvicorn_run.call_args
@@ -51,7 +50,6 @@ def test_start_app_workbench_full_url_sets_root_path_and_docs_url(monkeypatch) -
 
     run_workbench.start_app(open_with_browser=True)
 
-    assert run_workbench.os.environ.get("BASE_PATH") == "/s/x/p/y"
     web_open.assert_called_once_with("https://workbench.socom.mil/s/x/p/y/docs")
     uvicorn_run.assert_called_once()
     _, kwargs = uvicorn_run.call_args
@@ -75,7 +73,6 @@ def test_start_app_workbench_prefix_only(monkeypatch) -> None:
 
     run_workbench.start_app(open_with_browser=True)
 
-    assert run_workbench.os.environ.get("BASE_PATH") == "/s/a/p/b"
     # When rserver-url returns only a prefix, we fall back to the internal base URL.
     web_open.assert_called_once_with("http://127.0.0.1:34567/s/a/p/b/docs")
     _, kwargs = uvicorn_run.call_args
@@ -98,6 +95,5 @@ def test_start_app_prefers_explicit_base_path(monkeypatch) -> None:
     run_workbench.start_app(open_with_browser=False)
 
     get_root.assert_not_called()
-    assert run_workbench.os.environ.get("BASE_PATH") == "/explicit/prefix"
     _, kwargs = uvicorn_run.call_args
     assert kwargs["root_path"] == "/explicit/prefix"

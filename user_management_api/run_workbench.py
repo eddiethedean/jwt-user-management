@@ -34,7 +34,7 @@ def _get_root_path_for_workbench(port: int) -> str:
 
 def start_app(
     *,
-    app_module_name: str = "app.main",
+    app_module_name: str = "app.asgi",
     app_variable_name: str = "app",
     open_with_browser: bool = True,
 ) -> None:
@@ -68,11 +68,6 @@ def start_app(
                 root_path = raw.rstrip("/")
         except Exception as e:  # noqa: BLE001
             print("Failed to retrieve root_path via rserver-url:", e)
-
-    # Ensure the app sees the inferred prefix as BASE_PATH so the app middleware can
-    # strip it from incoming paths for routing (Uvicorn does not strip `root_path`).
-    if not explicit_base_path and root_path:
-        os.environ["BASE_PATH"] = root_path
 
     # If rserver-url returns a full external URL, it already includes the prefix.
     if external_base_is_full_url:
