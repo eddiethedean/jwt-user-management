@@ -5,6 +5,10 @@
     <h2>Users</h2>
     <p class="muted">Viewing as <code>{{ email }}</code></p>
 
+    <form method="post" action="{{ base_path }}/logout" style="margin: 10px 0 14px;">
+      <button type="submit">Log out</button>
+    </form>
+
     <table>
       <thead>
         <tr>

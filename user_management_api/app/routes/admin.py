@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.web.session import get_auth_token, set_auth_cookie
 
 
 router = APIRouter(tags=["admin"])
@@ -62,6 +63,16 @@ def admin_page(
     db: Session = Depends(get_db),
 ) -> Response:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
+    cookie_token = get_auth_token(request)
+    if token:
+        # If we were given a token via URL (legacy/demo mode), promote it into the
+        # HttpOnly cookie and clean up the URL.
+        _ = _require_admin_user(db=db, token=token)
+        resp = safe_redirect(request, "/admin", status_code=303)
+        set_auth_cookie(resp, request=request, token=token)
+        return resp
+
+    token = cookie_token
     if not token:
         # Use a relative redirect to avoid Workbench rewriting absolute-path
         # redirects into /proxy/<port>/... (which may not be browser-routable).
@@ -133,19 +144,25 @@ def admin_login_submit(
     token = create_access_token(subject=str(user.id))
     # Relative redirect so Workbench doesn't rewrite into /proxy/<port>/...
     # We are at /admin/login, so ../admin resolves correctly under any prefix.
-    return RedirectResponse(url=f"../admin?token={token}", status_code=303)
+    resp = RedirectResponse(url="../admin", status_code=303)
+    set_auth_cookie(resp, request=request, token=token)
+    return resp
 
 
 @router.post("/admin/invite", response_class=HTMLResponse, include_in_schema=False)
 def admin_invite_submit(
     request: Request,
-    token: str = Form(...),
+    token: Optional[str] = Form(default=None),
     email: str = Form(...),
     grant_admin: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Response:
     bp = str(request.scope.get("root_path") or "").rstrip("/")
-    admin_user = _require_admin_user(db=db, token=token)
+    cookie_token = get_auth_token(request)
+    active_token = cookie_token or token
+    if not active_token:
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+    admin_user = _require_admin_user(db=db, token=active_token)
 
     email_n = _norm_email(email)
     if not email_n:
@@ -174,7 +191,7 @@ def admin_invite_submit(
             "request": request,
             "users": users,
             "email": admin_user.email,
-            "token": token,
+            "token": active_token,
             "base_path": bp,
             "invite_url": _invite_url(request, raw),
             "invite_error": None,

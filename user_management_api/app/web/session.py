@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+from fastapi import Request, Response
+
+
+AUTH_COOKIE_NAME = "um_access_token"
+
+
+def _is_https(request: Request) -> bool:
+    xf_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    if xf_proto:
+        return xf_proto.lower() == "https"
+    return (request.url.scheme or "").lower() == "https"
+
+
+def cookie_path(request: Request) -> str:
+    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    return bp or "/"
+
+
+def get_auth_token(request: Request) -> str | None:
+    return request.cookies.get(AUTH_COOKIE_NAME)
+
+
+def set_auth_cookie(response: Response, *, request: Request, token: str) -> None:
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=_is_https(request),
+        samesite="lax",
+        path=cookie_path(request),
+    )
+
+
+def clear_auth_cookie(response: Response, *, request: Request) -> None:
+    response.delete_cookie(key=AUTH_COOKIE_NAME, path=cookie_path(request))

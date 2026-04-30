@@ -11,9 +11,11 @@ from jose import JWTError
 from sqlalchemy import text
 from sqlmodel import Session, select
 
+from fastapi_workbench import safe_redirect
 from app.core.security import decode_token
 from app.db import get_db
 from app.models import User
+from app.web.session import get_auth_token, set_auth_cookie
 
 
 router = APIRouter(tags=["users"])
@@ -64,11 +66,27 @@ def users(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Response:
     """
-    One route with two modes:\n+    - HTML mode: provide `?token=...`.\n+    - JSON mode: provide `Authorization: Bearer <token>`.\n+"""
+    One route with two modes:\n+    - HTML mode: uses the HttpOnly cookie (or legacy `?token=...`).\n+    - JSON mode: provide `Authorization: Bearer <token>`.\n+"""
+    bp = str(request.scope.get("root_path") or "").rstrip("/")
+
     if token:
-        bp = str(request.scope.get("root_path") or "").rstrip("/")
+        # Promote legacy/demo URL token into the cookie and clean up the URL.
         try:
             payload: dict[str, Any] = decode_token(token)
+            user_id = int(payload.get("sub") or 0)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user = db.exec(select(User).where(User.id == user_id)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        resp = safe_redirect(request, "/users", status_code=303)
+        set_auth_cookie(resp, request=request, token=token)
+        return resp
+
+    cookie_token = get_auth_token(request)
+    if cookie_token:
+        try:
+            payload = decode_token(cookie_token)
             user_id = int(payload.get("sub") or 0)
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -79,19 +97,13 @@ def users(
         return templates.TemplateResponse(
             request,
             "users.html",
-            {
-                "request": request,
-                "users": users,
-                "email": user.email,
-                "token": token,
-                "base_path": bp,
-            },
+            {"request": request, "users": users, "email": user.email, "base_path": bp},
         )
 
     if not creds:
         raise HTTPException(
             status_code=401,
-            detail="Provide Authorization: Bearer <token> (or use /users?token=... for HTML)",
+            detail="Provide Authorization: Bearer <token>",
         )
     _ = get_current_user(db=db, creds=creds)
     users = db.exec(select(User).order_by(text("id"))).all()

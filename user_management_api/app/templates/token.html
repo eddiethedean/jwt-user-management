@@ -7,9 +7,13 @@
 
     <p class="muted">Use this token for API calls (Bearer) or open the HTML users page:</p>
     <div class="nav pillRow" style="margin: 10px 0 12px;">
-      <a href="{{ base_path }}/users?token={{ token }}">Open users page</a>
-      <a href="{{ base_path }}/admin?token={{ token }}">Open admin page</a>
+      <a href="{{ base_path }}/users">Open users page</a>
+      <a href="{{ base_path }}/admin">Open admin page</a>
     </div>
+
+    <form method="post" action="{{ base_path }}/logout" style="margin-top: 10px;">
+      <button type="submit">Log out</button>
+    </form>
 
     <label>Token</label>
     <pre style="margin: 6px 0 0;">{{ token }}</pre>

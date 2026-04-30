@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models import User
+from app.web.session import clear_auth_cookie, set_auth_cookie
 
 
 router = APIRouter(tags=["auth"])
@@ -104,11 +105,21 @@ def login_submit(
             status_code=400,
         )
     token = create_access_token(subject=str(user.id))
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "token.html",
         {"request": request, "token": token, "email": user.email, "base_path": bp},
     )
+    set_auth_cookie(resp, request=request, token=token)
+    return resp
+
+
+@router.post("/logout", include_in_schema=False)
+def logout(request: Request) -> RedirectResponse:
+    bp = str(request.scope.get("root_path") or "").rstrip("/")
+    resp = RedirectResponse(url=f"{bp}/login", status_code=303)
+    clear_auth_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/auth/token")

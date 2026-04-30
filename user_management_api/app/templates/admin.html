@@ -6,8 +6,12 @@
     <p class="muted">Signed in as <code>{{ email }}</code></p>
 
     <div class="nav pillRow" style="margin: 10px 0 14px;">
-      <a href="{{ base_path }}/users?token={{ token }}">Open users page</a>
+      <a href="{{ base_path }}/users">Open users page</a>
     </div>
+
+    <form method="post" action="{{ base_path }}/logout" style="margin: 0 0 14px;">
+      <button type="submit">Log out</button>
+    </form>
 
     <h3>Invite user</h3>
     <p class="muted">Generate an invite link for a new user.</p>
@@ -78,7 +82,6 @@
     {% endif %}
 
     <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;">
-      <input type="hidden" name="token" value="{{ token }}" />
       <div class="row" style="align-items:flex-end;">
         <div style="flex: 1; min-width: 240px;">
           <label for="invite_email" style="margin-top: 0;">Email</label>

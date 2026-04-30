@@ -117,13 +117,12 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
         follow_redirects=False,
     )
     assert r_login.status_code == 303
-    token = r_login.headers["location"].split("token=", 1)[1]
+    assert r_login.headers["location"] == "../admin"
 
     # Create an invite that grants admin.
     r_inv = client.post(
         f"{prefix}/admin/invite",
         data={
-            "token": token,
             "email": "new.admin@example.com",
             "grant_admin": "1",
         },
@@ -149,10 +148,9 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
         follow_redirects=False,
     )
     assert r_admin_login.status_code == 303
-    loc = r_admin_login.headers["location"]
-    assert loc.startswith("../admin?token=")
+    assert r_admin_login.headers["location"] == "../admin"
 
-    r_admin = client.get(f"{prefix}/admin?token={loc.split('token=', 1)[1]}")
+    r_admin = client.get(f"{prefix}/admin")
     assert r_admin.status_code == 200
 
     from app.models import User
@@ -185,11 +183,11 @@ def test_invite_without_checkbox_does_not_grant_admin() -> None:
         follow_redirects=False,
     )
     assert r_login.status_code == 303
-    token = r_login.headers["location"].split("token=", 1)[1]
+    assert r_login.headers["location"] == "../admin"
 
     r_inv = client.post(
         f"{prefix}/admin/invite",
-        data={"token": token, "email": "regular.user@example.com"},
+        data={"email": "regular.user@example.com"},
         follow_redirects=False,
     )
     assert r_inv.status_code == 200
