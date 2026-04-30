@@ -107,4 +107,6 @@ def admin_login_submit(
         )
 
     token = create_access_token(subject=str(user.id))
-    return RedirectResponse(url=f"{bp}/admin?token={token}", status_code=303)
+    # Relative redirect so Workbench doesn't rewrite into /proxy/<port>/...
+    # We are at /admin/login, so ../admin resolves correctly under any prefix.
+    return RedirectResponse(url=f"../admin?token={token}", status_code=303)
