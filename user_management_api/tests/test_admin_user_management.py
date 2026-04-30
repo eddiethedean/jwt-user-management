@@ -87,9 +87,9 @@ def _seed_user(*, db_engine, email: str, password: str, is_admin: bool) -> int:
         return int(u.id)
 
 
-def test_admin_can_disable_user_and_user_cannot_login() -> None:
+def test_admin_can_disable_user_and_user_cannot_login(tmp_path) -> None:
     prefix = "/s/e886e3c9ab5a7e147ea97/p/testproj"
-    db_url = f"sqlite:///./test-{uuid.uuid4().hex}.db"
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
     import app.db as db
@@ -153,9 +153,9 @@ def test_admin_can_disable_user_and_user_cannot_login() -> None:
     assert r_api.status_code == 400
 
 
-def test_admin_can_delete_user() -> None:
+def test_admin_can_delete_user(tmp_path) -> None:
     prefix = "/s/e886e3c9ab5a7e147ea97/p/testproj"
-    db_url = f"sqlite:///./test-{uuid.uuid4().hex}.db"
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
     import app.db as db

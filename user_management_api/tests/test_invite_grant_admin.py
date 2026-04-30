@@ -94,9 +94,9 @@ def _extract_invite_token(html: str) -> str:
     return m.group(1)
 
 
-def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
+def test_invite_checkbox_grants_admin_on_accept_form_flow(tmp_path) -> None:
     prefix = "/s/e886e3c9ab5a7e147ea97/p/testproj"
-    db_url = f"sqlite:///./test-{uuid.uuid4().hex}.db"
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
     import app.db as db
@@ -161,9 +161,9 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow() -> None:
         assert u.is_admin is True
 
 
-def test_invite_without_checkbox_does_not_grant_admin() -> None:
+def test_invite_without_checkbox_does_not_grant_admin(tmp_path) -> None:
     prefix = "/s/e886e3c9ab5a7e147ea97/p/testproj"
-    db_url = f"sqlite:///./test-{uuid.uuid4().hex}.db"
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
     import app.db as db
@@ -208,8 +208,8 @@ def test_invite_without_checkbox_does_not_grant_admin() -> None:
         assert u.is_admin is False
 
 
-def test_non_admin_cannot_create_invite_api() -> None:
-    db_url = f"sqlite:///./test-{uuid.uuid4().hex}.db"
+def test_non_admin_cannot_create_invite_api(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
     import app.db as db

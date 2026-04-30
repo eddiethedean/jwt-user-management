@@ -94,9 +94,9 @@ def _seed_admin(*, db_engine) -> None:
         s.commit()
 
 
-def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None:
+def test_admin_redirects_use_relative_locations_under_workbench_prefix(tmp_path) -> None:
     prefix = "/s/e886e3c9ab5a7e147ea97/p/testproj"
-    db_url = f"sqlite:///./test-{uuid.uuid4().hex}.db"
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
     # Seed admin user for login test.
