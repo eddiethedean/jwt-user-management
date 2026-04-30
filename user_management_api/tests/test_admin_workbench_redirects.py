@@ -116,4 +116,6 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix() -> None
         follow_redirects=False,
     )
     assert r4.status_code == 303
-    assert r4.headers["location"] == "../../login"
+    loc2 = r4.headers["location"]
+    assert loc2.startswith("http://") or loc2.startswith("https://")
+    assert loc2.endswith(f"{prefix}/login")

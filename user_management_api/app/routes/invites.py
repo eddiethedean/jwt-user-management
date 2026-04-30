@@ -159,9 +159,9 @@ def accept_invite_form(
             {"request": request, "token": token, "error": e.detail, "base_path": bp},
             status_code=e.status_code,
         )
-    # Relative redirect to avoid Workbench rewriting absolute redirects into
-    # unroutable /proxy/<port>/... paths. We are at /invites/accept-form.
-    return RedirectResponse(url="../../login", status_code=303)
+    # Use a full external URL so Workbench doesn't rewrite it to /proxy/<port>/...
+    # and so the browser doesn't resolve relative paths incorrectly.
+    return RedirectResponse(url=f"{_external_base(request)}{bp}/login", status_code=303)
 
 
 @router.post("/accept")
