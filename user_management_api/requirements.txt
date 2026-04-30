@@ -9,4 +9,4 @@ pydantic-settings
 jinja2
 python-multipart
 pytest
--e ../fastapi_workbench
+fastapi-workbench==0.1.0
