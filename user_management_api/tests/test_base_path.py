@@ -84,3 +84,15 @@ def test_workbench_encoded_absolute_url_path_is_decoded_and_routed() -> None:
     # Should route to /admin, which redirects to /admin/login (with base_path prefix).
     assert r.status_code == 303
     assert r.headers["location"] == f"{bp}/admin/login"
+
+
+def test_workbench_autodetects_prefix_when_base_path_unset() -> None:
+    bp = "/s/e886e3c9ab5a7e147ea97/p/a693b2fa"
+    # Unset BASE_PATH to exercise autodetection
+    os.environ.pop("BASE_PATH", None)
+    app = _reload_app_with_env(base_path="")
+    client = TestClient(app, base_url="http://testserver")
+
+    encoded = "/https%3A//workbench.socom.mil" + bp + "//docs"
+    r = client.get(encoded)
+    assert r.status_code == 200

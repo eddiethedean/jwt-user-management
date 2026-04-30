@@ -10,8 +10,7 @@ from app.routes.users import router as users_router
 
 app = FastAPI(title="User Management API")
 
-if settings.base_path:
-    app.add_middleware(RootPathMiddleware, base_path=settings.base_path)
+app.add_middleware(RootPathMiddleware, base_path=settings.base_path)
 
 app.include_router(auth_router)
 app.include_router(admin_router)

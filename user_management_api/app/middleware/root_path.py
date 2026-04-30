@@ -20,6 +20,31 @@ class RootPathMiddleware:
     app: ASGIApp
     base_path: str
 
+    def _autodetect_prefix(self, path: str) -> tuple[str, str]:
+        """
+        If BASE_PATH isn't configured, try to infer a stable external prefix by locating
+        the first known route in the incoming path and treating everything before it
+        as the external root_path.
+        """
+        p = (path or "").strip() or "/"
+        while "//" in p:
+            p = p.replace("//", "/")
+        known = (
+            "/docs",
+            "/openapi.json",
+            "/redoc",
+            "/admin",
+            "/register",
+            "/login",
+            "/users",
+            "/auth",
+        )
+        for rp in known:
+            idx = p.find(rp)
+            if idx > 0:
+                return p[:idx].rstrip("/"), p[idx:] or "/"
+        return "", p
+
     def _normalize_prefix(self, v: str) -> str:
         p = (v or "").strip()
         if not p:
@@ -69,6 +94,17 @@ class RootPathMiddleware:
 
         bp = self._normalize_prefix(self.base_path)
         if not bp:
+            # Attempt best-effort prefix autodetection for Workbench-style deployments.
+            path = str(scope.get("path") or "")
+            inferred_prefix, inferred_path = self._autodetect_prefix(path)
+            if inferred_prefix:
+                scope = dict(scope)
+                scope["path"] = inferred_path or "/"
+                scope["raw_path"] = (scope["path"] or "/").encode()
+                existing = str(scope.get("root_path") or "").rstrip("/")
+                scope["root_path"] = (
+                    f"{existing}{inferred_prefix}" if existing else inferred_prefix
+                )
             await self.app(scope, receive, send)
             return
 
