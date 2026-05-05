@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.templating import Jinja2Templates
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,12 +13,10 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.db import get_db
 from app.models import User
 from app.web.session import clear_auth_cookie, set_auth_cookie
+from app.web.templates import templates
 
 
 router = APIRouter(tags=["auth"])
-templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[1] / "templates")
-)
 
 
 def _norm_email(v: str) -> str:

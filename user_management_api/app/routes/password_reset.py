@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import os
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, Response
-from fastapi.templating import Jinja2Templates
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,12 +14,10 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
+from app.web.templates import templates
 
 
 router = APIRouter(prefix="/password", tags=["password"])
-templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[1] / "templates")
-)
 
 ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
 

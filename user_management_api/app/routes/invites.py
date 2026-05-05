@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,12 +16,10 @@ from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.web.templates import templates
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
-templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[1] / "templates")
-)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()

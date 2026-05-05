@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlalchemy import text
 from sqlmodel import select
@@ -17,12 +15,10 @@ from app.core.security import decode_token
 from app.db import get_db
 from app.models import User
 from app.web.session import get_auth_token, set_auth_cookie
+from app.web.templates import templates
 
 
 router = APIRouter(tags=["users"])
-templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[1] / "templates")
-)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

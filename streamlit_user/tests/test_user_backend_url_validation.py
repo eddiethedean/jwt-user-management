@@ -9,7 +9,7 @@ _APP_ROOT = Path(__file__).resolve().parents[1]
 if str(_APP_ROOT) not in sys.path:
     sys.path.insert(0, str(_APP_ROOT))
 
-from user_common.backend_client import validate_backend_url
+from streamlit_user.user_common.backend_client import validate_backend_url
 
 
 def test_disallows_backend_url_with_credentials(monkeypatch):
@@ -28,7 +28,7 @@ def test_rejects_hostname_resolving_to_private_ip(monkeypatch):
         return [(2, 1, 6, "", ("10.0.0.5", port))]
 
     monkeypatch.setattr(
-        "user_common.backend_client.socket.getaddrinfo", fake_getaddrinfo
+        "streamlit_user.user_common.backend_client.socket.getaddrinfo", fake_getaddrinfo
     )
 
     with pytest.raises(ValueError, match="resolve to private"):

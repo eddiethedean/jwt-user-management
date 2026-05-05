@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 
 from fastapi_workbench import safe_redirect
 from app.routes.admin import router as admin_router
@@ -11,6 +14,13 @@ from app.routes.users import router as users_router
 
 
 app = FastAPI(title="User Management API")
+
+_APP_ROOT = Path(__file__).resolve().parent
+app.mount(
+    "/static",
+    StaticFiles(directory=str(_APP_ROOT / "web" / "static")),
+    name="static",
+)
 
 app.include_router(auth_router)
 app.include_router(cac_router)

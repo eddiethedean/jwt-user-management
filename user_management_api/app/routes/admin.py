@@ -3,12 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import os
 import logging
-from pathlib import Path as FsPath
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, Response
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,13 +17,11 @@ from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
 from app.web.session import get_auth_token, set_auth_cookie
+from app.web.templates import templates
 
 
 router = APIRouter(tags=["admin"])
 log = logging.getLogger("uvicorn.error")
-templates = Jinja2Templates(
-    directory=str(FsPath(__file__).resolve().parents[1] / "templates")
-)
 
 ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
 
