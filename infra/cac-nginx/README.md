@@ -23,6 +23,14 @@ Create these files (or mount them) before starting. For local dev, you can gener
 
 If you omit the argument, it will skip generating `dod_crl_bundle.pem`.
 
+### Download ALLCRLZIP + build CRL bundle (no local copy needed)
+
+```bash
+./fetch_and_build_crl_bundle.sh
+```
+
+You can override the source URL with `ALLCRLZIP_URL=...`.
+
 ### Build a CRL bundle from `ALLCRLZIP` (optional)
 
 If you downloaded the DoD CRLs directory at `~/Downloads/ALLCRLZIP`:

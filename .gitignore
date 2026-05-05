@@ -47,6 +47,7 @@ e2e/e2e.db
 # CAC/mTLS artifacts that should be generated locally
 # (CRL bundle is very large and cannot be pushed to GitHub)
 infra/cac-nginx/certs/dod_crl_bundle.pem
+infra/cac-nginx/certs/tmp/
 
 # Never commit private keys
 infra/cac-nginx/certs/*.key
