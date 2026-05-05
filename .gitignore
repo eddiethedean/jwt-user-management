@@ -52,6 +52,11 @@ infra/cac-nginx/certs/tmp/
 # Never commit private keys
 infra/cac-nginx/certs/*.key
 
+# More private key/cert containers (keep scoped to infra cert dirs)
+infra/**/certs/*.key
+infra/**/certs/*.p12
+infra/**/certs/*.pfx
+
 
 # Local dev server cert (generated)
 infra/cac-nginx/certs/server.crt
