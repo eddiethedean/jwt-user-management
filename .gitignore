@@ -52,3 +52,6 @@ infra/cac-nginx/certs/tmp/
 # Never commit private keys
 infra/cac-nginx/certs/*.key
 
+
+# Local dev server cert (generated)
+infra/cac-nginx/certs/server.crt
