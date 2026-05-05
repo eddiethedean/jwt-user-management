@@ -21,6 +21,21 @@ uvicorn app.main:app --reload --port 8001
 
 - Docs: `http://127.0.0.1:8001/docs`
 
+## Run with Hypercorn (optional)
+
+```bash
+cd user_management_api
+source .venv/bin/activate
+hypercorn app.asgi:app --bind 127.0.0.1:8001
+```
+
+### CAC identity debug endpoint
+
+If you terminate mTLS at a reverse proxy (or directly at Hypercorn) and forward TLS identity,
+you can inspect what the app sees at:
+
+- `GET /auth/cac/whoami`
+
 ## Run on Workbench (behind a proxy prefix)
 
 If you’re running behind Posit Workbench / RStudio Server (URLs like `/s/<service>/p/<project>/...`),

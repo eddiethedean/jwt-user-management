@@ -1,5 +1,6 @@
 fastapi[standard]
 uvicorn[standard]
+hypercorn
 sqlmodel
 alembic
 rapsqlite==0.3.0

@@ -30,6 +30,20 @@ uvicorn app.main:app --reload --port 8001
 
 API docs: `http://localhost:8001/docs`
 
+### Hypercorn (optional)
+
+If you want to run under Hypercorn (useful if you're experimenting with client certificates / mTLS):
+
+```bash
+cd user_management_api
+source .venv/bin/activate
+hypercorn app.asgi:app --bind 127.0.0.1:8001
+```
+
+CAC identity debug endpoint:
+
+- `GET /auth/cac/whoami` (returns `401` unless mTLS identity is present/forwarded)
+
 ### 2) Streamlit user demo
 
 ```bash
