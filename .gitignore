@@ -16,9 +16,6 @@ backend/.venv/
 streamlit_admin/.venv/
 streamlit_user/.venv/
 
-# pyenv local version pin
-.python-version
-
 # Env files / secrets
 .env
 backend/.env
@@ -47,8 +44,10 @@ e2e/__pycache__/
 e2e/artifacts/
 e2e/e2e.db
 
-# nginx CAC/mTLS local cert material
-infra/cac-nginx/certs/*.crt
+# CAC/mTLS artifacts that should be generated locally
+# (CRL bundle is very large and cannot be pushed to GitHub)
+infra/cac-nginx/certs/dod_crl_bundle.pem
+
+# Never commit private keys
 infra/cac-nginx/certs/*.key
-infra/cac-nginx/certs/*.pem
 

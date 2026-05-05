@@ -8,12 +8,20 @@ This folder provides a local nginx TLS terminator that:
 
 ### Files you must provide (not committed)
 
-Create these files (or mount them) before starting:
+Create these files (or mount them) before starting. For local dev, you can generate them with `setup_certs.sh`.
 
 - `certs/server.crt`: server certificate (PEM)
 - `certs/server.key`: server private key (PEM)
 - `certs/dod_ca_bundle.pem`: DoD trust chain bundle used to verify client certs (PEM)
 - `certs/dod_crl_bundle.pem` (optional): CRL bundle (PEM), see `build_crl_bundle.sh`
+
+### One-shot setup (downloads CA bundle + generates dev cert)
+
+```bash
+./setup_certs.sh "/Users/odosmatthews/Downloads/ALLCRLZIP"
+```
+
+If you omit the argument, it will skip generating `dod_crl_bundle.pem`.
 
 ### Build a CRL bundle from `ALLCRLZIP` (optional)
 
