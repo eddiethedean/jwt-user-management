@@ -16,6 +16,9 @@ backend/.venv/
 streamlit_admin/.venv/
 streamlit_user/.venv/
 
+# pyenv local version pin
+.python-version
+
 # Env files / secrets
 .env
 backend/.env
@@ -43,4 +46,9 @@ backend/app.db
 e2e/__pycache__/
 e2e/artifacts/
 e2e/e2e.db
+
+# nginx CAC/mTLS local cert material
+infra/cac-nginx/certs/*.crt
+infra/cac-nginx/certs/*.key
+infra/cac-nginx/certs/*.pem
 

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import ssl
 from typing import Any, Optional
 
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+from cryptography.x509.oid import NameOID
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -75,10 +79,76 @@ def _extract_identity_from_asgi_scope(request: Request) -> Optional[dict[str, An
 
     ssl_obj = scope.get("ssl_object") or scope.get("ssl")
     if ssl_obj is not None:
-        # Don't assume methods/shape; just return presence + repr.
+        ident = _extract_identity_from_ssl_object(ssl_obj)
+        if ident is not None:
+            return ident
+        # Fallback: don't assume methods/shape; just return presence + repr.
         return {"source": "asgi_ssl_object", "ssl_object_repr": repr(ssl_obj)}
 
     return None
+
+
+def _name_to_rfc4514(name: x509.Name) -> str:
+    # x509.Name.rfc4514_string() exists, but we keep a stable-ish representation.
+    try:
+        return name.rfc4514_string()
+    except Exception:
+        parts = []
+        for rdn in name.rdns:
+            for attr in rdn:
+                parts.append(f"{attr.oid.dotted_string}={attr.value}")
+        return ",".join(parts)
+
+
+def _extract_identity_from_ssl_object(ssl_obj: Any) -> Optional[dict[str, Any]]:
+    """
+    Extract client certificate details from an SSLObject/SSLSocket if present.
+    This is the preferred mode for Hypercorn-only deployments.
+    """
+    # Hypercorn may provide an ssl.SSLObject / ssl.SSLSocket
+    if not hasattr(ssl_obj, "getpeercert"):
+        return None
+
+    try:
+        der: Optional[bytes] = ssl_obj.getpeercert(binary_form=True)
+    except Exception:
+        der = None
+
+    if not der:
+        return None
+
+    try:
+        cert = x509.load_der_x509_certificate(der)
+    except Exception as e:
+        return {
+            "source": "asgi_ssl_object",
+            "error": f"failed to parse client certificate: {type(e).__name__}",
+        }
+
+    subject_dn = _name_to_rfc4514(cert.subject)
+    issuer_dn = _name_to_rfc4514(cert.issuer)
+    serial_hex = format(cert.serial_number, "x").upper()
+
+    # Common CAC attributes: CN and sometimes UPN in SubjectAltName (not parsed here).
+    cn = None
+    try:
+        cn_attr = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+        if cn_attr:
+            cn = cn_attr[0].value
+    except Exception:
+        cn = None
+
+    pem = cert.public_bytes(serialization.Encoding.PEM).decode("utf-8", errors="ignore")
+
+    return {
+        "source": "asgi_ssl_object",
+        "verified": True,  # if we have a peer cert, the TLS layer accepted it
+        "subject_dn": subject_dn,
+        "issuer_dn": issuer_dn,
+        "serial": serial_hex,
+        "common_name": cn,
+        "client_cert": pem,
+    }
 
 
 @router.get("/whoami")

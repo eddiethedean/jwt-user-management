@@ -12,6 +12,13 @@ App-specific READMEs:
 - `streamlit_user/README.md`
 - `e2e/README.md`
 
+## CAC / mTLS nginx layer (local)
+
+If you want a local nginx layer that triggers the browser CAC certificate picker / PIN prompt
+and forwards verified identity to the backend:
+
+- `infra/cac-nginx/README.md`
+
 ## Quickstart (local, SQLite)
 
 Prereqs: **Python 3.10+**.
