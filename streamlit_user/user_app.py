@@ -9,13 +9,27 @@ except Exception:  # pragma: no cover
     def load_dotenv(*args, **kwargs):  # type: ignore
         return False
 
-from streamlit_user.user_common.auth_state import get_auth_state, login_success, logout
-from streamlit_user.user_common.backend_client import (
-    BackendClient,
-    safe_json,
-    validate_backend_url,
-)
-from streamlit_user.user_common.ui import show_http_error
+try:
+    from streamlit_user.user_common.auth_state import (  # type: ignore
+        get_auth_state,
+        login_success,
+        logout,
+    )
+    from streamlit_user.user_common.backend_client import (  # type: ignore
+        BackendClient,
+        safe_json,
+        validate_backend_url,
+    )
+    from streamlit_user.user_common.ui import show_http_error  # type: ignore
+except ModuleNotFoundError:
+    # Running from inside `streamlit_user/`
+    from user_common.auth_state import get_auth_state, login_success, logout  # type: ignore
+    from user_common.backend_client import (  # type: ignore
+        BackendClient,
+        safe_json,
+        validate_backend_url,
+    )
+    from user_common.ui import show_http_error  # type: ignore
 
 load_dotenv()
 

@@ -36,6 +36,7 @@
       }
 
       * { box-sizing: border-box; }
+      html { min-height: 100%; }
       body {
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
         color: var(--fg);
@@ -43,12 +44,18 @@
                     radial-gradient(800px 500px at 90% 10%, rgba(34, 197, 94, 0.18), transparent 55%),
                     var(--bg);
         margin: 0;
+        min-height: 100vh;
       }
 
       a { color: inherit; text-decoration: none; }
       a:hover { text-decoration: underline; }
 
-      .wrap { max-width: 860px; margin: 40px auto; padding: 0 18px 48px; }
+      .wrap {
+        max-width: 860px;
+        margin: 40px auto;
+        padding: 0 18px 48px;
+        min-height: calc(100vh - 40px);
+      }
       .topbar {
         display: flex;
         justify-content: space-between;
@@ -57,15 +64,95 @@
         margin-bottom: 18px;
       }
       .brand { display: flex; flex-direction: column; gap: 2px; }
-      .brandTitle { font-weight: 900; letter-spacing: -0.02em; font-size: 18px; }
-      .brandSub { color: var(--muted); font-size: 13px; }
-
-      .nav { display: flex; gap: 10px; flex-wrap: wrap; }
-      .nav a {
-        padding: 8px 10px;
-        border: 1px solid var(--border);
+      .brandTop { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+      .brandTitle { font-weight: 950; letter-spacing: -0.03em; font-size: 18px; line-height: 1.1; }
+      .brandTag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 10px;
         border-radius: 999px;
-        background: var(--panel);
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        font-size: 12px;
+        font-weight: 800;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+      }
+      .brandTagDot { width: 8px; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 85%, transparent); }
+      .brandSub { color: var(--muted); font-size: 13px; max-width: 54ch; }
+      .brandStack { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+      .stackPill {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 55%, transparent);
+        font-size: 12px;
+        font-weight: 700;
+        color: color-mix(in srgb, var(--fg) 90%, transparent);
+      }
+
+      .nav {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .navGroup {
+        display: inline-flex;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+      }
+
+      .navLink {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+        background: transparent;
+        text-decoration: none;
+        font-weight: 650;
+        font-size: 13px;
+        line-height: 1;
+      }
+
+      .navLink:hover {
+        text-decoration: none;
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+
+      .navLink--active {
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+
+      .navDot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 65%, transparent);
+      }
+      .navLink--active .navDot {
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+
+      @media (max-width: 700px) {
+        .wrap { margin-top: 22px; }
+        .topbar { align-items: flex-start; flex-direction: column; }
+        .nav { width: 100%; justify-content: flex-start; }
+        .navGroup { width: 100%; justify-content: space-between; }
+        .navLink { flex: 1; justify-content: center; }
       }
 
       .card {
@@ -110,6 +197,49 @@
       }
       button:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 
+      /* Session pill: "Viewing as ..." + Logout */
+      .sessionPill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        overflow: hidden;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(10px);
+      }
+      .sessionPill__label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 650;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+        white-space: nowrap;
+      }
+      .sessionPill__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+      .sessionPill__action {
+        margin: 0;
+        padding: 8px 12px;
+        border: none;
+        border-left: 1px solid var(--border);
+        border-radius: 0;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 750;
+        cursor: pointer;
+      }
+      .sessionPill__action:hover {
+        border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+
       .pillRow a { text-decoration: none; }
       .pillRow a:hover { text-decoration: none; }
 
@@ -141,12 +271,43 @@
     <div class="wrap">
       <div class="topbar">
         <div class="brand">
-          <div class="brandTitle">User Management</div>
-          <div class="brandSub">Bare-bones demo (FastAPI + SQLModel + JWT)</div>
+          <div class="brandTop">
+            <div class="brandTitle">User Management</div>
+            <div class="brandTag" title="Demo app">
+              <span class="brandTagDot" aria-hidden="true"></span>
+              Demo
+            </div>
+          </div>
+          <div class="brandSub">A minimal, browser-friendly user system with login, invites, and admin tools.</div>
+          <div class="brandStack" aria-label="Stack">
+            <span class="stackPill">FastAPI</span>
+            <span class="stackPill">SQLModel</span>
+            <span class="stackPill">JWT</span>
+            <span class="stackPill">HTML</span>
+            <span class="stackPill">CSS</span>
+            <span class="stackPill">JS</span>
+          </div>
         </div>
         <div class="nav">
-          <a href="{{ base_path }}/register">Register</a>
-          <a href="{{ base_path }}/login">Login</a>
+          {% set _p = request.url.path %}
+          <div class="navGroup" role="navigation" aria-label="Primary">
+            <a class="navLink {% if _p.endswith('/register') %}navLink--active{% endif %}" href="{{ base_path }}/register">
+              <span class="navDot" aria-hidden="true"></span>
+              Register
+            </a>
+            <a class="navLink {% if _p.endswith('/login') %}navLink--active{% endif %}" href="{{ base_path }}/login">
+              <span class="navDot" aria-hidden="true"></span>
+              Login
+            </a>
+            <a class="navLink {% if _p.endswith('/users') %}navLink--active{% endif %}" href="{{ base_path }}/users">
+              <span class="navDot" aria-hidden="true"></span>
+              Users
+            </a>
+            <a class="navLink {% if _p == (base_path ~ '/admin') or _p.startswith(base_path ~ '/admin/') %}navLink--active{% endif %}" href="{{ base_path }}/admin">
+              <span class="navDot" aria-hidden="true"></span>
+              Admin
+            </a>
+          </div>
         </div>
       </div>
       {% block body %}{% endblock %}

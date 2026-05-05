@@ -310,6 +310,7 @@ async def admin_user_edit_page(
                 "request": request,
                 "base_path": bp,
                 "admin_email": admin_user.email,
+                "is_self": bool(admin_user.id == user_id),
                 "error": "User not found",
                 "user": {
                     "id": user_id,
@@ -329,6 +330,7 @@ async def admin_user_edit_page(
             "request": request,
             "base_path": bp,
             "admin_email": admin_user.email,
+            "is_self": bool(admin_user.id == user_id),
             "user": user,
         },
     )
@@ -381,6 +383,21 @@ async def admin_user_delete(
         return safe_redirect(request, "/admin/login", status_code=303)
     admin_user = await _require_admin_user(db=db, token=token)
 
+    if admin_user.id == user_id:
+        return templates.TemplateResponse(
+            request,
+            "admin_user_edit.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "admin_email": admin_user.email,
+                "user": admin_user,
+                "is_self": True,
+                "error": "You can’t delete your own account.",
+            },
+            status_code=400,
+        )
+
     user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -394,6 +411,7 @@ async def admin_user_delete(
                 "base_path": bp,
                 "admin_email": admin_user.email,
                 "user": user,
+                "is_self": bool(admin_user.id == user_id),
                 "error": "Please confirm deletion.",
             },
             status_code=400,

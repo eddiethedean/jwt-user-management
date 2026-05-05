@@ -2,88 +2,168 @@
 {% block title %}Admin{% endblock %}
 {% block body %}
   <div class="card">
-    <h2>Admin</h2>
-    <p class="muted">Signed in as <code>{{ email }}</code></p>
+    <style>
+      .adminHeader {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 8px;
+      }
+      .adminHeader h2 { margin-bottom: 6px; }
+      .adminHeaderActions { display:flex; gap:10px; align-items:center; }
+      .adminHeaderActions form { margin: 0; }
 
-    <div class="nav pillRow" style="margin: 10px 0 14px;">
-      <a href="{{ base_path }}/users">Open users page</a>
+      .adminGrid {
+        display: grid;
+        grid-template-columns: 1fr 1.4fr;
+        gap: 14px;
+        margin-top: 12px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        border-radius: var(--radius);
+        padding: 14px;
+      }
+
+      .panel h3 { margin-top: 0; }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 70%, transparent);
+      }
+      .dot--good { background: color-mix(in srgb, var(--accent-2) 85%, transparent); }
+      .dot--bad { background: color-mix(in srgb, var(--danger) 85%, transparent); }
+      .dot--accent { background: color-mix(in srgb, var(--accent) 85%, transparent); }
+
+      .inviteCard { margin-top: 10px; }
+      .inviteLinkBox pre { margin: 6px 0 0; }
+      .inviteLinkBox .row { justify-content: space-between; }
+
+      .actions a {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .actions a:hover { text-decoration: none; border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+
+      @media (max-width: 900px) {
+        .adminGrid { grid-template-columns: 1fr; }
+        .adminHeader { flex-direction: column; }
+      }
+    </style>
+
+    <div class="adminHeader">
+      <div>
+        <h2>Admin</h2>
+      </div>
+      <div class="adminHeaderActions">
+        <div class="sessionPill" title="Current session" aria-label="Session">
+          <div class="sessionPill__label">
+            <span class="sessionPill__dot" aria-hidden="true"></span>
+            <span>Signed in as <code>{{ email }}</code></span>
+          </div>
+          <form method="post" action="{{ base_path }}/logout">
+            <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
+          </form>
+        </div>
+      </div>
     </div>
-
-    <form method="post" action="{{ base_path }}/logout" style="margin: 0 0 14px;">
-      <button type="submit">Log out</button>
-    </form>
-
-    <h3>Invite user</h3>
-    <p class="muted">Generate an invite link for a new user.</p>
 
     {% if invite_error %}
       <div class="err">{{ invite_error }}</div>
     {% endif %}
 
-    {% if invite_url %}
-      <div class="ok">
-        Invite created for <code>{{ invite_email }}</code>
-      </div>
-      <label>Invite link</label>
-      <pre id="inviteLink" style="margin: 6px 0 0;">{{ invite_url }}</pre>
-      <div class="row" style="margin-top: 8px;">
-        <button type="button" id="copyInviteBtn">Copy to clipboard</button>
-        <span class="muted" id="copyInviteStatus" style="display:none;"></span>
-      </div>
-      <script>
-        (function () {
-          var btn = document.getElementById("copyInviteBtn");
-          var pre = document.getElementById("inviteLink");
-          var status = document.getElementById("copyInviteStatus");
-          if (!btn || !pre) return;
+    <div class="adminGrid">
+      <section class="panel">
+        <h3>Invite user</h3>
+        <p class="muted" style="margin-top: 6px;">Generate a one-time link to set a password.</p>
 
-          function setStatus(text) {
-            if (!status) return;
-            status.textContent = text;
-            status.style.display = "inline";
-            window.clearTimeout(status._t);
-            status._t = window.setTimeout(function () {
-              status.style.display = "none";
-            }, 2500);
-          }
+        {% if invite_url %}
+          <div class="ok inviteCard">
+            Invite created for <code>{{ invite_email }}</code>
+          </div>
+          <div class="inviteLinkBox">
+            <label>Invite link</label>
+            <pre id="inviteLink">{{ invite_url }}</pre>
+            <div class="row" style="margin-top: 8px;">
+              <button type="button" id="copyInviteBtn" style="margin-top: 0;">Copy invite link</button>
+              <span class="muted" id="copyInviteStatus" style="display:none;"></span>
+            </div>
+          </div>
+          <script>
+            (function () {
+              var btn = document.getElementById("copyInviteBtn");
+              var pre = document.getElementById("inviteLink");
+              var status = document.getElementById("copyInviteStatus");
+              if (!btn || !pre) return;
 
-          function fallbackCopy(text) {
-            var ta = document.createElement("textarea");
-            ta.value = text;
-            ta.setAttribute("readonly", "");
-            ta.style.position = "fixed";
-            ta.style.left = "-9999px";
-            document.body.appendChild(ta);
-            ta.select();
-            try {
-              document.execCommand("copy");
-              setStatus("Copied");
-            } catch (e) {
-              setStatus("Copy failed");
-            } finally {
-              document.body.removeChild(ta);
-            }
-          }
+              function setStatus(text) {
+                if (!status) return;
+                status.textContent = text;
+                status.style.display = "inline";
+                window.clearTimeout(status._t);
+                status._t = window.setTimeout(function () {
+                  status.style.display = "none";
+                }, 2500);
+              }
 
-          btn.addEventListener("click", function () {
-            var text = (pre.textContent || "").trim();
-            if (!text) return;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard
-                .writeText(text)
-                .then(function () { setStatus("Copied"); })
-                .catch(function () { fallbackCopy(text); });
-            } else {
-              fallbackCopy(text);
-            }
-          });
-        })();
-      </script>
-    {% endif %}
+              function fallbackCopy(text) {
+                var ta = document.createElement("textarea");
+                ta.value = text;
+                ta.setAttribute("readonly", "");
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                  document.execCommand("copy");
+                  setStatus("Copied");
+                } catch (e) {
+                  setStatus("Copy failed");
+                } finally {
+                  document.body.removeChild(ta);
+                }
+              }
 
-    <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;">
-      <div class="row" style="align-items:flex-end;">
-        <div style="flex: 1; min-width: 240px;">
+              btn.addEventListener("click", function () {
+                var text = (pre.textContent || "").trim();
+                if (!text) return;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard
+                    .writeText(text)
+                    .then(function () { setStatus("Copied"); })
+                    .catch(function () { fallbackCopy(text); });
+                } else {
+                  fallbackCopy(text);
+                }
+              });
+            })();
+          </script>
+        {% endif %}
+
+        <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;">
           <label for="invite_email" style="margin-top: 0;">Email</label>
           <input
             id="invite_email"
@@ -94,11 +174,8 @@
             autocomplete="email"
             required
           />
-          <div class="muted" style="margin-top: 6px;">We’ll generate a one-time link to set a password.</div>
-        </div>
 
-        <div style="min-width: 200px;">
-          <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 600;">
+          <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 12px; font-weight: 650;">
             <input
               type="checkbox"
               name="grant_admin"
@@ -111,39 +188,57 @@
               <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
             </span>
           </label>
+
+          <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+            <button type="submit">Create invite</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="row" style="justify-content: space-between; align-items: baseline;">
+          <h3>All users</h3>
+          <span class="muted">{{ users|length }} total</span>
         </div>
-      </div>
 
-      <div class="row" style="justify-content: flex-end; margin-top: 10px;">
-        <button type="submit">Create invite</button>
-      </div>
-    </form>
-
-    <h3>All users</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Email</th>
-          <th>Active</th>
-          <th>Admin</th>
-          <th>Created</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for u in users %}
-          <tr>
-            <td>{{ u.id }}</td>
-            <td><code>{{ u.email }}</code></td>
-            <td>{% if u.is_active %}Yes{% else %}No{% endif %}</td>
-            <td>{% if u.is_admin %}Yes{% else %}No{% endif %}</td>
-            <td>{{ u.created_at }}</td>
-            <td><a href="{{ base_path }}/admin/users/{{ u.id }}">Edit</a></td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        <table style="margin-top: 10px;">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Role</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+              <tr>
+                <td>{{ u.id }}</td>
+                <td><code>{{ u.email }}</code></td>
+                <td>
+                  {% if u.is_active %}
+                    <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>
+                  {% else %}
+                    <span class="badge"><span class="dot dot--bad" aria-hidden="true"></span>Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if u.is_admin %}
+                    <span class="badge"><span class="dot dot--accent" aria-hidden="true"></span>Admin</span>
+                  {% else %}
+                    <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
+                  {% endif %}
+                </td>
+                <td>{{ u.created_at }}</td>
+                <td class="actions"><a href="{{ base_path }}/admin/users/{{ u.id }}">Edit</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
   </div>
 {% endblock %}
 

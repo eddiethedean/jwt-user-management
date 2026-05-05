@@ -54,18 +54,33 @@
     </form>
 
     <h3>Danger zone</h3>
-    <div class="err" style="margin-top: 10px;">
-      Deleting a user is permanent.
-    </div>
-    <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/delete" style="margin-top: 10px;">
-      <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
-        <input type="checkbox" name="confirm" value="1" style="width:auto; margin-top: 3px;" />
-        <span>
-          I understand this will permanently delete the account
-        </span>
-      </label>
-      <button type="submit">Delete user</button>
-    </form>
+    {% if is_self|default(false) %}
+      <div class="info" style="margin-top: 10px;">
+        You can’t delete your own account.
+      </div>
+      <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/delete" style="margin-top: 10px;">
+        <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650; opacity: 0.65;">
+          <input type="checkbox" name="confirm" value="1" style="width:auto; margin-top: 3px;" disabled />
+          <span>
+            I understand this will permanently delete the account
+          </span>
+        </label>
+        <button type="submit" disabled style="opacity: 0.6; cursor: not-allowed;">Delete user</button>
+      </form>
+    {% else %}
+      <div class="err" style="margin-top: 10px;">
+        Deleting a user is permanent.
+      </div>
+      <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/delete" style="margin-top: 10px;">
+        <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
+          <input type="checkbox" name="confirm" value="1" style="width:auto; margin-top: 3px;" />
+          <span>
+            I understand this will permanently delete the account
+          </span>
+        </label>
+        <button type="submit">Delete user</button>
+      </form>
+    {% endif %}
   </div>
 {% endblock %}
 

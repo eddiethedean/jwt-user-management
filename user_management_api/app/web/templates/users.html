@@ -2,44 +2,115 @@
 {% block title %}Users{% endblock %}
 {% block body %}
   <div class="card">
-    <h2>Users</h2>
-    <p class="muted">Viewing as <code>{{ email }}</code></p>
+    <style>
+      .usersHeader {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 8px;
+      }
+      .usersHeader h2 { margin-bottom: 6px; }
+      .usersHeaderActions { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+      .usersHeaderActions form { margin: 0; }
+
+      .panel {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        border-radius: var(--radius);
+        padding: 14px;
+        margin-top: 12px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 70%, transparent);
+      }
+      .dot--good { background: color-mix(in srgb, var(--accent-2) 85%, transparent); }
+      .dot--bad { background: color-mix(in srgb, var(--danger) 85%, transparent); }
+      .dot--accent { background: color-mix(in srgb, var(--accent) 85%, transparent); }
+
+      @media (max-width: 900px) {
+        .usersHeader { flex-direction: column; }
+        .usersHeaderActions { width: 100%; }
+      }
+    </style>
+
+    <div class="usersHeader">
+      <div>
+        <h2>Users</h2>
+      </div>
+      <div class="usersHeaderActions" aria-label="Session">
+        <div class="sessionPill" title="Current session">
+          <div class="sessionPill__label">
+            <span class="sessionPill__dot" aria-hidden="true"></span>
+            <span>Viewing as <code>{{ email }}</code></span>
+          </div>
+          <form method="post" action="{{ base_path }}/logout">
+            <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
+          </form>
+        </div>
+      </div>
+    </div>
 
     {% if admin_error %}
       <div class="err">{{ admin_error }}</div>
     {% endif %}
 
-    <form method="post" action="{{ base_path }}/admin/open" style="margin: 10px 0 14px;">
-      <input type="hidden" name="return_to" value="users" />
-      <button type="submit" style="margin-top: 0;">Open admin page</button>
-    </form>
+    <section class="panel">
+      <div class="row" style="justify-content: space-between; align-items: baseline;">
+        <h3 style="margin: 0;">All users</h3>
+        <span class="muted">{{ users|length }} total</span>
+      </div>
 
-    <form method="post" action="{{ base_path }}/logout" style="margin: 10px 0 14px;">
-      <button type="submit">Log out</button>
-    </form>
-
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Email</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for u in users %}
+      <table style="margin-top: 10px;">
+        <thead>
           <tr>
-            <td>{{ u.id }}</td>
-            <td><code>{{ u.email }}</code></td>
-            <td>{{ u.created_at }}</td>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Role</th>
+            <th>Created</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    <p class="muted" style="margin-bottom: 0; margin-top: 12px;">
-      Tip: JSON list is also available at <code>GET /users</code> with <code>Authorization: Bearer ...</code>.
-    </p>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td>{{ u.id }}</td>
+              <td><code>{{ u.email }}</code></td>
+              <td>
+                {% if u.is_active %}
+                  <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>
+                {% else %}
+                  <span class="badge"><span class="dot dot--bad" aria-hidden="true"></span>Inactive</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.is_admin %}
+                  <span class="badge"><span class="dot dot--accent" aria-hidden="true"></span>Admin</span>
+                {% else %}
+                  <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
+                {% endif %}
+              </td>
+              <td>{{ u.created_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
   </div>
 {% endblock %}
 

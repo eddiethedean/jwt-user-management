@@ -8,4 +8,10 @@ which can conflict with the backend's `user_management_api/app` package during
 `pytest` runs.
 """
 
-from streamlit_user.user_app import *  # noqa: F403
+try:
+    # When running from repo root, `streamlit_user` is importable as a package.
+    from streamlit_user.user_app import *  # type: ignore # noqa: F403
+except ModuleNotFoundError:
+    # When running from inside `streamlit_user/`, Streamlit sets sys.path such
+    # that the folder itself is importable, not the package name.
+    from user_app import *  # type: ignore # noqa: F403
