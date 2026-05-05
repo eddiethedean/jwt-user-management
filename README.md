@@ -19,6 +19,12 @@ and forwards verified identity to the backend:
 
 - `infra/cac-nginx/README.md`
 
+To download `ALLCRLZIP`, unzip it, and generate the CRL bundle used by nginx:
+
+```bash
+./infra/cac-nginx/fetch_and_build_crl_bundle.sh
+```
+
 ## Quickstart (local, SQLite)
 
 Prereqs: **Python 3.10+**.
