@@ -10,7 +10,8 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from jose import JWTError
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, external_url, safe_external_redirect
 from app.core.config import settings
@@ -51,7 +52,9 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _require_admin(db: Session, creds: Optional[HTTPAuthorizationCredentials]) -> User:
+async def _require_admin(
+    db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
+) -> User:
     if not creds:
         raise HTTPException(status_code=401, detail="Missing bearer token")
     try:
@@ -65,7 +68,7 @@ def _require_admin(db: Session, creds: Optional[HTTPAuthorizationCredentials]) -
         user_id = int(sub)
     except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token subject")
-    user = db.exec(select(User).where(User.id == user_id)).first()
+    user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     if not getattr(user, "is_admin", False):
@@ -74,13 +77,13 @@ def _require_admin(db: Session, creds: Optional[HTTPAuthorizationCredentials]) -
 
 
 @router.post("")
-def create_invite(
+async def create_invite(
     request: Request,
     payload: dict = Body(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    _require_admin(db, creds)
+    await _require_admin(db, creds)
     email = _norm_email(str(payload.get("email") or ""))
     grant_admin = bool(payload.get("grant_admin") or False)
     if not email:
@@ -98,7 +101,7 @@ def create_invite(
         grant_admin=grant_admin,
     )
     db.add(invite)
-    db.commit()
+    await db.commit()
 
     return {
         "ok": True,
@@ -108,13 +111,13 @@ def create_invite(
 
 
 @router.get("/accept", response_class=HTMLResponse, include_in_schema=False)
-def accept_invite_page(
-    request: Request, token: str, db: Session = Depends(get_db)
+async def accept_invite_page(
+    request: Request, token: str, db: AsyncSession = Depends(get_db)
 ) -> HTMLResponse:
     bp = base_path(request)
     token_hash = InviteToken.hash_token(token)
-    invite: Optional[InviteToken] = db.exec(
-        select(InviteToken).where(InviteToken.token_hash == token_hash)
+    invite: Optional[InviteToken] = (
+        await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
     ).first()
     if not invite:
         return templates.TemplateResponse(
@@ -140,10 +143,10 @@ def accept_invite_page(
     )
 
 
-def _accept(*, db: Session, token: str, password: str) -> None:
+async def _accept(*, db: AsyncSession, token: str, password: str) -> None:
     token_hash = InviteToken.hash_token(token)
-    invite: Optional[InviteToken] = db.exec(
-        select(InviteToken).where(InviteToken.token_hash == token_hash)
+    invite: Optional[InviteToken] = (
+        await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
     ).first()
     if not invite:
         raise HTTPException(status_code=404, detail="Invite not found")
@@ -153,7 +156,7 @@ def _accept(*, db: Session, token: str, password: str) -> None:
     if _as_utc_aware(invite.expires_at) < now:
         raise HTTPException(status_code=400, detail="Invite expired")
 
-    user = db.exec(select(User).where(User.email == invite.email)).first()
+    user = (await db.exec(select(User).where(User.email == invite.email))).first()
     if user:
         user.hashed_password = hash_password(password)
         user.is_admin = bool(user.is_admin or invite.grant_admin)
@@ -166,23 +169,23 @@ def _accept(*, db: Session, token: str, password: str) -> None:
         db.add(user)
     invite.used_at = now
     db.add(invite)
-    db.commit()
+    await db.commit()
 
 
 @router.post("/accept-form", response_class=HTMLResponse, include_in_schema=False)
-def accept_invite_form(
+async def accept_invite_form(
     request: Request,
     token: str = Form(...),
     password: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     try:
-        _accept(db=db, token=token, password=password)
+        await _accept(db=db, token=token, password=password)
     except HTTPException as e:
         token_hash = InviteToken.hash_token(token)
-        invite: Optional[InviteToken] = db.exec(
-            select(InviteToken).where(InviteToken.token_hash == token_hash)
+        invite: Optional[InviteToken] = (
+            await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
         ).first()
         return templates.TemplateResponse(
             request,
@@ -207,10 +210,12 @@ def accept_invite_form(
 
 
 @router.post("/accept")
-def accept_invite_api(payload: dict = Body(...), db: Session = Depends(get_db)) -> dict:
+async def accept_invite_api(
+    payload: dict = Body(...), db: AsyncSession = Depends(get_db)
+) -> dict:
     token = str(payload.get("token") or "")
     password = str(payload.get("password") or "")
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
-    _accept(db=db, token=token, password=password)
+    await _accept(db=db, token=token, password=password)
     return {"ok": True}

@@ -8,7 +8,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, external_url, safe_external_redirect
 from app.core.config import settings
@@ -32,11 +33,11 @@ def _as_utc_aware(dt: datetime) -> datetime:
 
 
 @router.post("/forgot-form", response_class=HTMLResponse, include_in_schema=False)
-def forgot_password_form(
+async def forgot_password_form(
     request: Request,
     email: str = Form(...),
     return_to: str = Form(default="login"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     """
     Demo UX: generate a reset link and render it on the login page.
@@ -49,7 +50,7 @@ def forgot_password_form(
 
     user: Optional[User] = None
     if email_n:
-        user = db.exec(select(User).where(User.email == email_n)).first()
+        user = (await db.exec(select(User).where(User.email == email_n))).first()
 
     if user:
         raw = PasswordResetToken.new_raw_token()
@@ -63,7 +64,7 @@ def forgot_password_form(
             used_at=None,
         )
         db.add(rec)
-        db.commit()
+        await db.commit()
         reset_url = external_url(
             request,
             f"/password/reset?token={raw}",
@@ -85,15 +86,17 @@ def forgot_password_form(
 
 
 @router.get("/reset", response_class=HTMLResponse, include_in_schema=False)
-def reset_page(
+async def reset_page(
     request: Request,
     token: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     bp = base_path(request)
     token_hash = PasswordResetToken.hash_token(token)
-    rec: Optional[PasswordResetToken] = db.exec(
-        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+    rec: Optional[PasswordResetToken] = (
+        await db.exec(
+            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+        )
     ).first()
     if not rec:
         return templates.TemplateResponse(
@@ -120,16 +123,18 @@ def reset_page(
 
 
 @router.post("/reset-form", response_class=HTMLResponse, include_in_schema=False)
-def reset_form(
+async def reset_form(
     request: Request,
     token: str = Form(...),
     password: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     token_hash = PasswordResetToken.hash_token(token)
-    rec: Optional[PasswordResetToken] = db.exec(
-        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+    rec: Optional[PasswordResetToken] = (
+        await db.exec(
+            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+        )
     ).first()
     if not rec:
         return templates.TemplateResponse(
@@ -171,13 +176,13 @@ def reset_form(
             status_code=400,
         )
 
-    user: Optional[User] = db.exec(select(User).where(User.email == rec.email)).first()
+    user: Optional[User] = (await db.exec(select(User).where(User.email == rec.email))).first()
     if user:
         user.hashed_password = hash_password(password)
         db.add(user)
     rec.used_at = now
     db.add(rec)
-    db.commit()
+    await db.commit()
 
     return safe_external_redirect(
         request,

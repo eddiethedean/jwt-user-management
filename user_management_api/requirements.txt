@@ -2,6 +2,8 @@ fastapi[standard]
 uvicorn[standard]
 sqlmodel
 alembic
+rapsqlite==0.3.0
+greenlet
 python-dotenv
 python-jose[cryptography]
 passlib

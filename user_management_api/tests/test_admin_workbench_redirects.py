@@ -22,6 +22,9 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
 
     # Avoid SQLAlchemy table redefinition issues across reloads.
     SQLModel.metadata.clear()
+    import sqlmodel.main as sqlmodel_main
+
+    sqlmodel_main.default_registry.dispose()
 
     # Streamlit tests (or other tools) can leave a non-package module named `app` in
     # sys.modules, which breaks our backend imports (`import app.core...`). Ensure

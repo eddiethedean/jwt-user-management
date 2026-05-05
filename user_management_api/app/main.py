@@ -19,5 +19,5 @@ app.include_router(users_router)
 
 
 @app.get("/", include_in_schema=False)
-def root(request: Request) -> Response:
+async def root(request: Request) -> Response:
     return safe_redirect(request, "/register", status_code=302)

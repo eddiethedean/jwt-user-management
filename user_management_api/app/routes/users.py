@@ -9,7 +9,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from sqlalchemy import text
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, safe_redirect
 from app.core.security import decode_token
@@ -26,8 +27,8 @@ templates = Jinja2Templates(
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
-    db: Session = Depends(get_db),
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> User:
     if not creds:
@@ -43,14 +44,14 @@ def get_current_user(
         user_id = int(sub)
     except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token subject")
-    user: Optional[User] = db.exec(select(User).where(User.id == user_id)).first()
+    user: Optional[User] = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
 
 @router.get("/users/me")
-def me(current_user: User = Depends(get_current_user)) -> dict:
+async def me(current_user: User = Depends(get_current_user)) -> dict:
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -59,10 +60,10 @@ def me(current_user: User = Depends(get_current_user)) -> dict:
 
 
 @router.get("/users", response_class=Response)
-def users(
+async def users(
     request: Request,
     token: Optional[str] = Query(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Response:
     """
@@ -76,7 +77,7 @@ def users(
             user_id = int(payload.get("sub") or 0)
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
-        user = db.exec(select(User).where(User.id == user_id)).first()
+        user = (await db.exec(select(User).where(User.id == user_id))).first()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
         resp = safe_redirect(request, "/users", status_code=303)
@@ -90,10 +91,10 @@ def users(
             user_id = int(payload.get("sub") or 0)
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
-        user = db.exec(select(User).where(User.id == user_id)).first()
+        user = (await db.exec(select(User).where(User.id == user_id))).first()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
-        users = db.exec(select(User).order_by(text("id"))).all()
+        users = (await db.exec(select(User).order_by(text("id")))).all()
         return templates.TemplateResponse(
             request,
             "users.html",
@@ -111,8 +112,8 @@ def users(
             status_code=401,
             detail="Provide Authorization: Bearer <token>",
         )
-    _ = get_current_user(db=db, creds=creds)
-    users = db.exec(select(User).order_by(text("id"))).all()
+    _ = await get_current_user(db=db, creds=creds)
+    users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(
         content=[
             {"id": u.id, "email": u.email, "created_at": u.created_at.isoformat()}

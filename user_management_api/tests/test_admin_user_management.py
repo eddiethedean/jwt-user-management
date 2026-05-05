@@ -16,7 +16,11 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
     os.environ["DATABASE_URL"] = db_url
     os.environ["JWT_SECRET"] = "test-secret"
 
+    # Avoid SQLAlchemy table/class redefinition issues across reloads.
     SQLModel.metadata.clear()
+    import sqlmodel.main as sqlmodel_main
+
+    sqlmodel_main.default_registry.dispose()
 
     for k in list(sys.modules.keys()):
         if k == "app" or k.startswith("app."):

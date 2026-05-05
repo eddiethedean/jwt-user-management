@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, Reques
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, external_url, safe_redirect
 from app.core.config import settings
@@ -41,31 +42,31 @@ def _invite_url(request: Request, token: str) -> str:
     )
 
 
-def _require_user(*, db: Session, token: str) -> User:
+async def _require_user(*, db: AsyncSession, token: str) -> User:
     try:
         payload: dict[str, Any] = decode_token(token)
         user_id = int(payload.get("sub") or 0)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = db.exec(select(User).where(User.id == user_id)).first()
+    user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
     return user
 
 
-def _require_admin_user(*, db: Session, token: str) -> User:
-    user = _require_user(db=db, token=token)
+async def _require_admin_user(*, db: AsyncSession, token: str) -> User:
+    user = await _require_user(db=db, token=token)
     if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
-def admin_page(
+async def admin_page(
     request: Request,
     token: Optional[str] = Query(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     cookie_token = get_auth_token(request)
@@ -73,11 +74,11 @@ def admin_page(
         # If we were given a token via URL (legacy/demo mode), promote it into the
         # HttpOnly cookie and clean up the URL. If the user is not an admin, keep
         # them on the users page with a friendly message.
-        user = _require_user(db=db, token=token)
+        user = await _require_user(db=db, token=token)
         resp = safe_redirect(request, "/admin", status_code=303)
         set_auth_cookie(resp, request=request, token=token)
         if not getattr(user, "is_admin", False):
-            users = db.exec(select(User).order_by(text("id"))).all()
+            users = (await db.exec(select(User).order_by(text("id")))).all()
             return templates.TemplateResponse(
                 request,
                 "users.html",
@@ -105,9 +106,9 @@ def admin_page(
                 "admin/login",
             )
         return safe_redirect(request, "/admin/login", status_code=303)
-    user = _require_user(db=db, token=token)
+    user = await _require_user(db=db, token=token)
     if not getattr(user, "is_admin", False):
-        users = db.exec(select(User).order_by(text("id"))).all()
+        users = (await db.exec(select(User).order_by(text("id")))).all()
         return templates.TemplateResponse(
             request,
             "users.html",
@@ -122,7 +123,7 @@ def admin_page(
             status_code=403,
         )
 
-    users = db.exec(select(User).order_by(text("id"))).all()
+    users = (await db.exec(select(User).order_by(text("id")))).all()
     return templates.TemplateResponse(
         request,
         "admin.html",
@@ -141,10 +142,10 @@ def admin_page(
 
 
 @router.post("/admin/open", response_class=HTMLResponse, include_in_schema=False)
-def open_admin_from_page(
+async def open_admin_from_page(
     request: Request,
     return_to: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     """
     Used by "Open admin page" buttons so we can render a friendly message and keep
@@ -155,7 +156,7 @@ def open_admin_from_page(
     if not token:
         return safe_redirect(request, "/login", status_code=303)
 
-    user = _require_user(db=db, token=token)
+    user = await _require_user(db=db, token=token)
     if getattr(user, "is_admin", False):
         # We are at /admin/open, so use a relative redirect.
         return safe_redirect(request, "../admin", status_code=303)
@@ -175,7 +176,7 @@ def open_admin_from_page(
             status_code=403,
         )
 
-    users = db.exec(select(User).order_by(text("id"))).all()
+    users = (await db.exec(select(User).order_by(text("id")))).all()
     return templates.TemplateResponse(
         request,
         "users.html",
@@ -192,7 +193,7 @@ def open_admin_from_page(
 
 
 @router.get("/admin/login", response_class=HTMLResponse, include_in_schema=False)
-def admin_login_page(request: Request) -> HTMLResponse:
+async def admin_login_page(request: Request) -> HTMLResponse:
     bp = base_path(request)
     return templates.TemplateResponse(
         request,
@@ -202,15 +203,15 @@ def admin_login_page(request: Request) -> HTMLResponse:
 
 
 @router.post("/admin/login", response_class=HTMLResponse, include_in_schema=False)
-def admin_login_submit(
+async def admin_login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     email_n = _norm_email(email)
-    user: Optional[User] = db.exec(select(User).where(User.email == email_n)).first()
+    user: Optional[User] = (await db.exec(select(User).where(User.email == email_n))).first()
     if (
         not user
         or not getattr(user, "is_admin", False)
@@ -237,19 +238,19 @@ def admin_login_submit(
 
 
 @router.post("/admin/invite", response_class=HTMLResponse, include_in_schema=False)
-def admin_invite_submit(
+async def admin_invite_submit(
     request: Request,
     token: Optional[str] = Form(default=None),
     email: str = Form(...),
     grant_admin: Optional[str] = Form(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     cookie_token = get_auth_token(request)
     active_token = cookie_token or token
     if not active_token:
         raise HTTPException(status_code=401, detail="Missing authentication token")
-    admin_user = _require_admin_user(db=db, token=active_token)
+    admin_user = await _require_admin_user(db=db, token=active_token)
 
     email_n = _norm_email(email)
     if not email_n:
@@ -268,9 +269,9 @@ def admin_invite_submit(
         grant_admin=make_admin,
     )
     db.add(invite)
-    db.commit()
+    await db.commit()
 
-    users = db.exec(select(User).order_by(text("id"))).all()
+    users = (await db.exec(select(User).order_by(text("id")))).all()
     return templates.TemplateResponse(
         request,
         "admin.html",
@@ -293,18 +294,18 @@ def admin_invite_submit(
     response_class=HTMLResponse,
     include_in_schema=False,
 )
-def admin_user_edit_page(
+async def admin_user_edit_page(
     request: Request,
     user_id: int = Path(..., ge=1),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
         return safe_redirect(request, "/admin/login", status_code=303)
-    admin_user = _require_admin_user(db=db, token=token)
+    admin_user = await _require_admin_user(db=db, token=token)
 
-    user = db.exec(select(User).where(User.id == user_id)).first()
+    user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         return templates.TemplateResponse(
             request,
@@ -342,26 +343,26 @@ def admin_user_edit_page(
     response_class=HTMLResponse,
     include_in_schema=False,
 )
-def admin_user_update(
+async def admin_user_update(
     request: Request,
     user_id: int = Path(..., ge=1),
     is_admin: Optional[str] = Form(default=None),
     is_active: Optional[str] = Form(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     token = get_auth_token(request)
     if not token:
         return safe_redirect(request, "/admin/login", status_code=303)
-    _ = _require_admin_user(db=db, token=token)
+    _ = await _require_admin_user(db=db, token=token)
 
-    user = db.exec(select(User).where(User.id == user_id)).first()
+    user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     user.is_admin = bool(is_admin)
     user.is_active = bool(is_active)
     db.add(user)
-    db.commit()
+    await db.commit()
 
     # We are at /admin/users/<id>/update so redirect back relatively.
     return safe_redirect(request, "../" + str(user_id), status_code=303)
@@ -372,19 +373,19 @@ def admin_user_update(
     response_class=HTMLResponse,
     include_in_schema=False,
 )
-def admin_user_delete(
+async def admin_user_delete(
     request: Request,
     user_id: int = Path(..., ge=1),
     confirm: Optional[str] = Form(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
         return safe_redirect(request, "/admin/login", status_code=303)
-    admin_user = _require_admin_user(db=db, token=token)
+    admin_user = await _require_admin_user(db=db, token=token)
 
-    user = db.exec(select(User).where(User.id == user_id)).first()
+    user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -402,6 +403,6 @@ def admin_user_delete(
             status_code=400,
         )
 
-    db.delete(user)
-    db.commit()
+    await db.delete(user)
+    await db.commit()
     return safe_redirect(request, "/admin", status_code=303)
