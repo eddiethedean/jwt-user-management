@@ -132,6 +132,19 @@ class _FakeSMTP:
         self._closed = True
 
 
+def _extract_first_text_part(msg) -> str:
+    """
+    Our emails are multipart/alternative (text + html). Extract the text/plain part
+    for assertions.
+    """
+    if msg.get_content_type() == "text/plain":
+        return msg.get_content()
+    for part in msg.walk():
+        if part.get_content_type() == "text/plain":
+            return part.get_content()
+    return ""
+
+
 def test_invite_api_sends_email_when_smtp_configured(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
@@ -168,7 +181,8 @@ def test_invite_api_sends_email_when_smtp_configured(tmp_path, monkeypatch) -> N
     msg = _FakeSMTP.sent[0].msg
     assert msg["To"] == "new.user@example.com"
     assert msg["From"] == "noreply@test.local"
-    assert "Accept invite:" in msg.get_content()
+    body = _extract_first_text_part(msg)
+    assert "Accept invite:" in body
 
 
 def test_password_forgot_is_non_enumerating_and_emails_if_user_exists(
@@ -208,7 +222,7 @@ def test_password_forgot_is_non_enumerating_and_emails_if_user_exists(
     msg = _FakeSMTP.sent[0].msg
     assert msg["To"] == "user@example.com"
     assert "Password reset" in (msg["Subject"] or "")
-    body = msg.get_content()
+    body = _extract_first_text_part(msg)
     assert "/password/reset?token=" in body
 
 
