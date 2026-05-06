@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, external_url, safe_external_redirect, safe_redirect
+from fastapi_workbench import base_path, external_url, safe_redirect
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
@@ -72,11 +72,7 @@ async def admin_page(
         # HttpOnly cookie and clean up the URL. If the user is not an admin, keep
         # them on the users page with a friendly message.
         user = await _require_user(db=db, token=token)
-        resp = safe_external_redirect(
-            request,
-            "/admin",
-            status_code=303,
-        )
+        resp = safe_redirect(request, "/admin", status_code=303)
         set_auth_cookie(resp, request=request, token=token)
         if not getattr(user, "is_admin", False):
             users = (await db.exec(select(User).order_by(text("id")))).all()
@@ -106,11 +102,7 @@ async def admin_page(
                 request.url.path,
                 "admin/login",
             )
-        return safe_external_redirect(
-            request,
-            "/admin/login",
-            status_code=303,
-        )
+        return safe_redirect(request, "/admin/login", status_code=303)
     user = await _require_user(db=db, token=token)
     if not getattr(user, "is_admin", False):
         users = (await db.exec(select(User).order_by(text("id")))).all()
@@ -159,11 +151,7 @@ async def open_admin_from_page(
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
-        return safe_external_redirect(
-            request,
-            "/login",
-            status_code=303,
-        )
+        return safe_redirect(request, "/login", status_code=303)
 
     user = await _require_user(db=db, token=token)
     if getattr(user, "is_admin", False):
@@ -220,7 +208,9 @@ async def admin_login_submit(
 ) -> Response:
     bp = base_path(request)
     email_n = _norm_email(email)
-    user: Optional[User] = (await db.exec(select(User).where(User.email == email_n))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == email_n))
+    ).first()
     if (
         not user
         or not getattr(user, "is_admin", False)
@@ -317,11 +307,7 @@ async def admin_user_edit_page(
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
-        return safe_external_redirect(
-            request,
-            "/admin/login",
-            status_code=303,
-        )
+        return safe_redirect(request, "/admin/login", status_code=303)
     admin_user = await _require_admin_user(db=db, token=token)
 
     user = (await db.exec(select(User).where(User.id == user_id))).first()
@@ -373,11 +359,7 @@ async def admin_user_update(
 ) -> Response:
     token = get_auth_token(request)
     if not token:
-        return safe_external_redirect(
-            request,
-            "/admin/login",
-            status_code=303,
-        )
+        return safe_redirect(request, "/admin/login", status_code=303)
     _ = await _require_admin_user(db=db, token=token)
 
     user = (await db.exec(select(User).where(User.id == user_id))).first()
@@ -407,11 +389,7 @@ async def admin_user_delete(
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
-        return safe_external_redirect(
-            request,
-            "/admin/login",
-            status_code=303,
-        )
+        return safe_redirect(request, "/admin/login", status_code=303)
     admin_user = await _require_admin_user(db=db, token=token)
 
     if admin_user.id == user_id:
@@ -450,8 +428,4 @@ async def admin_user_delete(
 
     await db.delete(user)
     await db.commit()
-    return safe_external_redirect(
-        request,
-        "/admin",
-        status_code=303,
-    )
+    return safe_redirect(request, "/admin", status_code=303)

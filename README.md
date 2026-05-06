@@ -12,19 +12,6 @@ App-specific READMEs:
 - `streamlit_user/README.md`
 - `e2e/README.md`
 
-## CAC / mTLS nginx layer (local)
-
-If you want a local nginx layer that triggers the browser CAC certificate picker / PIN prompt
-and forwards verified identity to the backend:
-
-- `infra/cac-nginx/README.md`
-
-To download `ALLCRLZIP`, unzip it, and generate the CRL bundle used by nginx:
-
-```bash
-./infra/cac-nginx/fetch_and_build_crl_bundle.sh
-```
-
 ## Quickstart (local, SQLite)
 
 Prereqs: **Python 3.10+**.
@@ -45,17 +32,13 @@ API docs: `http://localhost:8001/docs`
 
 ### Hypercorn (optional)
 
-If you want to run under Hypercorn (useful if you're experimenting with client certificates / mTLS):
+If you want to run under Hypercorn:
 
 ```bash
 cd user_management_api
 source .venv/bin/activate
 hypercorn app.asgi:app --bind 127.0.0.1:8001
 ```
-
-CAC identity debug endpoint:
-
-- `GET /auth/cac/whoami` (returns `401` unless mTLS identity is present/forwarded)
 
 ### 2) Streamlit user demo
 

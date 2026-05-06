@@ -73,4 +73,3 @@ def test_async_session_can_exec_select() -> None:
             _ = res.first()
 
     asyncio.run(run())
-

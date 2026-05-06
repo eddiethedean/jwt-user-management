@@ -14,7 +14,9 @@ from app.core.config import settings
 # SQLAlchemy's SQLite base dialect expects the DBAPI module to expose sqlite_version_info.
 # rapsqlite's dialect module doesn't provide it, so we bridge it from stdlib sqlite3.
 if not hasattr(rapsqlalchemy._RapsqliteDialectModule, "sqlite_version_info"):
-    rapsqlalchemy._RapsqliteDialectModule.sqlite_version_info = sqlite3.sqlite_version_info  # type: ignore[attr-defined]
+    rapsqlalchemy._RapsqliteDialectModule.sqlite_version_info = (
+        sqlite3.sqlite_version_info
+    )  # type: ignore[attr-defined]
 if not hasattr(rapsqlalchemy._RapsqliteDialectModule, "sqlite_version"):
     rapsqlalchemy._RapsqliteDialectModule.sqlite_version = sqlite3.sqlite_version  # type: ignore[attr-defined]
 

@@ -189,7 +189,9 @@ async def accept_invite_form(
     except HTTPException as e:
         token_hash = InviteToken.hash_token(token)
         invite: Optional[InviteToken] = (
-            await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
+            await db.exec(
+                select(InviteToken).where(InviteToken.token_hash == token_hash)
+            )
         ).first()
         return templates.TemplateResponse(
             request,

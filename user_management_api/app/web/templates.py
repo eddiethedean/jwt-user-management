@@ -8,4 +8,3 @@ _ROOT = Path(__file__).resolve().parent
 
 # Shared Jinja environment for the server-rendered HTML UI.
 templates = Jinja2Templates(directory=str(_ROOT / "templates"))
-

@@ -282,4 +282,3 @@ def test_password_reset_api_errors(tmp_path) -> None:
     assert r.status_code == 422
     r2 = client.post("/password/reset", json={"token": "bad", "password": "pw"})
     assert r2.status_code == 404
-

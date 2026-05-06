@@ -47,19 +47,10 @@ e2e/__pycache__/
 e2e/artifacts/
 e2e/e2e.db
 
-# CAC/mTLS artifacts that should be generated locally
-# (CRL bundle is very large and cannot be pushed to GitHub)
-infra/cac-nginx/certs/dod_crl_bundle.pem
-infra/cac-nginx/certs/tmp/
-
-# Never commit private keys
-infra/cac-nginx/certs/*.key
-
 # More private key/cert containers (keep scoped to infra cert dirs)
 infra/**/certs/*.key
 infra/**/certs/*.p12
 infra/**/certs/*.pfx
 
-
-# Local dev server cert (generated)
-infra/cac-nginx/certs/server.crt
+# Deleted CAC nginx stack left local tmp artifacts
+infra/cac-nginx/certs/tmp/

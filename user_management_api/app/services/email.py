@@ -14,9 +14,7 @@ def _from_header() -> str:
     return settings.smtp_from_email
 
 
-def _set_html_and_text(
-    msg: EmailMessage, *, text: str, html: str
-) -> None:
+def _set_html_and_text(msg: EmailMessage, *, text: str, html: str) -> None:
     # Ensure a readable fallback for clients that can't render HTML.
     msg.set_content(text)
     msg.add_alternative(html, subtype="html")
@@ -161,4 +159,3 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
         server.send_message(msg)
     finally:
         server.quit()
-

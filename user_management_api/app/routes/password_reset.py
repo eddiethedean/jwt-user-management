@@ -148,7 +148,9 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
-            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == token_hash
+            )
         )
     ).first()
     if not rec:
@@ -159,7 +161,9 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     if _as_utc_aware(rec.expires_at) < now:
         raise HTTPException(status_code=400, detail="Reset link expired")
 
-    user: Optional[User] = (await db.exec(select(User).where(User.email == rec.email))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == rec.email))
+    ).first()
     if user:
         user.hashed_password = hash_password(password)
         db.add(user)
@@ -179,7 +183,9 @@ async def reset_page(
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
-            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == token_hash
+            )
         )
     ).first()
     if not rec:
@@ -217,7 +223,9 @@ async def reset_form(
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
-            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == token_hash
+            )
         )
     ).first()
     if not rec:
@@ -260,7 +268,9 @@ async def reset_form(
             status_code=400,
         )
 
-    user: Optional[User] = (await db.exec(select(User).where(User.email == rec.email))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == rec.email))
+    ).first()
     if user:
         user.hashed_password = hash_password(password)
         db.add(user)

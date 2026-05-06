@@ -52,7 +52,9 @@ async def register_submit(
             status_code=400,
         )
 
-    existing: Optional[User] = (await db.exec(select(User).where(User.email == email_n))).first()
+    existing: Optional[User] = (
+        await db.exec(select(User).where(User.email == email_n))
+    ).first()
     if existing:
         return templates.TemplateResponse(
             request,
@@ -92,7 +94,9 @@ async def login_submit(
 ) -> HTMLResponse:
     bp = base_path(request)
     email_n = _norm_email(email)
-    user: Optional[User] = (await db.exec(select(User).where(User.email == email_n))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == email_n))
+    ).first()
     if (
         not user
         or not getattr(user, "is_active", True)
@@ -131,7 +135,9 @@ async def token(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     username = _norm_email(form.username)
-    user: Optional[User] = (await db.exec(select(User).where(User.email == username))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == username))
+    ).first()
     if (
         not user
         or not getattr(user, "is_active", True)

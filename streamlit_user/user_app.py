@@ -3,11 +3,14 @@ from typing import Dict, Optional
 
 import requests
 import streamlit as st
+
 try:
     from dotenv import load_dotenv  # type: ignore
 except Exception:  # pragma: no cover
+
     def load_dotenv(*args, **kwargs):  # type: ignore
         return False
+
 
 try:
     from streamlit_user.user_common.auth_state import (  # type: ignore

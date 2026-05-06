@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib
 import os
 import sys
-import uuid
 from datetime import datetime, timezone
 from importlib.util import module_from_spec, spec_from_file_location
 
@@ -97,7 +96,9 @@ def _seed_admin(*, db_engine) -> None:
         s.commit()
 
 
-def test_admin_redirects_use_relative_locations_under_workbench_prefix(tmp_path) -> None:
+def test_admin_redirects_use_relative_locations_under_workbench_prefix(
+    tmp_path,
+) -> None:
     prefix = "/s/e886e3c9ab5a7e147ea97/p/testproj"
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)

@@ -140,8 +140,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_password_reset_tokens_token_hash"), table_name="password_reset_tokens")
-    op.drop_index(op.f("ix_password_reset_tokens_email"), table_name="password_reset_tokens")
+    op.drop_index(
+        op.f("ix_password_reset_tokens_token_hash"), table_name="password_reset_tokens"
+    )
+    op.drop_index(
+        op.f("ix_password_reset_tokens_email"), table_name="password_reset_tokens"
+    )
     op.drop_table("password_reset_tokens")
 
     op.drop_index(op.f("ix_invite_tokens_token_hash"), table_name="invite_tokens")
@@ -153,4 +157,3 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_users_is_active"), table_name="users")
     op.drop_index(op.f("ix_users_is_admin"), table_name="users")
     op.drop_table("users")
-

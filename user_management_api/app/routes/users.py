@@ -40,7 +40,9 @@ async def get_current_user(
         user_id = int(sub)
     except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token subject")
-    user: Optional[User] = (await db.exec(select(User).where(User.id == user_id))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.id == user_id))
+    ).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
