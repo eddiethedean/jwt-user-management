@@ -106,8 +106,18 @@ def send_invite_email(*, to_email: str, invite_url: str) -> None:
     )
     _set_html_and_text(msg, text=text, html=html)
 
-    with smtplib.SMTP(settings.smtp_host) as server:
+    if settings.smtp_use_tls:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+        server.starttls()
+    else:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+
+    try:
+        if settings.smtp_username and settings.smtp_password:
+            server.login(settings.smtp_username, settings.smtp_password)
         server.send_message(msg)
+    finally:
+        server.quit()
 
 
 def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
