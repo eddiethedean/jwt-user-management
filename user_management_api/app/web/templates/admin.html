@@ -244,7 +244,7 @@
                     <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
                   {% endif %}
                 </td>
-                <td>{{ u.created_at|fmt_dt }}</td>
+                <td>{{ u.created_at|fmt_date }}</td>
                 <td class="actions"><a href="{{ base_path }}/admin/users/{{ u.id }}">Edit</a></td>
               </tr>
             {% endfor %}
