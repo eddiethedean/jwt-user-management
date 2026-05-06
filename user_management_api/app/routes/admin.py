@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, external_url, safe_redirect
+from fastapi_workbench import base_path, external_url, safe_external_redirect, safe_redirect
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
@@ -377,4 +377,5 @@ async def admin_user_delete(
 
     await db.delete(user)
     await db.commit()
-    return safe_redirect(request, "/admin", status_code=303)
+    # Use an external URL so redirect works from nested paths like /admin/users/<id>/delete.
+    return safe_external_redirect(request, "/admin", status_code=303)
