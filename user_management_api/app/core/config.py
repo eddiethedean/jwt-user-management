@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60
 
+    # SMTP (optional). If SMTP_HOST and SMTP_FROM_EMAIL are unset, email sending is disabled.
+    smtp_host: str = ""
+    smtp_port: int = 25
+    smtp_use_tls: bool = False
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+
     @field_validator("base_path")
     @classmethod
     def _validate_base_path(cls, v: str) -> str:

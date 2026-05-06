@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.services.email import send_invite_email
 from app.web.templates import templates
 
 
@@ -99,9 +100,16 @@ async def create_invite(
     db.add(invite)
     await db.commit()
 
+    invite_url = _invite_url(request, raw)
+    try:
+        send_invite_email(to_email=email, invite_url=invite_url)
+    except Exception:
+        # Email should not break invite creation.
+        pass
+
     return {
         "ok": True,
-        "invite_url": _invite_url(request, raw),
+        "invite_url": invite_url,
         "expires_at": invite.expires_at,
     }
 

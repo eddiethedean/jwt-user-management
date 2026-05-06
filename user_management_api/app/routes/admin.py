@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.services.email import send_invite_email
 from app.web.session import get_auth_token, set_auth_cookie
 from app.web.templates import templates
 
@@ -267,6 +268,12 @@ async def admin_invite_submit(
     db.add(invite)
     await db.commit()
 
+    invite_url = _invite_url(request, raw)
+    try:
+        send_invite_email(to_email=email_n, invite_url=invite_url)
+    except Exception:
+        pass
+
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return templates.TemplateResponse(
         request,
@@ -277,7 +284,7 @@ async def admin_invite_submit(
             "email": admin_user.email,
             "token": active_token,
             "base_path": bp,
-            "invite_url": _invite_url(request, raw),
+            "invite_url": invite_url,
             "invite_error": None,
             "invite_email": email_n,
             "invite_grant_admin": make_admin,
