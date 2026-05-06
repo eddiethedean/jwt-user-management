@@ -165,11 +165,7 @@ async def login_submit(
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == email_n))
     ).first()
-    if (
-        not user
-        or not getattr(user, "is_active", True)
-        or not verify_password(password, user.hashed_password)
-    ):
+    if not user or not verify_password(password, user.hashed_password):
         return templates.TemplateResponse(
             request,
             "login.html",
@@ -180,6 +176,18 @@ async def login_submit(
                 "email": email_n,
             },
             status_code=400,
+        )
+    if not getattr(user, "is_active", True):
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "request": request,
+                "error": "Your account has been disabled. Contact your admin.",
+                "base_path": bp,
+                "email": email_n,
+            },
+            status_code=403,
         )
     token = create_access_token(subject=str(user.id))
     dest = "/admin" if bool(getattr(user, "is_admin", False)) else "/users"

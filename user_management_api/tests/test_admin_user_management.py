@@ -145,8 +145,8 @@ def test_admin_can_disable_user_and_user_cannot_login(tmp_path) -> None:
         data={"email": "user@example.com", "password": "pw"},
         follow_redirects=False,
     )
-    assert r_html_login.status_code == 400
-    assert "Invalid email or password" in r_html_login.text
+    assert r_html_login.status_code == 403
+    assert "Your account has been disabled" in r_html_login.text
 
     # The disabled user should not be able to get a token (API).
     r_api = client2.post(
