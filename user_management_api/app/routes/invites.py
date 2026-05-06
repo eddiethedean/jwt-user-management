@@ -209,7 +209,6 @@ async def accept_invite_form(
         request,
         "/login",
         status_code=303,
-        public_base_url=settings.public_base_url,
     )
 
 

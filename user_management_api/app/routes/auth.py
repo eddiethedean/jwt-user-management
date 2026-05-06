@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_redirect
+from fastapi_workbench import base_path, safe_external_redirect
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models import User
@@ -116,7 +116,11 @@ async def login_submit(
 
 @router.post("/logout", include_in_schema=False)
 async def logout(request: Request) -> Response:
-    resp = safe_redirect(request, "/login", status_code=303)
+    resp = safe_external_redirect(
+        request,
+        "/login",
+        status_code=303,
+    )
     clear_auth_cookie(resp, request=request)
     return resp
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import os
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -19,6 +20,7 @@ from app.web.templates import templates
 
 
 router = APIRouter(prefix="/password", tags=["password"])
+log = logging.getLogger("uvicorn.error")
 
 ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
 
@@ -68,12 +70,19 @@ async def forgot_password_form(
             public_base_url=settings.public_base_url,
         )
         try:
+            log.info(
+                "Password reset email: attempting send to=%s smtp_enabled=%s",
+                email_n,
+                bool(settings.smtp_host and settings.smtp_from_email),
+            )
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
+            log.info("Password reset email: sent to=%s", email_n)
             # If we're actually emailing, don't render the link in the UI.
             if settings.smtp_host and settings.smtp_from_email:
                 reset_url = None
         except Exception:
             # If email fails, keep demo UX (show the link).
+            log.exception("Password reset email: failed to send to=%s", email_n)
             pass
 
     template_name = "login.html"
@@ -263,5 +272,4 @@ async def reset_form(
         request,
         "/login",
         status_code=303,
-        public_base_url=settings.public_base_url,
     )

@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_redirect
+from fastapi_workbench import base_path, safe_external_redirect
 from app.core.security import decode_token
 from app.db import get_db
 from app.models import User
@@ -76,7 +76,11 @@ async def users(
         user = (await db.exec(select(User).where(User.id == user_id))).first()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
-        resp = safe_redirect(request, "/users", status_code=303)
+        resp = safe_external_redirect(
+            request,
+            "/users",
+            status_code=303,
+        )
         set_auth_cookie(resp, request=request, token=token)
         return resp
 
