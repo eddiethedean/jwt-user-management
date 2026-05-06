@@ -68,6 +68,21 @@ def _wrap_html(*, title: str, preheader: str, body_html: str) -> str:
 """
 
 
+def _send_via_smtp(msg: EmailMessage) -> None:
+    if settings.smtp_use_tls:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+        server.starttls()
+    else:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+
+    try:
+        if settings.smtp_username and settings.smtp_password:
+            server.login(settings.smtp_username, settings.smtp_password)
+        server.send_message(msg)
+    finally:
+        server.quit()
+
+
 def send_invite_email(*, to_email: str, invite_url: str) -> None:
     if not settings.smtp_host or not settings.smtp_from_email:
         # Email sending disabled; treat as no-op.
@@ -106,18 +121,7 @@ def send_invite_email(*, to_email: str, invite_url: str) -> None:
     )
     _set_html_and_text(msg, text=text, html=html)
 
-    if settings.smtp_use_tls:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
-        server.starttls()
-    else:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
-
-    try:
-        if settings.smtp_username and settings.smtp_password:
-            server.login(settings.smtp_username, settings.smtp_password)
-        server.send_message(msg)
-    finally:
-        server.quit()
+    _send_via_smtp(msg)
 
 
 def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
@@ -156,16 +160,4 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
         body_html=body_html,
     )
     _set_html_and_text(msg, text=text, html=html)
-
-    if settings.smtp_use_tls:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
-        server.starttls()
-    else:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
-
-    try:
-        if settings.smtp_username and settings.smtp_password:
-            server.login(settings.smtp_username, settings.smtp_password)
-        server.send_message(msg)
-    finally:
-        server.quit()
+    _send_via_smtp(msg)
