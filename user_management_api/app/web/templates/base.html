@@ -303,21 +303,30 @@
           </div>
         </div>
         <div class="nav">
+          {# Normalize the current request path so active nav works under prefixes/root_path. #}
           {% set _p = request.url.path %}
+          {% set _bp = (base_path or '') %}
+          {% set _rel = _p %}
+          {% if _bp and _rel.startswith(_bp) %}
+            {% set _rel = _rel[_bp|length:] %}
+          {% endif %}
+          {% if not _rel.startswith('/') %}
+            {% set _rel = '/' ~ _rel %}
+          {% endif %}
           <div class="navGroup" role="navigation" aria-label="Primary">
-            <a class="navLink {% if _p.endswith('/register') %}navLink--active{% endif %}" href="{{ base_path }}/register">
+            <a class="navLink {% if _rel == '/register' %}navLink--active{% endif %}" href="{{ base_path }}/register">
               <span class="navDot" aria-hidden="true"></span>
               Register
             </a>
-            <a class="navLink {% if _p.endswith('/login') %}navLink--active{% endif %}" href="{{ base_path }}/login">
+            <a class="navLink {% if _rel == '/login' or _rel.startswith('/password/') or _rel.startswith('/invites/') %}navLink--active{% endif %}" href="{{ base_path }}/login">
               <span class="navDot" aria-hidden="true"></span>
               Login
             </a>
-            <a class="navLink {% if _p.endswith('/users') %}navLink--active{% endif %}" href="{{ base_path }}/users">
+            <a class="navLink {% if _rel == '/users' %}navLink--active{% endif %}" href="{{ base_path }}/users">
               <span class="navDot" aria-hidden="true"></span>
               Users
             </a>
-            <a class="navLink {% if _p == (base_path ~ '/admin') or _p.startswith(base_path ~ '/admin/') %}navLink--active{% endif %}" href="{{ base_path }}/admin">
+            <a class="navLink {% if _rel == '/admin' or _rel.startswith('/admin/') %}navLink--active{% endif %}" href="{{ base_path }}/admin">
               <span class="navDot" aria-hidden="true"></span>
               Admin
             </a>
