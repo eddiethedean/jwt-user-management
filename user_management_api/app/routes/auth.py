@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -8,10 +9,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_external_redirect, safe_redirect
+from fastapi_workbench import base_path, external_url, safe_external_redirect, safe_redirect
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
-from app.models import User
+from app.models import InviteToken, User
+from app.services.email import send_self_registration_email
 from app.web.session import clear_auth_cookie, set_auth_cookie
 from app.web.templates import templates
 
@@ -35,18 +38,17 @@ async def register_page(request: Request) -> HTMLResponse:
 async def register_submit(
     request: Request,
     email: str = Form(...),
-    password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     bp = base_path(request)
     email_n = _norm_email(email)
-    if not email_n or not password:
+    if not email_n:
         return templates.TemplateResponse(
             request,
             "register.html",
             {
                 "request": request,
-                "error": "Email and password are required",
+                "error": "Email is required",
                 "base_path": bp,
             },
             status_code=400,
@@ -63,15 +65,36 @@ async def register_submit(
             status_code=400,
         )
 
-    user = User(email=email_n, hashed_password=hash_password(password))
-    db.add(user)
-    await db.commit()
+    try:
+        raw = InviteToken.new_raw_token()
+        token_hash = InviteToken.hash_token(raw)
+        now = datetime.now(timezone.utc)
+        invite = InviteToken(
+            email=email_n,
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=now + timedelta(hours=2),
+            used_at=None,
+            grant_admin=False,
+        )
+        db.add(invite)
+        await db.commit()
+
+        setup_url = external_url(
+            request,
+            f"/invites/accept?token={raw}",
+            public_base_url=settings.public_base_url,
+        )
+        send_self_registration_email(to_email=email_n, setup_url=setup_url)
+    except Exception:
+        # Email should not block successful registration.
+        pass
     return templates.TemplateResponse(
         request,
         "login.html",
         {
             "request": request,
-            "success": "Account created. Please sign in.",
+            "success": "Check your email for a link to set your password.",
             "base_path": bp,
         },
     )

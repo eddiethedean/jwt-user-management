@@ -184,3 +184,47 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
     )
     _set_html_and_text(msg, text=text, html=html)
     _send_via_smtp(msg)
+
+
+def send_self_registration_email(*, to_email: str, setup_url: str) -> None:
+    """
+    Sent after a user self-registers successfully.
+    Uses the same SMTP delivery path as invites and password resets.
+    """
+    if not settings.smtp_host or not settings.smtp_from_email:
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = "Set up your account"
+    msg["From"] = _from_header()
+    msg["To"] = to_email
+
+    text = (
+        "Finish setting up your account by choosing a password.\n\n"
+        f"Set your password:\n{setup_url}\n\n"
+        "If you didn’t create this account, you can ignore this email.\n"
+    )
+    body_html = f"""\
+<div style="font-size:18px; line-height:24px; font-weight:700; margin:0 0 8px; color:#111827;">Set up your account</div>
+<div style="font-size:14px; line-height:20px; margin:0 0 14px; color:#374151;">
+  Use the link below to choose a password and finish setup.
+</div>
+<div style="margin:0 0 14px;">
+  <a href="{setup_url}" style="display:inline-block; padding:10px 14px; background:#2563eb; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:700;">
+    Set password
+  </a>
+</div>
+<div style="font-size:12px; line-height:18px; margin:0; color:#6b7280;">
+  If the button doesn’t work, copy and paste this link into your browser:
+</div>
+<div style="margin-top:10px; padding:12px; border:1px solid #e5e7eb; background:#f9fafb; border-radius:10px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:18px; word-break:break-all;">
+  {setup_url}
+</div>
+"""
+    html = _wrap_html(
+        title="Set up your account",
+        preheader="Choose a password to finish setting up your account.",
+        body_html=body_html,
+    )
+    _set_html_and_text(msg, text=text, html=html)
+    _send_via_smtp(msg)

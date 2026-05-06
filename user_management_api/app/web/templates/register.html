@@ -3,7 +3,7 @@
 {% block body %}
   <div class="card">
     <h2>Register</h2>
-    <p class="muted">Create a user with email + password.</p>
+    <p class="muted">Enter your email and we’ll send you a link to set your password.</p>
 
     {% if error %}
       <div class="err">{{ error }}</div>
@@ -13,10 +13,7 @@
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
 
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="new-password" required />
-
-      <button type="submit">Create account</button>
+      <button type="submit">Send setup link</button>
     </form>
   </div>
 {% endblock %}

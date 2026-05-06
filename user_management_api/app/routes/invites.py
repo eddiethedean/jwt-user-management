@@ -147,7 +147,9 @@ async def accept_invite_page(
     )
 
 
-async def _accept(*, db: AsyncSession, token: str, password: str) -> None:
+async def _accept(
+    *, db: AsyncSession, token: str, password: str, full_name: str | None = None
+) -> None:
     token_hash = InviteToken.hash_token(token)
     invite: Optional[InviteToken] = (
         await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
@@ -164,9 +166,15 @@ async def _accept(*, db: AsyncSession, token: str, password: str) -> None:
     if user:
         user.hashed_password = hash_password(password)
         user.is_admin = bool(user.is_admin or invite.grant_admin)
+        if full_name is not None:
+            fn = full_name.strip()
+            if fn:
+                user.full_name = fn
     else:
+        fn = (full_name or "").strip() or None
         user = User(
             email=invite.email,
+            full_name=fn,
             hashed_password=hash_password(password),
             is_admin=bool(invite.grant_admin),
         )
@@ -180,12 +188,13 @@ async def _accept(*, db: AsyncSession, token: str, password: str) -> None:
 async def accept_invite_form(
     request: Request,
     token: str = Form(...),
+    full_name: Optional[str] = Form(default=None),
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     try:
-        await _accept(db=db, token=token, password=password)
+        await _accept(db=db, token=token, password=password, full_name=full_name)
     except HTTPException as e:
         token_hash = InviteToken.hash_token(token)
         invite: Optional[InviteToken] = (
@@ -220,7 +229,9 @@ async def accept_invite_api(
 ) -> dict:
     token = str(payload.get("token") or "")
     password = str(payload.get("password") or "")
+    full_name = payload.get("full_name")
+    full_name_s = None if full_name is None else str(full_name)
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
-    await _accept(db=db, token=token, password=password)
+    await _accept(db=db, token=token, password=password, full_name=full_name_s)
     return {"ok": True}
