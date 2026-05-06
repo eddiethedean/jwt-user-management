@@ -135,7 +135,7 @@ async function logout() {
   try {
     await jsonFetch(withBase("/admin/logout"), { method: "POST", body: "{}" });
   } finally {
-    window.location.assign(withBase("/admin/login"));
+    window.location.assign(withBase("/login"));
   }
 }
 

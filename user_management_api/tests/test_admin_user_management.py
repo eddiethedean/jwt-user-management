@@ -114,11 +114,12 @@ def test_admin_can_disable_user_and_user_cannot_login(tmp_path) -> None:
     admin_client = TestClient(app, base_url="http://testserver", root_path=prefix)
 
     r_login = admin_client.post(
-        f"{prefix}/admin/login",
+        f"{prefix}/login",
         data={"email": "admin@example.com", "password": "admin123"},
         follow_redirects=False,
     )
     assert r_login.status_code == 303
+    assert r_login.headers["location"] in {"admin", "../admin"}
 
     r_edit = admin_client.get(f"{prefix}/admin/users/{user_id}")
     assert r_edit.status_code == 200
@@ -179,11 +180,12 @@ def test_admin_can_delete_user(tmp_path) -> None:
 
     admin_client = TestClient(app, base_url="http://testserver", root_path=prefix)
     r_login = admin_client.post(
-        f"{prefix}/admin/login",
+        f"{prefix}/login",
         data={"email": "admin@example.com", "password": "admin123"},
         follow_redirects=False,
     )
     assert r_login.status_code == 303
+    assert r_login.headers["location"] in {"admin", "../admin"}
 
     r_del = admin_client.post(
         f"{prefix}/admin/users/{user_id}/delete",

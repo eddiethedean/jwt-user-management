@@ -113,15 +113,16 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix(
     r = client.get(f"{prefix}/admin", follow_redirects=False)
     assert r.status_code == 303
     # Relative redirect is required to avoid Workbench rewriting to /proxy/<port>/...
-    assert r.headers["location"] == "admin/login"
+    assert r.headers["location"].startswith("login?msg=")
+    assert "next=%2Fadmin" in r.headers["location"] or "next=/admin" in r.headers["location"]
 
     r2 = client.post(
-        f"{prefix}/admin/login",
+        f"{prefix}/login",
         data={"email": "admin@example.com", "password": "admin123"},
         follow_redirects=False,
     )
     assert r2.status_code == 303
-    assert r2.headers["location"] == "../admin"
+    assert r2.headers["location"] in {"admin", "../admin"}
     assert "set-cookie" in {k.lower() for k in r2.headers.keys()}
 
     # Admin page should accept invite creation via form POST and render invite URL.

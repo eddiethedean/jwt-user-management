@@ -115,7 +115,11 @@ async def users(
         accept = (request.headers.get("accept") or "").lower()
         wants_html = ("text/html" in accept) or ("*/*" in accept) or not accept
         if wants_html:
-            return safe_redirect(request, "/login", status_code=303)
+            return safe_redirect(
+                request,
+                "/login?msg=Please%20log%20in%20to%20view%20Users.&next=/users",
+                status_code=303,
+            )
         raise HTTPException(status_code=401, detail="Provide Authorization: Bearer <token>")
     _ = await get_current_user(db=db, creds=creds)
     users = (await db.exec(select(User).order_by(text("id")))).all()

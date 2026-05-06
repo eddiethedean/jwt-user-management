@@ -93,16 +93,12 @@ async def admin_page(
 
     token = cookie_token
     if not token:
-        # Use a relative redirect to avoid Workbench rewriting absolute-path
-        # redirects into /proxy/<port>/... (which may not be browser-routable).
-        if os.getenv("WORKBENCH_DEBUG"):
-            log.warning(
-                "Admin redirect: scope.root_path=%r path=%r -> Location=%r",
-                request.scope.get("root_path"),
-                request.url.path,
-                "admin/login",
-            )
-        return safe_redirect(request, "/admin/login", status_code=303)
+        # No separate admin login page: send everyone to the normal login.
+        return safe_redirect(
+            request,
+            "/login?msg=Please%20log%20in%20to%20view%20Admin.&next=/admin",
+            status_code=303,
+        )
     user = await _require_user(db=db, token=token)
     if not getattr(user, "is_admin", False):
         users = (await db.exec(select(User).order_by(text("id")))).all()
@@ -189,53 +185,6 @@ async def open_admin_from_page(
     )
 
 
-@router.get("/admin/login", response_class=HTMLResponse, include_in_schema=False)
-async def admin_login_page(request: Request) -> HTMLResponse:
-    bp = base_path(request)
-    return templates.TemplateResponse(
-        request,
-        "admin_login.html",
-        {"request": request, "admin_email": ADMIN_EMAIL, "base_path": bp},
-    )
-
-
-@router.post("/admin/login", response_class=HTMLResponse, include_in_schema=False)
-async def admin_login_submit(
-    request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    bp = base_path(request)
-    email_n = _norm_email(email)
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.email == email_n))
-    ).first()
-    if (
-        not user
-        or not getattr(user, "is_admin", False)
-        or not verify_password(password, user.hashed_password)
-    ):
-        return templates.TemplateResponse(
-            request,
-            "admin_login.html",
-            {
-                "request": request,
-                "error": "Invalid credentials",
-                "admin_email": email_n or ADMIN_EMAIL,
-                "base_path": bp,
-            },
-            status_code=400,
-        )
-
-    token = create_access_token(subject=str(user.id))
-    # Relative redirect so Workbench doesn't rewrite into /proxy/<port>/...
-    # We are at /admin/login, so ../admin resolves correctly under any prefix.
-    resp = safe_redirect(request, "../admin", status_code=303)
-    set_auth_cookie(resp, request=request, token=token)
-    return resp
-
-
 @router.post("/admin/invite", response_class=HTMLResponse, include_in_schema=False)
 async def admin_invite_submit(
     request: Request,
@@ -307,7 +256,7 @@ async def admin_user_edit_page(
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
-        return safe_redirect(request, "/admin/login", status_code=303)
+        return safe_redirect(request, "/login", status_code=303)
     admin_user = await _require_admin_user(db=db, token=token)
 
     user = (await db.exec(select(User).where(User.id == user_id))).first()
@@ -359,7 +308,7 @@ async def admin_user_update(
 ) -> Response:
     token = get_auth_token(request)
     if not token:
-        return safe_redirect(request, "/admin/login", status_code=303)
+        return safe_redirect(request, "/login", status_code=303)
     _ = await _require_admin_user(db=db, token=token)
 
     user = (await db.exec(select(User).where(User.id == user_id))).first()
@@ -389,7 +338,7 @@ async def admin_user_delete(
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
-        return safe_redirect(request, "/admin/login", status_code=303)
+        return safe_redirect(request, "/login", status_code=303)
     admin_user = await _require_admin_user(db=db, token=token)
 
     if admin_user.id == user_id:

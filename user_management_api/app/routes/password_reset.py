@@ -93,9 +93,6 @@ async def forgot_password_form(
         "reset_email": email_n,
         "reset_url": reset_url,
     }
-    if return_to == "admin_login":
-        template_name = "admin_login.html"
-        ctx["admin_email"] = ADMIN_EMAIL
     return templates.TemplateResponse(request, template_name, ctx)
 
 

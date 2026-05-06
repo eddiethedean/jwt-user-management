@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_external_redirect
+from fastapi_workbench import base_path, safe_external_redirect, safe_redirect
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models import User
@@ -80,8 +80,17 @@ async def register_submit(
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(request: Request) -> HTMLResponse:
     bp = base_path(request)
+    info = (request.query_params.get("msg") or "").strip()
+    next_path = (request.query_params.get("next") or "").strip()
     return templates.TemplateResponse(
-        request, "login.html", {"request": request, "base_path": bp}
+        request,
+        "login.html",
+        {
+            "request": request,
+            "base_path": bp,
+            "info": info or None,
+            "next": next_path or None,
+        },
     )
 
 
@@ -109,11 +118,8 @@ async def login_submit(
             status_code=400,
         )
     token = create_access_token(subject=str(user.id))
-    resp = templates.TemplateResponse(
-        request,
-        "token.html",
-        {"request": request, "token": token, "email": user.email, "base_path": bp},
-    )
+    dest = "/admin" if bool(getattr(user, "is_admin", False)) else "/users"
+    resp = safe_redirect(request, dest, status_code=303)
     set_auth_cookie(resp, request=request, token=token)
     return resp
 

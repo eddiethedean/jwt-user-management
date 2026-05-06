@@ -115,12 +115,12 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow(tmp_path) -> None:
 
     # Login as admin to get token.
     r_login = client.post(
-        f"{prefix}/admin/login",
+        f"{prefix}/login",
         data={"email": "admin@example.com", "password": "admin123"},
         follow_redirects=False,
     )
     assert r_login.status_code == 303
-    assert r_login.headers["location"] == "../admin"
+    assert r_login.headers["location"] in {"admin", "../admin"}
 
     # Create an invite that grants admin.
     r_inv = client.post(
@@ -146,12 +146,12 @@ def test_invite_checkbox_grants_admin_on_accept_form_flow(tmp_path) -> None:
 
     # Regression: invited admin can log in and access /admin (previously gated by SEED_ADMIN_EMAIL).
     r_admin_login = client.post(
-        f"{prefix}/admin/login",
+        f"{prefix}/login",
         data={"email": "new.admin@example.com", "password": "NewPassw0rd!123"},
         follow_redirects=False,
     )
     assert r_admin_login.status_code == 303
-    assert r_admin_login.headers["location"] == "../admin"
+    assert r_admin_login.headers["location"] in {"admin", "../admin"}
 
     r_admin = client.get(f"{prefix}/admin")
     assert r_admin.status_code == 200
@@ -181,12 +181,12 @@ def test_invite_without_checkbox_does_not_grant_admin(tmp_path) -> None:
     client = TestClient(app, base_url="http://testserver", root_path=prefix)
 
     r_login = client.post(
-        f"{prefix}/admin/login",
+        f"{prefix}/login",
         data={"email": "admin@example.com", "password": "admin123"},
         follow_redirects=False,
     )
     assert r_login.status_code == 303
-    assert r_login.headers["location"] == "../admin"
+    assert r_login.headers["location"] in {"admin", "../admin"}
 
     r_inv = client.post(
         f"{prefix}/admin/invite",
