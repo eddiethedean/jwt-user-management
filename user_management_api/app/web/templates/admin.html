@@ -106,9 +106,14 @@
     {% endif %}
 
     <div class="adminGrid">
-      <section class="panel">
-        <h3>Invite user</h3>
-        <p class="muted" style="margin-top: 6px;">Generate a one-time link to set a password.</p>
+      <details class="panel" open>
+        <summary style="list-style: none; cursor: pointer;">
+          <div class="row" style="justify-content: space-between; align-items: baseline;">
+            <h3 style="margin: 0;">Invite user</h3>
+            <span class="muted">Click to collapse</span>
+          </div>
+          <p class="muted" style="margin: 6px 0 0;">Generate a one-time link to set a password.</p>
+        </summary>
 
         {% if invite_url %}
           <div class="ok inviteCard">
@@ -244,50 +249,13 @@
             });
           })();
         </script>
-      </section>
+      </details>
 
       <section class="panel">
         <div class="row" style="justify-content: space-between; align-items: baseline;">
           <h3>All users</h3>
           <span class="muted">{{ users|length }} total</span>
         </div>
-
-        <div class="row" style="justify-content: space-between; align-items: center; margin-top: 10px;">
-          <div class="muted">Select a user to edit.</div>
-          <div class="row" style="justify-content: flex-end; align-items: center; gap: 10px;">
-            <select id="editUserSelect" aria-label="Select user to edit" style="width: auto; min-width: 260px; max-width: 420px;">
-              {% for u in users %}
-                <option value="{{ u.id }}">{{ u.email }}{% if u.full_name %} — {{ u.full_name }}{% endif %}</option>
-              {% endfor %}
-            </select>
-            <a id="editUserBtn" class="actions" href="{{ base_path }}/admin/users/{{ users[0].id if users and users|length > 0 else '' }}" style="text-decoration:none;">
-              <span style="display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background: var(--panel); font-weight:700; font-size:12px;">
-                Edit user
-              </span>
-            </a>
-          </div>
-        </div>
-
-        <script>
-          (function () {
-            var sel = document.getElementById("editUserSelect");
-            var btn = document.getElementById("editUserBtn");
-            if (!sel || !btn) return;
-
-            function baseJoin(path) {
-              var bp = "{{ base_path }}";
-              return (bp || "") + path;
-            }
-
-            function updateHref() {
-              var id = String(sel.value || "").trim();
-              btn.setAttribute("href", baseJoin("/admin/users/" + encodeURIComponent(id)));
-            }
-
-            sel.addEventListener("change", updateHref);
-            updateHref();
-          })();
-        </script>
 
         <div class="tableWrap" style="margin-top: 10px;">
           <table class="dataTable">
@@ -296,8 +264,8 @@
               <th>ID</th>
               <th>Email</th>
               <th>Name</th>
-              <th>Status</th>
-              <th>Role</th>
+              <th class="colCenter">Status</th>
+              <th class="colCenter">Role</th>
               <th>Created</th>
             </tr>
           </thead>
@@ -314,14 +282,14 @@
                 <td>{{ u.id }}</td>
                 <td><code>{{ u.email }}</code></td>
                 <td>{{ u.full_name or '' }}</td>
-                <td>
+                <td class="colCenter">
                   {% if u.is_active %}
                     <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>
                   {% else %}
                     <span class="badge"><span class="dot dot--bad" aria-hidden="true"></span>Inactive</span>
                   {% endif %}
                 </td>
-                <td>
+                <td class="colCenter">
                   {% if u.is_admin %}
                     <span class="badge"><span class="dot dot--accent" aria-hidden="true"></span>Admin</span>
                   {% else %}
