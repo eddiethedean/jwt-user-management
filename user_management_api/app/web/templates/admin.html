@@ -88,17 +88,6 @@
       <div>
         <h2>Admin</h2>
       </div>
-      <div class="adminHeaderActions">
-        <div class="sessionPill" title="Current session" aria-label="Session">
-          <div class="sessionPill__label">
-            <span class="sessionPill__dot" aria-hidden="true"></span>
-            <span>Signed in as <code>{{ email }}</code></span>
-          </div>
-          <form method="post" action="{{ base_path }}/logout">
-            <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
-          </form>
-        </div>
-      </div>
     </div>
 
     {% if invite_error %}

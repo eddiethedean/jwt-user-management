@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi_workbench import safe_redirect
 from app.routes.admin import router as admin_router
+from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
 from app.routes.password_reset import router as password_reset_router
 from app.routes.invites import router as invites_router
@@ -23,6 +24,7 @@ app.mount(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(account_router)
 app.include_router(invites_router)
 app.include_router(password_reset_router)
 app.include_router(users_router)

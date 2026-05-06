@@ -11,8 +11,6 @@
         margin-bottom: 8px;
       }
       .usersHeader h2 { margin-bottom: 6px; }
-      .usersHeaderActions { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
-      .usersHeaderActions form { margin: 0; }
 
       .panel {
         border: 1px solid var(--border);
@@ -52,17 +50,6 @@
     <div class="usersHeader">
       <div>
         <h2>Users</h2>
-      </div>
-      <div class="usersHeaderActions" aria-label="Session">
-        <div class="sessionPill" title="Current session">
-          <div class="sessionPill__label">
-            <span class="sessionPill__dot" aria-hidden="true"></span>
-            <span>Signed in as <code>{{ email }}</code></span>
-          </div>
-          <form method="post" action="{{ base_path }}/logout">
-            <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
-          </form>
-        </div>
       </div>
     </div>
 

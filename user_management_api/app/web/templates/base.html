@@ -210,6 +210,12 @@
       @keyframes spin { to { transform: rotate(360deg); } }
 
       /* Session pill: "Viewing as ..." + Logout */
+      .sessionRow {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
       .sessionPill {
         display: inline-flex;
         align-items: center;
@@ -250,6 +256,21 @@
       .sessionPill__action:hover {
         border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
         background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+      .sessionPill__link {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-left: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 750;
+        text-decoration: none;
+        color: inherit;
+      }
+      .sessionPill__link:hover {
+        border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        text-decoration: none;
       }
 
       .pillRow a { text-decoration: none; }
@@ -345,6 +366,20 @@
           </div>
         </div>
       </div>
+      {% if session_email %}
+        <div class="sessionRow" aria-label="Session">
+          <div class="sessionPill" title="Current session">
+            <div class="sessionPill__label">
+              <span class="sessionPill__dot" aria-hidden="true"></span>
+              <span>Signed in as <code>{{ session_email }}</code></span>
+            </div>
+            <a class="sessionPill__link" href="{{ base_path }}/account" title="Account">Account</a>
+            <form method="post" action="{{ base_path }}/logout" style="margin: 0;">
+              <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
       {% block body %}{% endblock %}
     </div>
   </body>

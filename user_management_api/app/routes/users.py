@@ -104,6 +104,7 @@ async def users(
                 "request": request,
                 "users": users,
                 "email": user.email,
+                "session_email": user.email,
                 "is_admin": bool(getattr(user, "is_admin", False)),
                 "base_path": bp,
             },

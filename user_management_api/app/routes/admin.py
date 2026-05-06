@@ -83,6 +83,7 @@ async def admin_page(
                     "request": request,
                     "users": users,
                     "email": user.email,
+                    "session_email": user.email,
                     "is_admin": False,
                     "admin_error": "You don’t have admin privileges for this app.",
                     "base_path": bp,
@@ -109,6 +110,7 @@ async def admin_page(
                 "request": request,
                 "users": users,
                 "email": user.email,
+                "session_email": user.email,
                 "is_admin": False,
                 "admin_error": "You don’t have admin privileges for this app.",
                 "base_path": bp,
@@ -124,6 +126,7 @@ async def admin_page(
             "request": request,
             "users": users,
             "email": user.email,
+            "session_email": user.email,
             "token": token,
             "base_path": bp,
             "invite_url": None,
@@ -163,6 +166,7 @@ async def open_admin_from_page(
                 "request": request,
                 "token": token,
                 "email": user.email,
+                "session_email": user.email,
                 "admin_error": msg,
                 "base_path": bp,
             },
@@ -198,12 +202,37 @@ async def admin_invite_submit(
     cookie_token = get_auth_token(request)
     active_token = cookie_token or token
     if not active_token:
-        raise HTTPException(status_code=401, detail="Missing authentication token")
+        if wants_json:
+            raise HTTPException(status_code=401, detail="Missing authentication token")
+        return safe_redirect(
+            request,
+            "/login?msg=Please%20log%20in%20to%20view%20Admin.&next=/admin",
+            status_code=303,
+        )
     admin_user = await _require_admin_user(db=db, token=active_token)
 
     email_n = _norm_email(email)
     if not email_n:
-        raise HTTPException(status_code=422, detail="email is required")
+        if wants_json:
+            raise HTTPException(status_code=422, detail="email is required")
+        users = (await db.exec(select(User).order_by(text("id")))).all()
+        return templates.TemplateResponse(
+            request,
+            "admin.html",
+            {
+                "request": request,
+                "users": users,
+                "email": admin_user.email,
+                "session_email": admin_user.email,
+                "token": active_token,
+                "base_path": bp,
+                "invite_url": None,
+                "invite_error": "Email is required.",
+                "invite_email": "",
+                "invite_grant_admin": bool(grant_admin),
+            },
+            status_code=400,
+        )
 
     make_admin = bool(grant_admin)
     raw = InviteToken.new_raw_token()
@@ -272,6 +301,7 @@ async def admin_user_edit_page(
                 "request": request,
                 "base_path": bp,
                 "admin_email": admin_user.email,
+                "session_email": admin_user.email,
                 "is_self": bool(admin_user.id == user_id),
                 "error": "User not found",
                 "user": {
@@ -292,6 +322,7 @@ async def admin_user_edit_page(
             "request": request,
             "base_path": bp,
             "admin_email": admin_user.email,
+            "session_email": admin_user.email,
             "is_self": bool(admin_user.id == user_id),
             "user": user,
         },
@@ -356,6 +387,7 @@ async def admin_user_delete(
                 "request": request,
                 "base_path": bp,
                 "admin_email": admin_user.email,
+                "session_email": admin_user.email,
                 "user": admin_user,
                 "is_self": True,
                 "error": "You can’t delete your own account.",
@@ -375,6 +407,7 @@ async def admin_user_delete(
                 "request": request,
                 "base_path": bp,
                 "admin_email": admin_user.email,
+                "session_email": admin_user.email,
                 "user": user,
                 "is_self": bool(admin_user.id == user_id),
                 "error": "Please confirm deletion.",

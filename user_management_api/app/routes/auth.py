@@ -11,11 +11,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, external_url, safe_external_redirect, safe_redirect
 from app.core.config import settings
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, decode_token, hash_password, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
 from app.services.email import send_self_registration_email
-from app.web.session import clear_auth_cookie, set_auth_cookie
+from app.web.session import clear_auth_cookie, get_auth_token, set_auth_cookie
 from app.web.templates import templates
 
 
@@ -27,10 +27,25 @@ def _norm_email(v: str) -> str:
 
 
 @router.get("/register", response_class=HTMLResponse, include_in_schema=False)
-async def register_page(request: Request) -> HTMLResponse:
+async def register_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
     bp = base_path(request)
+    session_email = None
+    cookie_token = get_auth_token(request)
+    if cookie_token:
+        try:
+            payload = decode_token(cookie_token)
+            user_id = int(payload.get("sub") or 0)
+            user = (await db.exec(select(User).where(User.id == user_id))).first()
+            session_email = user.email if user else None
+        except Exception:
+            session_email = None
     return templates.TemplateResponse(
-        request, "register.html", {"request": request, "base_path": bp}
+        request,
+        "register.html",
+        {"request": request, "base_path": bp, "session_email": session_email},
     )
 
 
@@ -108,10 +123,23 @@ async def register_submit(
 
 
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
-async def login_page(request: Request) -> HTMLResponse:
+async def login_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
     bp = base_path(request)
     info = (request.query_params.get("msg") or "").strip()
     next_path = (request.query_params.get("next") or "").strip()
+    session_email = None
+    cookie_token = get_auth_token(request)
+    if cookie_token:
+        try:
+            payload = decode_token(cookie_token)
+            user_id = int(payload.get("sub") or 0)
+            user = (await db.exec(select(User).where(User.id == user_id))).first()
+            session_email = user.email if user else None
+        except Exception:
+            session_email = None
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -120,6 +148,7 @@ async def login_page(request: Request) -> HTMLResponse:
             "base_path": bp,
             "info": info or None,
             "next": next_path or None,
+            "session_email": session_email,
         },
     )
 
