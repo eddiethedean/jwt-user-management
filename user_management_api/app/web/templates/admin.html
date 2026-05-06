@@ -173,7 +173,7 @@
           </script>
         {% endif %}
 
-        <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;">
+        <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;" id="inviteForm">
           <label for="invite_email" style="margin-top: 0;">Email</label>
           <input
             id="invite_email"
@@ -200,9 +200,50 @@
               </span>
             </label>
 
-            <button type="submit" style="margin-top: 0;">Create invite</button>
+            <div class="row" style="justify-content: flex-end; align-items: center; gap: 10px;">
+              <span class="muted" id="inviteStatus" aria-live="polite"></span>
+              <button type="submit" style="margin-top: 0;" id="inviteBtn">Create invite</button>
+            </div>
           </div>
         </form>
+
+        <script>
+          (function () {
+            var form = document.getElementById("inviteForm");
+            var btn = document.getElementById("inviteBtn");
+            var status = document.getElementById("inviteStatus");
+            if (!form || !btn || !status) return;
+
+            function setStatus(html) { status.innerHTML = html || ""; }
+            function setBusy(isBusy) { btn.disabled = !!isBusy; }
+
+            form.addEventListener("submit", function (e) {
+              e.preventDefault();
+              setBusy(true);
+              setStatus('<span class="spinner" aria-hidden="true"></span> Sending email…');
+
+              var fd = new FormData(form);
+              fetch(form.action, {
+                method: "POST",
+                headers: { "Accept": "application/json" },
+                body: fd
+              })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                if (!res.ok || !res.j || res.j.ok !== true) {
+                  throw new Error((res.j && res.j.error) || "Failed to send email");
+                }
+                setStatus("Email sent");
+              })
+              .catch(function (err) {
+                setStatus('<span style="color: var(--danger); font-weight: 750;">' + (err.message || "Error") + "</span>");
+              })
+              .finally(function () {
+                setBusy(false);
+              });
+            });
+          })();
+        </script>
       </section>
 
       <section class="panel">

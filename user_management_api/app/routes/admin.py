@@ -6,7 +6,7 @@ import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, JSONResponse
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -194,6 +194,7 @@ async def admin_invite_submit(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
+    wants_json = "application/json" in (request.headers.get("accept") or "").lower()
     cookie_token = get_auth_token(request)
     active_token = cookie_token or token
     if not active_token:
@@ -224,6 +225,9 @@ async def admin_invite_submit(
         send_invite_email(to_email=email_n, invite_url=invite_url)
     except Exception:
         pass
+
+    if wants_json:
+        return JSONResponse({"ok": True, "invite_url": invite_url})
 
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return templates.TemplateResponse(

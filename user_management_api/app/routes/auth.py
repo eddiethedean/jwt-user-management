@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,10 +39,13 @@ async def register_submit(
     request: Request,
     email: str = Form(...),
     db: AsyncSession = Depends(get_db),
-) -> HTMLResponse:
+) -> Response:
     bp = base_path(request)
+    wants_json = "application/json" in (request.headers.get("accept") or "").lower()
     email_n = _norm_email(email)
     if not email_n:
+        if wants_json:
+            return JSONResponse({"ok": False, "error": "Email is required"}, status_code=400)
         return templates.TemplateResponse(
             request,
             "register.html",
@@ -58,6 +61,8 @@ async def register_submit(
         await db.exec(select(User).where(User.email == email_n))
     ).first()
     if existing:
+        if wants_json:
+            return JSONResponse({"ok": False, "error": "Email already exists"}, status_code=400)
         return templates.TemplateResponse(
             request,
             "register.html",
@@ -89,6 +94,8 @@ async def register_submit(
     except Exception:
         # Email should not block successful registration.
         pass
+    if wants_json:
+        return JSONResponse({"ok": True})
     return templates.TemplateResponse(
         request,
         "login.html",

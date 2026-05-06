@@ -1,6 +1,7 @@
 import smtplib
 from email.message import EmailMessage
 from smtplib import SMTPConnectError
+import logging
 
 from app.core.config import settings
 
@@ -88,6 +89,7 @@ def _send_via_smtp(msg: EmailMessage) -> None:
 
     # Primary: use configured host/port, with optional STARTTLS.
     # Fallback: legacy behavior (default port 25, no TLS).
+    log = logging.getLogger("uvicorn.error")
     primary_port: int | None = settings.smtp_port
     try:
         server = _connect(
@@ -95,8 +97,20 @@ def _send_via_smtp(msg: EmailMessage) -> None:
             port=primary_port,
             use_tls=bool(settings.smtp_use_tls),
         )
+        selected_port = primary_port
+        used_legacy_fallback = False
     except (ConnectionRefusedError, SMTPConnectError):
         server = _connect(host=settings.smtp_host, port=None, use_tls=False)
+        selected_port = 25
+        used_legacy_fallback = True
+
+    log.info(
+        "SMTP send: host=%s port=%s tls=%s legacy_fallback=%s",
+        settings.smtp_host,
+        selected_port,
+        bool(settings.smtp_use_tls) if not used_legacy_fallback else False,
+        used_legacy_fallback,
+    )
 
     try:
         if settings.smtp_username and settings.smtp_password:
