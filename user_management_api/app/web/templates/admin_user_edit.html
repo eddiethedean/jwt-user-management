@@ -28,12 +28,22 @@
       </div>
       <div style="flex:1; min-width: 240px;">
         <div class="muted">Created</div>
-        <div>{{ user.created_at }}</div>
+        <div>{{ user.created_at|fmt_dt }}</div>
       </div>
     </div>
 
     <h3>Access</h3>
     <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/update" style="margin-top: 10px;">
+      <label for="full_name" style="margin-top: 0;">Full name (optional)</label>
+      <input
+        id="full_name"
+        name="full_name"
+        type="text"
+        autocomplete="name"
+        placeholder="Jane Doe"
+        value="{{ user.full_name or '' }}"
+      />
+
       <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
         <input type="checkbox" name="is_admin" value="1" style="width:auto; margin-top: 3px;" {% if user.is_admin %}checked{% endif %} />
         <span>

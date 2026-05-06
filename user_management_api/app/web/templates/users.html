@@ -82,6 +82,7 @@
           <tr>
             <th>ID</th>
             <th>Email</th>
+            <th>Name</th>
             <th>Status</th>
             <th>Role</th>
             <th>Created</th>
@@ -92,6 +93,7 @@
             <tr>
               <td>{{ u.id }}</td>
               <td><code>{{ u.email }}</code></td>
+              <td>{{ u.full_name or '' }}</td>
               <td>
                 {% if u.is_active %}
                   <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>
@@ -106,7 +108,7 @@
                   <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
                 {% endif %}
               </td>
-              <td>{{ u.created_at }}</td>
+              <td>{{ u.created_at|fmt_dt }}</td>
             </tr>
           {% endfor %}
         </tbody>

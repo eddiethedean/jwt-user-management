@@ -302,6 +302,7 @@ async def admin_user_edit_page(
 async def admin_user_update(
     request: Request,
     user_id: int = Path(..., ge=1),
+    full_name: Optional[str] = Form(default=None),
     is_admin: Optional[str] = Form(default=None),
     is_active: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
@@ -315,6 +316,8 @@ async def admin_user_update(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    fn = (full_name or "").strip() or None
+    user.full_name = fn
     user.is_admin = bool(is_admin)
     user.is_active = bool(is_active)
     db.add(user)
