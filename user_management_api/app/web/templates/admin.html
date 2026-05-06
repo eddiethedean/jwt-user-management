@@ -185,22 +185,22 @@
             required
           />
 
-          <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 12px; font-weight: 650;">
-            <input
-              type="checkbox"
-              name="grant_admin"
-              value="1"
-              style="width:auto; margin-top: 3px;"
-              {% if invite_grant_admin %}checked{% endif %}
-            />
-            <span>
-              Grant admin privileges
-              <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
-            </span>
-          </label>
+          <div class="row" style="justify-content: space-between; align-items: flex-end; margin-top: 12px;">
+            <label style="display:flex; gap:10px; align-items:flex-start; margin: 0; font-weight: 650; flex: 1;">
+              <input
+                type="checkbox"
+                name="grant_admin"
+                value="1"
+                style="width:auto; margin-top: 3px;"
+                {% if invite_grant_admin %}checked{% endif %}
+              />
+              <span>
+                Grant admin privileges
+                <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
+              </span>
+            </label>
 
-          <div class="row" style="justify-content: flex-end; margin-top: 10px;">
-            <button type="submit">Create invite</button>
+            <button type="submit" style="margin-top: 0;">Create invite</button>
           </div>
         </form>
       </section>

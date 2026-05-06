@@ -274,11 +274,17 @@
       }
       .dataTable {
         table-layout: auto;
-        width: max-content;
-        min-width: 100%;
+        width: 100%;
       }
       .dataTable th,
       .dataTable td { white-space: nowrap; }
+
+      /* Allow long emails/URLs to wrap instead of expanding the layout. */
+      .dataTable td code {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body>
