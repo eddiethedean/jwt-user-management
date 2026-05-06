@@ -110,10 +110,25 @@
         <summary style="list-style: none; cursor: pointer;">
           <div class="row" style="justify-content: space-between; align-items: baseline;">
             <h3 style="margin: 0;">Invite user</h3>
-            <span class="muted">Click to collapse</span>
+            <span class="muted" id="inviteCollapseHint">Click to collapse</span>
           </div>
           <p class="muted" style="margin: 6px 0 0;">Generate a one-time link to set a password.</p>
         </summary>
+
+        <script>
+          (function () {
+            var details = document.currentScript && document.currentScript.parentElement;
+            var hint = document.getElementById("inviteCollapseHint");
+            if (!details || !hint || details.tagName !== "DETAILS") return;
+
+            function sync() {
+              hint.textContent = details.open ? "Click to collapse" : "Click to expand";
+            }
+
+            details.addEventListener("toggle", sync);
+            sync();
+          })();
+        </script>
 
         {% if invite_url %}
           <div class="ok inviteCard">
