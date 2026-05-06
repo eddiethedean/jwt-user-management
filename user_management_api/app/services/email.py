@@ -1,5 +1,6 @@
 import smtplib
 from email.message import EmailMessage
+from smtplib import SMTPConnectError
 
 from app.core.config import settings
 
@@ -69,11 +70,33 @@ def _wrap_html(*, title: str, preheader: str, body_html: str) -> str:
 
 
 def _send_via_smtp(msg: EmailMessage) -> None:
-    if settings.smtp_use_tls:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
-        server.starttls()
-    else:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+    """
+    Send using the configured SMTP settings.
+
+    Important: some environments only allow outbound SMTP on port 25 and will
+    refuse connections to 587/465. Historically this project used
+    `smtplib.SMTP(host)` (default port 25, no TLS). To preserve that behavior
+    while still supporting authenticated/TLS SMTP, we fall back to the legacy
+    mode on connection-refused errors.
+    """
+
+    def _connect(*, host: str, port: int | None, use_tls: bool) -> smtplib.SMTP:
+        server = smtplib.SMTP(host) if port is None else smtplib.SMTP(host, port)
+        if use_tls:
+            server.starttls()
+        return server
+
+    # Primary: use configured host/port, with optional STARTTLS.
+    # Fallback: legacy behavior (default port 25, no TLS).
+    primary_port: int | None = settings.smtp_port
+    try:
+        server = _connect(
+            host=settings.smtp_host,
+            port=primary_port,
+            use_tls=bool(settings.smtp_use_tls),
+        )
+    except (ConnectionRefusedError, SMTPConnectError):
+        server = _connect(host=settings.smtp_host, port=None, use_tls=False)
 
     try:
         if settings.smtp_username and settings.smtp_password:
