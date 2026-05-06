@@ -173,7 +173,12 @@ async def login_submit(
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"request": request, "error": "Invalid email or password", "base_path": bp},
+            {
+                "request": request,
+                "error": "Invalid email or password",
+                "base_path": bp,
+                "email": email_n,
+            },
             status_code=400,
         )
     token = create_access_token(subject=str(user.id))
