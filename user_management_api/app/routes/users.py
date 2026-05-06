@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_external_redirect
+from fastapi_workbench import base_path, safe_external_redirect, safe_redirect
 from app.core.security import decode_token
 from app.db import get_db
 from app.models import User
@@ -110,10 +110,13 @@ async def users(
         )
 
     if not creds:
-        raise HTTPException(
-            status_code=401,
-            detail="Provide Authorization: Bearer <token>",
-        )
+        # Browser navigation (e.g. clicking "Users" in the navbar) should go to login.
+        # Keep JSON 401 for API callers.
+        accept = (request.headers.get("accept") or "").lower()
+        wants_html = ("text/html" in accept) or ("*/*" in accept) or not accept
+        if wants_html:
+            return safe_redirect(request, "/login", status_code=303)
+        raise HTTPException(status_code=401, detail="Provide Authorization: Bearer <token>")
     _ = await get_current_user(db=db, creds=creds)
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(
