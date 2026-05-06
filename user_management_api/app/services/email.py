@@ -23,102 +23,48 @@ def _set_html_and_text(
 
 
 def _wrap_html(*, title: str, preheader: str, body_html: str) -> str:
-    # Basic, email-client-friendly HTML. No external assets.
+    # Minimal table-based layout with inline styles for broad email client support.
+    brand = _brand_name()
     return f"""\
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    <style>
-      body {{
-        margin: 0;
-        padding: 0;
-        background: #f6f7fb;
-        color: #0f172a;
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      }}
-      .wrap {{
-        width: 100%;
-        padding: 24px 12px;
-      }}
-      .container {{
-        max-width: 560px;
-        margin: 0 auto;
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        overflow: hidden;
-      }}
-      .header {{
-        padding: 18px 18px 12px;
-        background: #0b1020;
-        color: #ffffff;
-      }}
-      .brand {{
-        font-weight: 900;
-        letter-spacing: -0.02em;
-        font-size: 16px;
-      }}
-      .content {{
-        padding: 18px;
-        line-height: 1.5;
-        font-size: 14px;
-      }}
-      .muted {{
-        color: #475569;
-        font-size: 13px;
-      }}
-      .btn {{
-        display: inline-block;
-        padding: 10px 14px;
-        border-radius: 10px;
-        background: #4f46e5;
-        color: #ffffff !important;
-        text-decoration: none;
-        font-weight: 800;
-      }}
-      .panel {{
-        margin-top: 14px;
-        padding: 12px;
-        border: 1px solid #e2e8f0;
-        background: #f8fafc;
-        border-radius: 12px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace;
-        font-size: 12px;
-        word-break: break-all;
-      }}
-      .footer {{
-        padding: 14px 18px 18px;
-        border-top: 1px solid #e2e8f0;
-        background: #fbfdff;
-      }}
-    </style>
   </head>
-  <body>
-    <!-- Preheader (hidden in body but used by some clients) -->
+  <body style="margin:0; padding:0; background:#f6f7fb; color:#111827; font-family:Arial, Helvetica, sans-serif;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
       {preheader}
     </div>
-    <div class="wrap">
-      <div class="container">
-        <div class="header">
-          <div class="brand">{_brand_name()}</div>
-        </div>
-        <div class="content">
-          {body_html}
-        </div>
-        <div class="footer">
-          <div class="muted">
-            If you didn’t request this email, you can safely ignore it.
+
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f6f7fb; padding:24px 0;">
+      <tr>
+        <td align="center" style="padding:0 12px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="560" style="width:560px; max-width:560px; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px;">
+            <tr>
+              <td style="padding:18px 18px 12px; border-bottom:1px solid #e5e7eb;">
+                <div style="font-size:14px; font-weight:700; letter-spacing:0.2px; color:#111827;">{brand}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px; font-size:14px; line-height:20px;">
+                {body_html}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:14px 18px 18px; border-top:1px solid #e5e7eb; font-size:12px; line-height:18px; color:#6b7280;">
+                If you didn’t request this email, you can safely ignore it.
+              </td>
+            </tr>
+          </table>
+
+          <div style="max-width:560px; margin:10px auto 0; font-size:12px; line-height:18px; color:#6b7280; text-align:center;">
+            © {brand}
           </div>
-        </div>
-      </div>
-      <div class="muted" style="max-width:560px; margin: 10px auto 0; text-align:center;">
-        © { _brand_name() }
-      </div>
-    </div>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
 """
@@ -139,17 +85,21 @@ def send_invite_email(*, to_email: str, invite_url: str) -> None:
         "If you didn’t request this, you can ignore this email.\n"
     )
     body_html = f"""\
-<h2 style="margin:0 0 8px;">You’re invited</h2>
-<p class="muted" style="margin:0 0 14px;">
+<div style="font-size:18px; line-height:24px; font-weight:700; margin:0 0 8px; color:#111827;">You’re invited</div>
+<div style="font-size:14px; line-height:20px; margin:0 0 14px; color:#374151;">
   Someone invited you to join <strong>{_brand_name()}</strong>.
-</p>
-<p style="margin:0 0 14px;">
-  <a class="btn" href="{invite_url}">Accept invite</a>
-</p>
-<p class="muted" style="margin:0;">
+</div>
+<div style="margin:0 0 14px;">
+  <a href="{invite_url}" style="display:inline-block; padding:10px 14px; background:#2563eb; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:700;">
+    Accept invite
+  </a>
+</div>
+<div style="font-size:12px; line-height:18px; margin:0; color:#6b7280;">
   If the button doesn’t work, copy and paste this link into your browser:
-</p>
-<div class="panel">{invite_url}</div>
+</div>
+<div style="margin-top:10px; padding:12px; border:1px solid #e5e7eb; background:#f9fafb; border-radius:10px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:18px; word-break:break-all;">
+  {invite_url}
+</div>
 """
     html = _wrap_html(
         title="You’re invited",
@@ -176,17 +126,21 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
         "If you didn’t request this, you can ignore this email.\n"
     )
     body_html = f"""\
-<h2 style="margin:0 0 8px;">Reset your password</h2>
-<p class="muted" style="margin:0 0 14px;">
-  Use the link below to reset your password.
-</p>
-<p style="margin:0 0 14px;">
-  <a class="btn" href="{reset_url}">Reset password</a>
-</p>
-<p class="muted" style="margin:0;">
+<div style="font-size:18px; line-height:24px; font-weight:700; margin:0 0 8px; color:#111827;">Reset your password</div>
+<div style="font-size:14px; line-height:20px; margin:0 0 14px; color:#374151;">
+  We received a request to reset your password.
+</div>
+<div style="margin:0 0 14px;">
+  <a href="{reset_url}" style="display:inline-block; padding:10px 14px; background:#2563eb; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:700;">
+    Reset password
+  </a>
+</div>
+<div style="font-size:12px; line-height:18px; margin:0; color:#6b7280;">
   If the button doesn’t work, copy and paste this link into your browser:
-</p>
-<div class="panel">{reset_url}</div>
+</div>
+<div style="margin-top:10px; padding:12px; border:1px solid #e5e7eb; background:#f9fafb; border-radius:10px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:18px; word-break:break-all;">
+  {reset_url}
+</div>
 """
     html = _wrap_html(
         title="Password reset",

@@ -39,6 +39,9 @@ backend/app.db
 # Local process logs
 *.nohup.log
 
+# PID files (local process artifacts)
+*.pid
+
 # E2E local artifacts / DB
 e2e/__pycache__/
 e2e/artifacts/
