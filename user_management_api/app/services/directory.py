@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import logging
 from typing import Any, Optional
 
@@ -93,8 +94,25 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
             raise
         return None
 
+    # Some deployments return a JSON string that itself contains JSON. Be tolerant.
+    if isinstance(data, str):
+        try:
+            data2 = json.loads(data)
+        except Exception:
+            log.warning(
+                "Directory lookup: unexpected json string email=%s len=%s",
+                email,
+                len(data),
+            )
+            return None
+        data = data2
+
     if not isinstance(data, dict):
-        log.warning("Directory lookup: unexpected json type email=%s", email)
+        log.warning(
+            "Directory lookup: unexpected json type email=%s type=%s",
+            email,
+            type(data).__name__,
+        )
         return None
     attrs = data.get("attributes")
     if not isinstance(attrs, dict):

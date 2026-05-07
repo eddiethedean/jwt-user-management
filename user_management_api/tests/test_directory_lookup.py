@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -135,6 +136,28 @@ def test_lookup_parses_country_from_directory_response(tmp_path, monkeypatch) ->
 
     rec = directory.lookup_email("user@example.com")
     assert rec
+    assert rec.country == "US"
+
+
+def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    _ = _load_wrapped_app(db_url=db_url)
+
+    import app.services.directory as directory
+
+    payload = {
+        "attributes": {"mail": ["user@example.com"], "co": ["US"], "displayName": ["X"]},
+        "dn": "CN=X",
+    }
+    monkeypatch.setattr(
+        directory.httpx,
+        "get",
+        lambda *a, **k: _Resp(status_code=200, json_data=json.dumps(payload)),
+    )
+
+    rec = directory.lookup_email("user@example.com")
+    assert rec
+    assert rec.email == "user@example.com"
     assert rec.country == "US"
 
 
