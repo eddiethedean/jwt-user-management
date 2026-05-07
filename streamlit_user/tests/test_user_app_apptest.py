@@ -2,7 +2,7 @@ import os
 from typing import Optional
 
 import pytest
-import requests
+import httpx
 from streamlit.testing.v1 import AppTest
 
 from app_paths import USER_APP_PY
@@ -53,13 +53,13 @@ def test_login_success_sets_session(monkeypatch):
             )
         return _Resp(ok=True, json_data={"ok": True})
 
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(httpx, "post", fake_post)
     def fake_get(url, params=None, headers=None, timeout=None):
         if url.endswith("/users/me"):
             return _Resp(ok=True, json_data={"country": "US"})
         return _Resp(ok=True, json_data={})
 
-    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(httpx, "get", fake_get)
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
@@ -82,8 +82,8 @@ def test_forgot_password_shows_non_enumerating_message(monkeypatch):
             return _Resp(ok=True, json_data={"ok": True})
         return _Resp(ok=False, status_code=500, text="unexpected")
 
-    monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
@@ -104,8 +104,8 @@ def test_sign_out_clears_session_state(monkeypatch):
             )
         return _Resp(ok=True, json_data={"ok": True})
 
-    monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30)
     at.run()
@@ -128,10 +128,10 @@ def test_sign_out_clears_session_state(monkeypatch):
 
 def test_login_backend_request_exception_is_shown(monkeypatch):
     def boom(*args, **kwargs):
-        raise requests.Timeout("nope")
+        raise httpx.TimeoutException("nope")
 
-    monkeypatch.setattr(requests, "post", boom)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(httpx, "post", boom)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception

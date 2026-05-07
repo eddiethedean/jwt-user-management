@@ -1,7 +1,7 @@
 import os
 from typing import Dict, Optional
 
-import requests
+import httpx
 import streamlit as st
 
 try:
@@ -64,20 +64,20 @@ if st.session_state.pop("_sign_out_clicked", False):
     st.rerun()
 
 
-def _post_form(path: str, data: dict) -> Optional[requests.Response]:
+def _post_form(path: str, data: dict) -> Optional[httpx.Response]:
     try:
         return client.post_form(path, data=data)
-    except requests.RequestException:
+    except httpx.RequestError:
         st.error("Backend request failed (is it running?)")
         return None
 
 
 def _post_json(
     path: str, params: Optional[Dict] = None, json: Optional[Dict] = None
-) -> Optional[requests.Response]:
+) -> Optional[httpx.Response]:
     try:
         return client.post_json(path, params=params, json=json or {})
-    except requests.RequestException:
+    except httpx.RequestError:
         st.error("Backend request failed (is it running?)")
         return None
 
@@ -177,7 +177,7 @@ if auth.is_authenticated:
     if not isinstance(me, dict):
         try:
             r = authed_client.get("/users/me")
-        except requests.RequestException:
+        except httpx.RequestError:
             me = {}
         else:
             me = safe_json(r) if r.ok else {}
@@ -200,7 +200,7 @@ if auth.is_authenticated:
         if st.button("Get /users/me", key="me_btn"):
             try:
                 r = authed_client.get("/users/me")
-            except requests.RequestException:
+            except httpx.RequestError:
                 st.error("Backend request failed (is it running?)")
             else:
                 if r.ok:
@@ -211,7 +211,7 @@ if auth.is_authenticated:
         if st.button("List /users", key="users_btn"):
             try:
                 r = authed_client.get("/users")
-            except requests.RequestException:
+            except httpx.RequestError:
                 st.error("Backend request failed (is it running?)")
             else:
                 if r.ok:

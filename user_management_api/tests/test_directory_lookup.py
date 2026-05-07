@@ -109,7 +109,7 @@ def test_register_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
     # Directory returns 404 (not found)
     import app.services.directory as directory
 
-    monkeypatch.setattr(directory.requests, "get", lambda *a, **k: _Resp(status_code=404))
+    monkeypatch.setattr(directory.httpx, "get", lambda *a, **k: _Resp(status_code=404))
 
     client = TestClient(app, base_url="http://testserver")
     r = client.post("/register", data={"email": "nobody@example.com"}, follow_redirects=False)
@@ -125,7 +125,7 @@ def test_lookup_parses_country_from_directory_response(tmp_path, monkeypatch) ->
     import app.services.directory as directory
 
     monkeypatch.setattr(
-        directory.requests,
+        directory.httpx,
         "get",
         lambda *a, **k: _Resp(
             status_code=200,
@@ -148,7 +148,7 @@ def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> N
 
     import app.services.directory as directory
 
-    monkeypatch.setattr(directory.requests, "get", lambda *a, **k: _Resp(status_code=404))
+    monkeypatch.setattr(directory.httpx, "get", lambda *a, **k: _Resp(status_code=404))
 
     client = TestClient(app, base_url="http://testserver")
     r_login = client.post(

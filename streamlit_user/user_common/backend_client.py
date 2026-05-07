@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 import ipaddress
-import requests
+import httpx
 
 
 @dataclass(frozen=True)
@@ -28,8 +28,8 @@ class BackendClient:
             headers["Authorization"] = f"Bearer {self.access_token}"
         return headers
 
-    def get(self, path: str, *, params: Optional[dict] = None) -> requests.Response:
-        return requests.get(
+    def get(self, path: str, *, params: Optional[dict] = None) -> httpx.Response:
+        return httpx.get(
             self._url(path),
             params=params,
             headers=self._headers(),
@@ -38,8 +38,8 @@ class BackendClient:
 
     def post_json(
         self, path: str, *, json: dict, params: Optional[dict] = None
-    ) -> requests.Response:
-        return requests.post(
+    ) -> httpx.Response:
+        return httpx.post(
             self._url(path),
             params=params,
             json=json,
@@ -47,16 +47,16 @@ class BackendClient:
             timeout=self.timeout_s,
         )
 
-    def patch_json(self, path: str, *, json: dict) -> requests.Response:
-        return requests.patch(
+    def patch_json(self, path: str, *, json: dict) -> httpx.Response:
+        return httpx.patch(
             self._url(path),
             json=json,
             headers=self._headers(),
             timeout=self.timeout_s,
         )
 
-    def post_form(self, path: str, *, data: dict) -> requests.Response:
-        return requests.post(
+    def post_form(self, path: str, *, data: dict) -> httpx.Response:
+        return httpx.post(
             self._url(path),
             data=data,
             headers={
@@ -114,7 +114,7 @@ def validate_streamlit_test_mode_backend(url: str) -> None:
         )
 
 
-def safe_json(resp: requests.Response) -> Dict[str, Any]:
+def safe_json(resp: httpx.Response) -> Dict[str, Any]:
     try:
         data = resp.json()
     except Exception:

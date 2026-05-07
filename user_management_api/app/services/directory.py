@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
-import requests
+import httpx
 
 from app.core.config import settings
 
@@ -38,10 +38,10 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
         return None
 
     try:
-        resp = requests.get(
+        resp = httpx.get(
             base,
             params={"query": email},
-            timeout=int(settings.directory_lookup_timeout_s or 5),
+            timeout=httpx.Timeout(float(settings.directory_lookup_timeout_s or 5)),
         )
     except Exception:
         if settings.directory_lookup_required:
@@ -50,7 +50,7 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
 
     if resp.status_code == 404:
         return None
-    if not resp.ok:
+    if resp.status_code < 200 or resp.status_code >= 300:
         if settings.directory_lookup_required:
             raise RuntimeError(f"Directory lookup failed: {resp.status_code}")
         return None

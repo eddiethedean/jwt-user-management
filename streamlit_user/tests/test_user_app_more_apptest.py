@@ -1,7 +1,7 @@
 import os
 
 import pytest
-import requests
+import httpx
 from streamlit.testing.v1 import AppTest
 
 from app_paths import USER_APP_PY
@@ -46,8 +46,8 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
             return _Resp(ok=False, status_code=401, json_data={"detail": "Invalid"})
         return _Resp(ok=True, json_data={})
 
-    monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
@@ -69,10 +69,8 @@ def test_sign_out_clears_username_and_token(monkeypatch):
             )
         return _Resp(ok=True, json_data={})
 
-    monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(
-        requests, "get", lambda *a, **k: _Resp(ok=True, json_data={"country": "US"})
-    )
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={"country": "US"}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30)
     at.run()
@@ -96,8 +94,8 @@ def test_forgot_password_shows_error_when_backend_fails(monkeypatch):
             return _Resp(ok=False, status_code=503, text="down")
         return _Resp(ok=True, json_data={})
 
-    monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     _input_text(at, "Email", "x@test.local", "forgot_email")

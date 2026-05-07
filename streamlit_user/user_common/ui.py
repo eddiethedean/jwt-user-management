@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import requests
+import httpx
 import streamlit as st
 
 
-def show_http_error(prefix: str, resp: requests.Response) -> None:
+def show_http_error(prefix: str, resp: httpx.Response) -> None:
     detail = ""
     try:
         data = resp.json()
