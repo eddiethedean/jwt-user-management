@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 from starlette.requests import Request
 
@@ -12,7 +13,23 @@ def base_path(request: Request) -> str:
     - If the app is mounted at the domain root, returns \"\".
     - If mounted under a prefix, returns that prefix without a trailing slash.
     """
-    return str(request.scope.get("root_path") or "").rstrip("/")
+    rp = str(request.scope.get("root_path") or "").rstrip("/")
+    if rp:
+        return rp
+
+    # Posit Connect: Connect provides the application base URL via this header.
+    # Example value: "https://connect.example.com/content/<guid>/".
+    # We derive the mount prefix from the path component.
+    base = (request.headers.get("rstudio-connect-app-base-url") or "").strip()
+    if base:
+        try:
+            p = urlparse(base)
+        except Exception:
+            p = None
+        if p and p.path:
+            return str(p.path).rstrip("/")
+
+    return ""
 
 
 def external_base(request: Request, public_base_url: str | None = None) -> str:

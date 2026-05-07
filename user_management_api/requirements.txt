@@ -12,5 +12,5 @@ pydantic-settings
 jinja2
 python-multipart
 pytest
-fastapi-workbench==0.1.0
+fastapi-workbench==0.2.0
 httpx
