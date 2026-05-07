@@ -188,7 +188,7 @@ if auth.is_authenticated:
         if isinstance(me, dict):
             c = str(me.get("country") or "").strip()
             if c:
-                country = f" (C={c})"
+                country = f" ({c})"
         st.caption(f"Signed in as `{auth.email}`{country}")
 
     st.subheader("API demo (user_management_api)")

@@ -229,10 +229,10 @@
             form.addEventListener("submit", function (e) {
               e.preventDefault();
               setBusy(true);
-              setStatus('<span class="spinner" aria-hidden="true"></span> Sending email…');
+              setStatus('<span class="spinner" aria-hidden="true"></span> Looking up email…');
 
               var fd = new FormData(form);
-              fetch(form.action, {
+              fetch("{{ base_path }}/admin/invite/lookup", {
                 method: "POST",
                 headers: { "Accept": "application/json" },
                 body: fd
@@ -251,10 +251,27 @@
                   }
                   throw new Error(msg || "Failed to send email");
                 }
+                setStatus('<span class="spinner" aria-hidden="true"></span> Sending email…');
+                return fetch(form.action, {
+                  method: "POST",
+                  headers: { "Accept": "application/json" },
+                  body: fd
+                })
+                  .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+              })
+              .then(function (res) {
+                if (!res || !res.ok || !res.j || res.j.ok !== true) {
+                  var msg = (res && res.j && (res.j.error || res.j.detail)) || "";
+                  throw new Error(msg || "Failed to send email");
+                }
                 setStatus("Email sent");
               })
               .catch(function (err) {
-                setStatus('<span style="color: var(--danger); font-weight: 750;">' + (err.message || "Error") + "</span>");
+                var msg = (err && err.message) ? String(err.message) : "Error";
+                if (msg.toLowerCase().indexOf("directory lookup failed") !== -1) {
+                  msg = "Could not verify email. Please try again, or contact your admin.";
+                }
+                setStatus('<span style="color: var(--danger); font-weight: 750;">' + msg + "</span>");
               })
               .finally(function () {
                 setBusy(false);
@@ -298,7 +315,7 @@
                 <td>{{ u.id }}</td>
                 <td><code>{{ u.email }}</code></td>
                 <td>{{ u.full_name or '' }}</td>
-                <td>{{ ('C=' ~ u.country) if u.country else '' }}</td>
+                <td>{{ u.country or '' }}</td>
                 <td class="colCenter">
                   {% if u.is_active %}
                     <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>

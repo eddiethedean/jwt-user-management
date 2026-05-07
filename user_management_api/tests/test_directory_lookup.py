@@ -139,6 +139,26 @@ def test_lookup_parses_country_from_directory_response(tmp_path, monkeypatch) ->
     assert rec.country == "US"
 
 
+def test_lookup_strips_c_prefix_from_country(tmp_path, monkeypatch) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    _ = _load_wrapped_app(db_url=db_url)
+
+    import app.services.directory as directory
+
+    monkeypatch.setattr(
+        directory.httpx,
+        "get",
+        lambda *a, **k: _Resp(
+            status_code=200,
+            json_data={"attributes": {"mail": ["user@example.com"], "c": ["C=US"]}},
+        ),
+    )
+
+    rec = directory.lookup_email("user@example.com")
+    assert rec
+    assert rec.country == "US"
+
+
 def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     _ = _load_wrapped_app(db_url=db_url)

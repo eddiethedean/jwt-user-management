@@ -40,6 +40,54 @@ def _invite_url(request: Request, token: str) -> str:
     )
 
 
+@router.post("/admin/invite/lookup", response_class=Response, include_in_schema=False)
+async def admin_invite_lookup(
+    request: Request,
+    token: Optional[str] = Form(default=None),
+    email: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """
+    UI helper: validate an email (directory lookup) before creating an invite.
+    Always returns JSON for browser fetch calls.
+    """
+    wants_json = "application/json" in (request.headers.get("accept") or "").lower()
+    if not wants_json:
+        return safe_redirect(request, "/admin", status_code=303)
+
+    cookie_token = get_auth_token(request)
+    active_token = cookie_token or token
+    if not active_token:
+        return JSONResponse({"ok": False, "error": "Not authenticated"}, status_code=401)
+
+    _ = await _require_admin_user(db=db, token=active_token)
+
+    email_n = _norm_email(email)
+    if not email_n:
+        return JSONResponse({"ok": False, "error": "Email is required"}, status_code=400)
+
+    if not settings.directory_lookup_url:
+        return JSONResponse({"ok": True})
+
+    try:
+        rec = lookup_email(email_n)
+    except Exception:
+        return JSONResponse(
+            {"ok": False, "error": "Directory lookup failed"},
+            status_code=400,
+        )
+
+    if settings.directory_lookup_required and not rec:
+        return JSONResponse(
+            {"ok": False, "error": "Email not found in directory"},
+            status_code=400,
+        )
+
+    return JSONResponse(
+        {"ok": True, "email": getattr(rec, "email", "") if rec else "", "country": getattr(rec, "country", "") if rec else ""},
+    )
+
+
 async def _require_user(*, db: AsyncSession, token: str) -> User:
     try:
         payload: dict[str, Any] = decode_token(token)

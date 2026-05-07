@@ -82,7 +82,7 @@
               <td>{{ u.id }}</td>
               <td><code>{{ u.email }}</code></td>
               <td>{{ u.full_name or '' }}</td>
-              <td>{{ ('C=' ~ u.country) if u.country else '' }}</td>
+              <td>{{ u.country or '' }}</td>
               <td class="colCenter">
                 {% if u.is_active %}
                   <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>

@@ -30,6 +30,18 @@ def _first_str(v: Any) -> Optional[str]:
     return str(v)
 
 
+def _norm_country(v: str | None) -> str | None:
+    if not v:
+        return None
+    s = v.strip()
+    if not s:
+        return None
+    # Be tolerant of directory values like "C=US".
+    if s.lower().startswith("c="):
+        s = s[2:].strip()
+    return s or None
+
+
 def lookup_email(email: str) -> DirectoryEmailRecord | None:
     """
     Lookup an email address in the external directory service.
@@ -125,13 +137,11 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
         return None
 
     display = _first_str(attrs.get("displayName")) or _first_str(attrs.get("cn"))
-    country = _first_str(attrs.get("c")) or _first_str(attrs.get("co"))
-    if country:
-        country = country.strip()
+    country = _norm_country(_first_str(attrs.get("c")) or _first_str(attrs.get("co")))
     rec = DirectoryEmailRecord(
         email=mail.strip().lower(),
         display_name=display,
-        country=country or None,
+        country=country,
     )
     log.info(
         "Directory lookup: ok query=%s mail=%s country=%s",

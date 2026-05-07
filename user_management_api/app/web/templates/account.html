@@ -44,7 +44,7 @@
       <div class="kvVal">{{ user.full_name or '' }}</div>
 
       <div class="kvKey">Country</div>
-      <div class="kvVal">{{ ('C=' ~ user.country) if user.country else '' }}</div>
+      <div class="kvVal">{{ user.country or '' }}</div>
 
       <div class="kvKey">Status</div>
       <div class="kvVal">{{ 'Active' if user.is_active else 'Disabled' }}</div>
