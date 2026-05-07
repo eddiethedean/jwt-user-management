@@ -87,6 +87,14 @@ async def create_invite(
     if not email:
         raise HTTPException(status_code=422, detail="email is required")
 
+    if settings.directory_lookup_url:
+        try:
+            rec = lookup_email(email)
+        except Exception:
+            rec = None
+        if settings.directory_lookup_required and not rec:
+            raise HTTPException(status_code=422, detail="email not found in directory")
+
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
     now = datetime.now(timezone.utc)
@@ -112,6 +120,32 @@ async def create_invite(
         "ok": True,
         "invite_url": invite_url,
         "expires_at": invite.expires_at,
+    }
+
+
+@router.post("/lookup")
+async def lookup_invite_email(
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> dict:
+    await _require_admin(db, creds)
+    email = _norm_email(str(payload.get("email") or ""))
+    if not email:
+        raise HTTPException(status_code=422, detail="email is required")
+    if not settings.directory_lookup_url:
+        return {"ok": True}
+    try:
+        rec = lookup_email(email)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Directory lookup failed")
+    if settings.directory_lookup_required and not rec:
+        raise HTTPException(status_code=422, detail="email not found in directory")
+    return {
+        "ok": True,
+        "email": rec.email if rec else "",
+        "country": rec.country if rec else "",
+        "display_name": rec.display_name if rec else "",
     }
 
 
