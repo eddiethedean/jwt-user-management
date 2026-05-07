@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
 
+    # Optional: directory lookup for validating emails in secure environments.
+    # Example:
+    # DIRECTORY_LOOKUP_URL=https://connect.socom.mil/api/ldapEmail
+    directory_lookup_url: str = ""
+    directory_lookup_timeout_s: int = 5
+    directory_lookup_required: bool = False
+
     @field_validator("base_path")
     @classmethod
     def _validate_base_path(cls, v: str) -> str:

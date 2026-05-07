@@ -70,7 +70,9 @@ def test_sign_out_clears_username_and_token(monkeypatch):
         return _Resp(ok=True, json_data={})
 
     monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    monkeypatch.setattr(
+        requests, "get", lambda *a, **k: _Resp(ok=True, json_data={"country": "US"})
+    )
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30)
     at.run()
@@ -85,6 +87,7 @@ def test_sign_out_clears_username_and_token(monkeypatch):
     at.run()
     assert "access_token" not in at.session_state
     assert "username" not in at.session_state
+    assert "_me" not in at.session_state
 
 
 def test_forgot_password_shows_error_when_backend_fails(monkeypatch):

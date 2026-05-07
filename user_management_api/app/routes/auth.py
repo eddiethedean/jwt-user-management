@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, decode_token, hash_password, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
 from app.web.session import clear_auth_cookie, get_auth_token, set_auth_cookie
 from app.web.templates import templates
@@ -84,6 +85,26 @@ async def register_submit(
             {"request": request, "error": "Email already exists", "base_path": bp},
             status_code=400,
         )
+
+    # Optional directory-backed validation for self-registration email.
+    if settings.directory_lookup_url:
+        rec = None
+        try:
+            rec = lookup_email(email_n)
+        except Exception:
+            rec = None
+        if settings.directory_lookup_required and not rec:
+            if wants_json:
+                return JSONResponse(
+                    {"ok": False, "error": "Email not found in directory"},
+                    status_code=400,
+                )
+            return templates.TemplateResponse(
+                request,
+                "register.html",
+                {"request": request, "error": "Email not found in directory.", "base_path": bp},
+                status_code=400,
+            )
 
     try:
         raw = InviteToken.new_raw_token()
@@ -189,7 +210,10 @@ async def login_submit(
             },
             status_code=403,
         )
-    token = create_access_token(subject=str(user.id))
+    token = create_access_token(
+        subject=str(user.id),
+        extra_claims={"country": user.country} if getattr(user, "country", None) else None,
+    )
     dest = "/admin" if bool(getattr(user, "is_admin", False)) else "/users"
     resp = safe_redirect(request, dest, status_code=303)
     set_auth_cookie(resp, request=request, token=token)
@@ -222,5 +246,8 @@ async def token(
         or not verify_password(form.password, user.hashed_password)
     ):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
-    access_token = create_access_token(subject=str(user.id))
+    access_token = create_access_token(
+        subject=str(user.id),
+        extra_claims={"country": user.country} if getattr(user, "country", None) else None,
+    )
     return {"access_token": access_token, "token_type": "bearer"}

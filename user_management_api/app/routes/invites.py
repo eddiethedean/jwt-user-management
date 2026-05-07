@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 from app.web.templates import templates
 
@@ -170,11 +171,27 @@ async def _accept(
             fn = full_name.strip()
             if fn:
                 user.full_name = fn
+        if settings.directory_lookup_url:
+            try:
+                rec = lookup_email(invite.email)
+            except Exception:
+                rec = None
+            if rec and rec.country and not user.country:
+                user.country = rec.country
     else:
         fn = (full_name or "").strip() or None
+        country = None
+        if settings.directory_lookup_url:
+            try:
+                rec = lookup_email(invite.email)
+            except Exception:
+                rec = None
+            if rec and rec.country:
+                country = rec.country
         user = User(
             email=invite.email,
             full_name=fn,
+            country=country,
             hashed_password=hash_password(password),
             is_admin=bool(invite.grant_admin),
         )

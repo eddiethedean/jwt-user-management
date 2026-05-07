@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, decode_token, verify_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 from app.web.session import get_auth_token, set_auth_cookie
 from app.web.templates import templates
@@ -233,6 +234,35 @@ async def admin_invite_submit(
             },
             status_code=400,
         )
+
+    # Optional directory-backed validation.
+    if settings.directory_lookup_url:
+        rec = None
+        try:
+            rec = lookup_email(email_n)
+        except Exception:
+            rec = None
+        if settings.directory_lookup_required and not rec:
+            if wants_json:
+                raise HTTPException(status_code=422, detail="email not found in directory")
+            users = (await db.exec(select(User).order_by(text("id")))).all()
+            return templates.TemplateResponse(
+                request,
+                "admin.html",
+                {
+                    "request": request,
+                    "users": users,
+                    "email": admin_user.email,
+                    "session_email": admin_user.email,
+                    "token": active_token,
+                    "base_path": bp,
+                    "invite_url": None,
+                    "invite_error": "Email not found in directory.",
+                    "invite_email": email_n,
+                    "invite_grant_admin": bool(grant_admin),
+                },
+                status_code=400,
+            )
 
     make_admin = bool(grant_admin)
     raw = InviteToken.new_raw_token()

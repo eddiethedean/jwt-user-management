@@ -170,15 +170,31 @@ with tab_reset:
 if auth.is_authenticated:
     st.divider()
     st.success("Authenticated session is active.")
+    authed_client = BackendClient(base_url=BACKEND_URL, access_token=auth.access_token)
+
+    # Fetch profile once per session to display extra fields like country.
+    me = st.session_state.get("_me")
+    if not isinstance(me, dict):
+        try:
+            r = authed_client.get("/users/me")
+        except requests.RequestException:
+            me = {}
+        else:
+            me = safe_json(r) if r.ok else {}
+        st.session_state["_me"] = me
+
     if auth.email:
-        st.caption(f"Signed in as `{auth.email}`")
+        country = ""
+        if isinstance(me, dict):
+            c = str(me.get("country") or "").strip()
+            if c:
+                country = f" (C={c})"
+        st.caption(f"Signed in as `{auth.email}`{country}")
 
     st.subheader("API demo (user_management_api)")
     st.caption(
         "These calls use `Authorization: Bearer <jwt>` from Streamlit session state."
     )
-    authed_client = BackendClient(base_url=BACKEND_URL, access_token=auth.access_token)
-
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Get /users/me", key="me_btn"):

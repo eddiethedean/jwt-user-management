@@ -54,7 +54,12 @@ def test_login_success_sets_session(monkeypatch):
         return _Resp(ok=True, json_data={"ok": True})
 
     monkeypatch.setattr(requests, "post", fake_post)
-    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url.endswith("/users/me"):
+            return _Resp(ok=True, json_data={"country": "US"})
+        return _Resp(ok=True, json_data={})
+
+    monkeypatch.setattr(requests, "get", fake_get)
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
@@ -67,6 +72,7 @@ def test_login_success_sets_session(monkeypatch):
     assert "access_token" in at.session_state
     assert at.session_state["access_token"] == "tok"
     assert any("signed in" in s.value.lower() for s in at.success)
+    assert any("C=US" in c.value for c in at.caption)
 
 
 def test_forgot_password_shows_non_enumerating_message(monkeypatch):

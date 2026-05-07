@@ -18,6 +18,9 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
     """
     os.environ["DATABASE_URL"] = db_url
     os.environ["JWT_SECRET"] = "test-secret"
+    os.environ.pop("DIRECTORY_LOOKUP_URL", None)
+    os.environ.pop("DIRECTORY_LOOKUP_TIMEOUT_S", None)
+    os.environ.pop("DIRECTORY_LOOKUP_REQUIRED", None)
 
     # Avoid SQLAlchemy table redefinition issues across reloads.
     SQLModel.metadata.clear()

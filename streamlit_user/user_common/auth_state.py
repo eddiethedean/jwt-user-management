@@ -41,6 +41,7 @@ def logout(*, session_key: str = "auth") -> None:
     st.session_state.pop("jwt", None)
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
+    st.session_state.pop("_me", None)
 
 
 def require_admin_from_me(me_json: dict) -> Tuple[bool, Optional[str]]:
