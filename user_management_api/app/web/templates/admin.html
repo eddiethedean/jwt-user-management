@@ -240,7 +240,16 @@
               .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
               .then(function (res) {
                 if (!res.ok || !res.j || res.j.ok !== true) {
-                  throw new Error((res.j && res.j.error) || "Failed to send email");
+                  var msg = (res.j && res.j.error) || "";
+                  if (!msg && res.j && res.j.detail) {
+                    if (typeof res.j.detail === "string") msg = res.j.detail;
+                    else if (Array.isArray(res.j.detail) && res.j.detail.length) {
+                      msg = res.j.detail.map(function (d) { return d && (d.msg || d.message || JSON.stringify(d)); }).join("; ");
+                    } else {
+                      msg = JSON.stringify(res.j.detail);
+                    }
+                  }
+                  throw new Error(msg || "Failed to send email");
                 }
                 setStatus("Email sent");
               })

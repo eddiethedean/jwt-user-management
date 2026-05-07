@@ -194,7 +194,7 @@ async def open_admin_from_page(
 async def admin_invite_submit(
     request: Request,
     token: Optional[str] = Form(default=None),
-    email: str = Form(...),
+    email: str = Form(default=""),
     grant_admin: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -204,7 +204,10 @@ async def admin_invite_submit(
     active_token = cookie_token or token
     if not active_token:
         if wants_json:
-            raise HTTPException(status_code=401, detail="Missing authentication token")
+            return JSONResponse(
+                {"ok": False, "error": "Not authenticated"},
+                status_code=401,
+            )
         return safe_redirect(
             request,
             "/login?msg=Please%20log%20in%20to%20view%20Admin.&next=/admin",
@@ -215,7 +218,10 @@ async def admin_invite_submit(
     email_n = _norm_email(email)
     if not email_n:
         if wants_json:
-            raise HTTPException(status_code=422, detail="email is required")
+            return JSONResponse(
+                {"ok": False, "error": "Email is required"},
+                status_code=400,
+            )
         users = (await db.exec(select(User).order_by(text("id")))).all()
         return templates.TemplateResponse(
             request,
@@ -244,7 +250,10 @@ async def admin_invite_submit(
             rec = None
         if settings.directory_lookup_required and not rec:
             if wants_json:
-                raise HTTPException(status_code=422, detail="email not found in directory")
+                return JSONResponse(
+                    {"ok": False, "error": "Email not found in directory"},
+                    status_code=400,
+                )
             users = (await db.exec(select(User).order_by(text("id")))).all()
             return templates.TemplateResponse(
                 request,
