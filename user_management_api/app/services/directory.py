@@ -40,6 +40,10 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
     if not base:
         return None
 
+    verify: bool | str = bool(settings.directory_lookup_verify_ssl)
+    if verify and (settings.directory_lookup_ca_bundle or "").strip():
+        verify = settings.directory_lookup_ca_bundle.strip()
+
     try:
         log.info(
             "Directory lookup: start email=%s required=%s url=%s",
@@ -51,6 +55,7 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
             base,
             params={"query": email},
             timeout=httpx.Timeout(float(settings.directory_lookup_timeout_s or 5)),
+            verify=verify,
         )
     except Exception:
         log.exception("Directory lookup: request failed email=%s url=%s", email, base)

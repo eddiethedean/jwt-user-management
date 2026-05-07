@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     directory_lookup_url: str = ""
     directory_lookup_timeout_s: int = 5
     directory_lookup_required: bool = False
+    directory_lookup_verify_ssl: bool = False
+    directory_lookup_ca_bundle: str = ""
 
     @field_validator("base_path")
     @classmethod
