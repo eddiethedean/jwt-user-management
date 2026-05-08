@@ -255,6 +255,8 @@ async def login_submit(
             }
         )
         resp.body = body.encode("utf-8")
+        # If we mutate the body after response init, ensure headers reflect it.
+        resp.headers["content-length"] = str(len(resp.body))
         return resp
 
     resp = safe_redirect(request, dest, status_code=303)
