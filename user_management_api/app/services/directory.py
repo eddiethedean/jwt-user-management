@@ -150,4 +150,3 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
         rec.country or "",
     )
     return rec
-

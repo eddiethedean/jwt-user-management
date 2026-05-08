@@ -70,7 +70,9 @@ def test_sign_out_clears_username_and_token(monkeypatch):
         return _Resp(ok=True, json_data={})
 
     monkeypatch.setattr(httpx, "post", fake_post)
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={"country": "US"}))
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={"country": "US"})
+    )
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30)
     at.run()

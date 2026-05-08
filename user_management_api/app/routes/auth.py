@@ -9,9 +9,18 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, external_url, safe_external_redirect, safe_redirect
+from fastapi_workbench import (
+    base_path,
+    external_url,
+    safe_external_redirect,
+    safe_redirect,
+)
 from app.core.config import settings
-from app.core.security import create_access_token, decode_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    decode_token,
+    verify_password,
+)
 from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
@@ -61,7 +70,9 @@ async def register_submit(
     email_n = _norm_email(email)
     if not email_n:
         if wants_json:
-            return JSONResponse({"ok": False, "error": "Email is required"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Email is required"}, status_code=400
+            )
         return templates.TemplateResponse(
             request,
             "register.html",
@@ -78,7 +89,9 @@ async def register_submit(
     ).first()
     if existing:
         if wants_json:
-            return JSONResponse({"ok": False, "error": "Email already exists"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Email already exists"}, status_code=400
+            )
         return templates.TemplateResponse(
             request,
             "register.html",
@@ -102,7 +115,11 @@ async def register_submit(
             return templates.TemplateResponse(
                 request,
                 "register.html",
-                {"request": request, "error": "Email not found in directory.", "base_path": bp},
+                {
+                    "request": request,
+                    "error": "Email not found in directory.",
+                    "base_path": bp,
+                },
                 status_code=400,
             )
 
@@ -212,7 +229,9 @@ async def login_submit(
         )
     token = create_access_token(
         subject=str(user.id),
-        extra_claims={"country": user.country} if getattr(user, "country", None) else None,
+        extra_claims={"country": user.country}
+        if getattr(user, "country", None)
+        else None,
     )
     dest = "/admin" if bool(getattr(user, "is_admin", False)) else "/users"
     resp = safe_redirect(request, dest, status_code=303)
@@ -248,6 +267,8 @@ async def token(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     access_token = create_access_token(
         subject=str(user.id),
-        extra_claims={"country": user.country} if getattr(user, "country", None) else None,
+        extra_claims={"country": user.country}
+        if getattr(user, "country", None)
+        else None,
     )
     return {"access_token": access_token, "token_type": "bearer"}

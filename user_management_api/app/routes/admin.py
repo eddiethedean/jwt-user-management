@@ -12,9 +12,14 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, external_url, safe_external_redirect, safe_redirect
+from fastapi_workbench import (
+    base_path,
+    external_url,
+    safe_external_redirect,
+    safe_redirect,
+)
 from app.core.config import settings
-from app.core.security import create_access_token, decode_token, verify_password
+from app.core.security import decode_token
 from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
@@ -61,13 +66,17 @@ async def admin_invite_lookup(
     cookie_token = get_auth_token(request)
     active_token = cookie_token or token
     if not active_token:
-        return JSONResponse({"ok": False, "error": "Not authenticated"}, status_code=401)
+        return JSONResponse(
+            {"ok": False, "error": "Not authenticated"}, status_code=401
+        )
 
     _ = await _require_admin_user(db=db, token=active_token)
 
     email_n = _norm_email(email)
     if not email_n:
-        return JSONResponse({"ok": False, "error": "Email is required"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "error": "Email is required"}, status_code=400
+        )
 
     if not settings.directory_lookup_url:
         return JSONResponse({"ok": True})
@@ -87,7 +96,11 @@ async def admin_invite_lookup(
         )
 
     return JSONResponse(
-        {"ok": True, "email": getattr(rec, "email", "") if rec else "", "country": getattr(rec, "country", "") if rec else ""},
+        {
+            "ok": True,
+            "email": getattr(rec, "email", "") if rec else "",
+            "country": getattr(rec, "country", "") if rec else "",
+        },
     )
 
 
@@ -104,7 +117,9 @@ async def admin_api_update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     if user.id == admin.id and ("is_active" in payload or "is_admin" in payload):
-        raise HTTPException(status_code=400, detail="You can’t modify your own role/status here")
+        raise HTTPException(
+            status_code=400, detail="You can’t modify your own role/status here"
+        )
 
     if "full_name" in payload:
         fn = str(payload.get("full_name") or "").strip() or None

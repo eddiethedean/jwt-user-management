@@ -54,6 +54,7 @@ def test_login_success_sets_session(monkeypatch):
         return _Resp(ok=True, json_data={"ok": True})
 
     monkeypatch.setattr(httpx, "post", fake_post)
+
     def fake_get(url, params=None, headers=None, timeout=None):
         if url.endswith("/users/me"):
             return _Resp(ok=True, json_data={"country": "US"})

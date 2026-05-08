@@ -21,8 +21,11 @@ class Settings(BaseSettings):
     # Cookie settings for HTML login session.
     # Note: When the app is embedded (e.g. in Connect UI iframe), you may need:
     # AUTH_COOKIE_SAMESITE=none and AUTH_COOKIE_SECURE=true
+    cookie_debug: bool = False
     auth_cookie_samesite: str = "lax"  # lax|strict|none
-    auth_cookie_secure: bool | None = None  # None => infer from request scheme/forwarded proto
+    auth_cookie_secure: bool | None = (
+        None  # None => infer from request scheme/forwarded proto
+    )
     auth_cookie_domain: str = ""  # optional; usually leave blank
 
     # SMTP (optional). If SMTP_HOST and SMTP_FROM_EMAIL are unset, email sending is disabled.

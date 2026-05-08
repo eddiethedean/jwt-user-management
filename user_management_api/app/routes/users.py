@@ -88,9 +88,13 @@ async def change_my_password(
     if not verify_password(cur, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     if len(new) < 8:
-        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+        raise HTTPException(
+            status_code=400, detail="New password must be at least 8 characters"
+        )
     if new != confirm:
-        raise HTTPException(status_code=400, detail="New password and confirmation do not match")
+        raise HTTPException(
+            status_code=400, detail="New password and confirmation do not match"
+        )
     current_user.hashed_password = hash_password(new)
     db.add(current_user)
     await db.commit()
@@ -161,7 +165,9 @@ async def users(
                 "/login?msg=Please%20log%20in%20to%20view%20Users.&next=/users",
                 status_code=303,
             )
-        raise HTTPException(status_code=401, detail="Provide Authorization: Bearer <token>")
+        raise HTTPException(
+            status_code=401, detail="Provide Authorization: Bearer <token>"
+        )
     _ = await get_current_user(db=db, creds=creds)
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(

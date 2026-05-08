@@ -31,7 +31,9 @@ async def _require_cookie_user(*, request: Request, db: AsyncSession) -> User:
         user_id = int(payload.get("sub") or 0)
     except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token subject")
-    user: Optional[User] = (await db.exec(select(User).where(User.id == user_id))).first()
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.id == user_id))
+    ).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
@@ -177,4 +179,3 @@ async def account_change_password(
             "success": "Password updated.",
         },
     )
-

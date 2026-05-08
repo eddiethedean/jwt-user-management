@@ -117,7 +117,10 @@ def test_admin_redirects_use_relative_locations_under_workbench_prefix(
     assert r.status_code == 303
     # Relative redirect is required to avoid Workbench rewriting to /proxy/<port>/...
     assert r.headers["location"].startswith("login?msg=")
-    assert "next=%2Fadmin" in r.headers["location"] or "next=/admin" in r.headers["location"]
+    assert (
+        "next=%2Fadmin" in r.headers["location"]
+        or "next=/admin" in r.headers["location"]
+    )
 
     r2 = client.post(
         f"{prefix}/login",

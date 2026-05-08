@@ -113,7 +113,9 @@ def test_register_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(directory.httpx, "get", lambda *a, **k: _Resp(status_code=404))
 
     client = TestClient(app, base_url="http://testserver")
-    r = client.post("/register", data={"email": "nobody@example.com"}, follow_redirects=False)
+    r = client.post(
+        "/register", data={"email": "nobody@example.com"}, follow_redirects=False
+    )
     assert r.status_code == 400
     assert "Email not found in directory" in r.text
 
@@ -166,7 +168,11 @@ def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
     import app.services.directory as directory
 
     payload = {
-        "attributes": {"mail": ["user@example.com"], "co": ["US"], "displayName": ["X"]},
+        "attributes": {
+            "mail": ["user@example.com"],
+            "co": ["US"],
+            "displayName": ["X"],
+        },
         "dn": "CN=X",
     }
     monkeypatch.setattr(
@@ -201,7 +207,8 @@ def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> N
     )
     assert r_login.status_code == 303
 
-    r = client.post("/admin/invite", data={"email": "nobody@example.com"}, follow_redirects=False)
+    r = client.post(
+        "/admin/invite", data={"email": "nobody@example.com"}, follow_redirects=False
+    )
     assert r.status_code == 400
     assert "Email not found in directory" in r.text
-

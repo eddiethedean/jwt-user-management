@@ -79,7 +79,9 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
     return asgi.app  # type: ignore[return-value]
 
 
-def _seed_user(*, db_engine, email: str, password: str, full_name: str | None = None) -> int:
+def _seed_user(
+    *, db_engine, email: str, password: str, full_name: str | None = None
+) -> int:
     from app.core.security import hash_password
     from app.models import User
 
@@ -119,7 +121,10 @@ def test_account_page_shows_info_and_updates_name_and_password(tmp_path) -> None
     r0 = client.get(f"{prefix}/account", follow_redirects=False)
     assert r0.status_code == 303
     assert r0.headers["location"].startswith("login?msg=")
-    assert "next=%2Faccount" in r0.headers["location"] or "next=/account" in r0.headers["location"]
+    assert (
+        "next=%2Faccount" in r0.headers["location"]
+        or "next=/account" in r0.headers["location"]
+    )
 
     # Login creates cookie and redirects to users.
     r_login = client.post(
@@ -227,4 +232,3 @@ def test_account_page_shows_info_and_updates_name_and_password(tmp_path) -> None
     )
     assert r_new.status_code == 303
     assert r_new.headers["location"] in {"users", "../users"}
-

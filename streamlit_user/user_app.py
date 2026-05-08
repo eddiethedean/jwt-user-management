@@ -114,6 +114,7 @@ def _load_me() -> dict:
     st.session_state["_me"] = me
     return me
 
+
 # One-run flash messages (survive reruns deterministically).
 if st.session_state.pop("_flash_signed_in", False):
     st.success("Signed in")
@@ -155,7 +156,9 @@ with tab_login:
                     access_token=access_token, email=email, session_key="user_auth"
                 )
                 st.session_state["_flash_signed_in"] = True
-                st.session_state["_page"] = "Admin" if bool(_load_me().get("is_admin")) else "Users"
+                st.session_state["_page"] = (
+                    "Admin" if bool(_load_me().get("is_admin")) else "Users"
+                )
                 st.rerun()
             else:
                 show_http_error("Invalid email or password", resp)
@@ -245,10 +248,12 @@ if auth.is_authenticated:
 
     elif page == "Account":
         st.subheader("Account")
-        st.caption(f"Email: `{me.get('email','')}`")
-        st.caption(f"Country: `{me.get('country','')}`")
+        st.caption(f"Email: `{me.get('email', '')}`")
+        st.caption(f"Country: `{me.get('country', '')}`")
         with st.form("acct_name"):
-            full_name = st.text_input("Full name (optional)", value=str(me.get("full_name") or ""))
+            full_name = st.text_input(
+                "Full name (optional)", value=str(me.get("full_name") or "")
+            )
             saved = st.form_submit_button("Save")
         if saved:
             resp = _post_json("/users/me", json={"full_name": full_name})
@@ -271,7 +276,11 @@ if auth.is_authenticated:
         if ok:
             resp = _post_json(
                 "/users/me/password",
-                json={"current_password": cur, "new_password": new, "confirm_password": cfm},
+                json={
+                    "current_password": cur,
+                    "new_password": new,
+                    "confirm_password": cfm,
+                },
             )
             if resp is None:
                 st.stop()
@@ -318,7 +327,11 @@ if auth.is_authenticated:
             users = rows.get("data") if isinstance(rows.get("data"), list) else rows
             if not isinstance(users, list):
                 users = []
-            options = {f"{u.get('email','')} (id={u.get('id')})": u for u in users if isinstance(u, dict)}
+            options = {
+                f"{u.get('email', '')} (id={u.get('id')})": u
+                for u in users
+                if isinstance(u, dict)
+            }
             sel = st.selectbox("Select user", options=list(options.keys()))
             u = options.get(sel) if sel else None
             if isinstance(u, dict):
@@ -331,7 +344,11 @@ if auth.is_authenticated:
                 if save_u:
                     rr = _authed_client().patch_json(
                         f"/admin/users/{u.get('id')}",
-                        json={"full_name": fn, "is_active": active, "is_admin": admin_flag},
+                        json={
+                            "full_name": fn,
+                            "is_active": active,
+                            "is_admin": admin_flag,
+                        },
                     )
                     if rr.ok:
                         st.success("Saved")
