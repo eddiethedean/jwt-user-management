@@ -197,7 +197,7 @@ async def login_submit(
     email: str = Form(...),
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
-) -> HTMLResponse:
+) -> Response:
     bp = base_path(request)
     email_n = _norm_email(email)
     user: Optional[User] = (

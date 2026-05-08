@@ -12,11 +12,9 @@ from app.routes.password_reset import router as password_reset_router
 from app.routes.invites import router as invites_router
 from app.routes.users import router as users_router
 
-import logging
-
+from app.web.debug_panel import init_cookie_debug
 
 app = FastAPI(title="User Management API")
-log = logging.getLogger("uvicorn.error")
 
 _APP_ROOT = Path(__file__).resolve().parent
 app.mount(
@@ -30,25 +28,33 @@ app.mount(
 async def cookie_debug_middleware(request: Request, call_next):
     from app.core.config import settings
 
-    if bool(getattr(settings, "cookie_debug", False)):
-        # Debug logging (safe: no token values).
-        log.info(
-            "cookie:req method=%s path=%s root_path=%r host=%r scheme=%r xf_proto=%r connect_base_url=%r cookie_header_present=%s",
-            request.method,
-            request.url.path,
-            (request.scope.get("root_path") or ""),
-            request.headers.get("host"),
-            request.url.scheme,
-            request.headers.get("x-forwarded-proto"),
-            request.headers.get("rstudio-connect-app-base-url"),
-            bool(request.headers.get("cookie")),
+    enabled = bool(getattr(settings, "cookie_debug", False))
+    init_cookie_debug(request, enabled=enabled)
+    if enabled:
+        from app.web.debug_panel import add_cookie_debug
+
+        add_cookie_debug(
+            request,
+            "cookie:req",
+            method=request.method,
+            path=request.url.path,
+            root_path=(request.scope.get("root_path") or ""),
+            host=request.headers.get("host"),
+            scheme=request.url.scheme,
+            xf_proto=request.headers.get("x-forwarded-proto"),
+            connect_base_url=request.headers.get("rstudio-connect-app-base-url"),
+            cookie_header_present=bool(request.headers.get("cookie")),
         )
     resp = await call_next(request)
-    if bool(getattr(settings, "cookie_debug", False)):
-        set_cookie = resp.headers.get("set-cookie")
-        if set_cookie:
-            # Log presence + key attributes; do not log token itself.
-            log.info("cookie:resp set-cookie=%r", set_cookie)
+    if enabled:
+        from app.web.debug_panel import add_cookie_debug
+
+        add_cookie_debug(
+            request,
+            "cookie:resp",
+            status_code=getattr(resp, "status_code", None),
+            set_cookie_header=resp.headers.get("set-cookie"),
+        )
     return resp
 
 
