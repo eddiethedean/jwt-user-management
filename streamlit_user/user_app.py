@@ -5,6 +5,7 @@ from typing import Dict, Optional, Literal
 from urllib.parse import urlparse
 
 import httpx
+import ipaddress
 import streamlit as st
 
 try:
@@ -44,6 +45,22 @@ BACKEND_URL = os.getenv(
 ).rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
+if "_debug_logs" not in st.session_state:
+    st.session_state["_debug_logs"] = []
+
+
+def _dbg(msg: str) -> None:
+    if not isinstance(st.session_state.get("_debug_logs"), list):
+        st.session_state["_debug_logs"] = []
+    st.session_state["_debug_logs"].append(str(msg))
+
+
+def _render_debug_logs() -> None:
+    if not DEBUG:
+        return
+    with st.sidebar.expander("Debug (mounted Streamlit)", expanded=False):
+        st.code("\n".join(st.session_state.get("_debug_logs") or []))
+
 
 def _render_session_debug() -> None:
     if not DEBUG:
@@ -53,9 +70,62 @@ def _render_session_debug() -> None:
     st.sidebar.json({"authenticated": a.is_authenticated, "email": a.email or "(none)"})
 
 
+_dbg(f"env BACKEND_URL={os.getenv('BACKEND_URL')!r}")
+_dbg(f"env PORT={os.getenv('PORT')!r} BASE_PATH={os.getenv('BASE_PATH')!r}")
+_dbg(f"computed BACKEND_URL={BACKEND_URL!r}")
+
+
+def _backend_url_diagnostics(url: str) -> None:
+    """
+    Emit high-signal diagnostics for BACKEND_URL safety validation failures.
+    """
+    try:
+        p = urlparse(url)
+    except Exception as e:  # pragma: no cover
+        _dbg(f"urlparse failed: {e!r}")
+        return
+    _dbg(f"parsed scheme={p.scheme!r} netloc={p.netloc!r} host={p.hostname!r} port={p.port!r}")
+    host = p.hostname or ""
+    if host.lower() in {"localhost", "testserver"}:
+        _dbg("host is localhost/testserver (allowed)")
+        return
+
+    try:
+        ip = ipaddress.ip_address(host)
+        _dbg(
+            "host is ip "
+            + f"loopback={ip.is_loopback} private={ip.is_private} link_local={ip.is_link_local} reserved={ip.is_reserved}"
+        )
+        return
+    except ValueError:
+        pass
+
+    try:
+        import socket
+
+        infos = socket.getaddrinfo(host, p.port or 443, type=socket.SOCK_STREAM)
+        addrs = sorted({i[4][0] for i in infos})
+        _dbg(f"resolved addrs={addrs!r}")
+        for addr in addrs:
+            try:
+                ip = ipaddress.ip_address(addr)
+            except ValueError:
+                _dbg(f"addr not ip: {addr!r}")
+                continue
+            _dbg(
+                f"addr={addr} loopback={ip.is_loopback} private={ip.is_private} link_local={ip.is_link_local} reserved={ip.is_reserved}"
+            )
+    except Exception as e:
+        _dbg(f"getaddrinfo failed: {e!r}")
+
+
 try:
     validate_backend_url(BACKEND_URL)
+    _dbg("validate_backend_url: ok")
 except ValueError as e:
+    _dbg(f"validate_backend_url: error={str(e)!r}")
+    _backend_url_diagnostics(BACKEND_URL)
+    _render_debug_logs()
     st.error(str(e))
     st.stop()
 
@@ -66,18 +136,24 @@ client = BackendClient(base_url=BACKEND_URL)
 # public host/prefix. Fail silently so local dev isn't impacted.
 if "_external_api_base" not in st.session_state:
     try:
-        r_meta = httpx.get(f"{BACKEND_URL}/__meta", timeout=5)
+        meta_url = f"{BACKEND_URL}/__meta"
+        _dbg(f"meta fetch {meta_url!r}")
+        r_meta = httpx.get(meta_url, timeout=5)
+        _dbg(f"meta status={r_meta.status_code}")
         if r_meta.status_code < 300:
             j = r_meta.json()
+            _dbg(f"meta json keys={sorted(list(j.keys()))!r}")
             ext_api = str(j.get("external_api_base") or "").rstrip("/")
             if ext_api:
                 st.session_state["_external_api_base"] = ext_api
     except Exception:
-        pass
+        _dbg("meta fetch failed")
 
 PUBLIC_API_BASE = str(st.session_state.get("_external_api_base") or BACKEND_URL).rstrip(
     "/"
 )
+_dbg(f"PUBLIC_API_BASE={PUBLIC_API_BASE!r}")
+_render_debug_logs()
 
 if st.session_state.pop("_sign_out_clicked", False):
     logout(session_key="user_auth")
