@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from fastapi_workbench import base_path as wb_base_path, external_base
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.password_reset import router as password_reset_router
@@ -98,6 +99,27 @@ app.include_router(admin_router)
 app.include_router(invites_router)
 app.include_router(password_reset_router)
 app.include_router(users_router)
+
+
+@app.get("/__meta", include_in_schema=False)
+async def meta(request: Request) -> JSONResponse:
+    """
+    Small metadata endpoint intended for the mounted Streamlit UI.
+
+    It returns the externally-visible base URL (using fastapi_workbench’s proxy
+    detection) along with the normalized base path. This lets UIs compute
+    correct URLs without guessing.
+    """
+
+    bp = wb_base_path(request)
+    return JSONResponse(
+        {
+            "ok": True,
+            "base_path": bp,
+            "external_base": external_base(request),
+            "external_api_base": external_base(request) + (bp or ""),
+        }
+    )
 
 
 @app.get("/", include_in_schema=False)

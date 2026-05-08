@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, Optional, Literal
+from urllib.parse import urlparse
 
 import httpx
 import streamlit as st
@@ -36,7 +37,11 @@ load_dotenv()
 st.set_page_config(page_title="User Management", layout="centered")
 st.title("User Management")
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001").rstrip("/")
+_default_port = (os.getenv("PORT") or "8001").strip()
+_default_base_path = (os.getenv("BASE_PATH") or "").rstrip("/")
+BACKEND_URL = os.getenv(
+    "BACKEND_URL", f"http://localhost:{_default_port}{_default_base_path}"
+).rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
 
@@ -55,6 +60,24 @@ except ValueError as e:
     st.stop()
 
 client = BackendClient(base_url=BACKEND_URL)
+
+# Try to discover the externally-visible base URL from the backend (when the UI
+# is mounted under FastAPI behind Workbench/Connect). This avoids guessing the
+# public host/prefix. Fail silently so local dev isn't impacted.
+if "_external_api_base" not in st.session_state:
+    try:
+        r_meta = httpx.get(f"{BACKEND_URL}/__meta", timeout=5)
+        if r_meta.status_code < 300:
+            j = r_meta.json()
+            ext_api = str(j.get("external_api_base") or "").rstrip("/")
+            if ext_api:
+                st.session_state["_external_api_base"] = ext_api
+    except Exception:
+        pass
+
+PUBLIC_API_BASE = str(st.session_state.get("_external_api_base") or BACKEND_URL).rstrip(
+    "/"
+)
 
 if st.session_state.pop("_sign_out_clicked", False):
     logout(session_key="user_auth")
@@ -97,6 +120,35 @@ def _get_page() -> AuthedPage:
 
 def _authed_client() -> BackendClient:
     return BackendClient(base_url=BACKEND_URL, access_token=auth.access_token)
+
+
+def _public_url(url: str) -> str:
+    """
+    Normalize a URL for display/copy so it uses the externally-visible base.
+
+    The backend typically returns absolute links already (via PUBLIC_BASE_URL),
+    but in mounted/proxied environments it’s safer to re-base same-origin URLs
+    onto PUBLIC_API_BASE for a user to click/copy.
+    """
+
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("/"):
+        return f"{PUBLIC_API_BASE}{raw}"
+    try:
+        p = urlparse(raw)
+    except Exception:
+        return raw
+    if p.scheme in {"http", "https"} and p.netloc:
+        # Same-origin -> re-base.
+        try:
+            cur = urlparse(PUBLIC_API_BASE)
+            if cur.scheme in {"http", "https"} and cur.netloc and p.netloc == cur.netloc:
+                return f"{PUBLIC_API_BASE}{p.path or ''}" + (f"?{p.query}" if p.query else "")
+        except Exception:
+            return raw
+    return raw
 
 
 def _load_me() -> dict:
@@ -276,6 +328,7 @@ if auth.is_authenticated:
         st.sidebar.button("Admin", on_click=_set_page, args=("Admin",))
 
     st.sidebar.divider()
+    st.sidebar.link_button("API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True)
     country = str(me.get("country") or "").strip()
     who = f"{auth.email}" + (f" ({country})" if country else "")
     st.sidebar.caption(f"Signed in as `{who}`")
@@ -381,7 +434,7 @@ if auth.is_authenticated:
                 if r2.ok:
                     j = safe_json(r2)
                     st.success("Invite created")
-                    st.code(str(j.get("invite_url") or ""))
+                    st.code(_public_url(str(j.get("invite_url") or "")))
                 else:
                     show_http_error("Invite failed", r2)
 
@@ -434,6 +487,7 @@ if auth.is_authenticated:
                         show_http_error("Delete failed", resp_del)
 else:
     st.sidebar.subheader("Navigation")
+    st.sidebar.link_button("API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True)
     public_page: PublicPage = st.sidebar.radio(
         "Go to",
         options=["Login", "Register", "Accept invite", "Reset password"],

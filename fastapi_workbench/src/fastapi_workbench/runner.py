@@ -98,6 +98,13 @@ def start_app(
     if external_host_url and not (os.environ.get("PUBLIC_BASE_URL") or "").strip():
         os.environ["PUBLIC_BASE_URL"] = external_host_url
 
+    # Expose the chosen host/port and inferred prefix to child code (e.g. a UI
+    # mounted inside this process) so it can build same-process URLs.
+    os.environ["HOST"] = host
+    os.environ["PORT"] = str(port)
+    if root_path and not explicit_base_path:
+        os.environ.setdefault("BASE_PATH", root_path)
+
     docs_url: str
     if external_base_is_full_url:
         docs_url = f"{external_base_url}/docs"

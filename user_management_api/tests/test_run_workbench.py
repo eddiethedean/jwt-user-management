@@ -83,6 +83,9 @@ def test_start_app_workbench_prefix_only(monkeypatch) -> None:
     monkeypatch.setenv("RS_SERVER_URL", "1")
     monkeypatch.delenv("BASE_PATH", raising=False)
     monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("PORT", raising=False)
+    monkeypatch.delenv("HOST", raising=False)
+    monkeypatch.delenv("RELOAD", raising=False)
 
     run_workbench.start_app(open_with_browser=True)
 
