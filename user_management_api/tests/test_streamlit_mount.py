@@ -29,7 +29,8 @@ def test_asgi_mounts_streamlit_under_app_if_available() -> None:
     r_docs = client.get("/docs")
     assert r_docs.status_code == 200
 
-    # Streamlit may respond with 200 or a redirect to a trailing-slash path.
-    r = client.get("/app", follow_redirects=False)
+    # Mounts do not match the bare `/app` path; they match `/app/` and deeper.
+    # `/app/` should respond with a page or a redirect (depending on Streamlit).
+    r = client.get("/app/", follow_redirects=False)
     assert r.status_code in {200, 301, 302, 307, 308}
 
