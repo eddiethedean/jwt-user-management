@@ -238,13 +238,23 @@ async def login_submit(
     # response doesn't render. When COOKIE_DEBUG=true, show a one-hop page that
     # displays debug info then navigates.
     if bool(getattr(settings, "cookie_debug", False)):
-        resp = templates.TemplateResponse(
-            request,
-            "debug_redirect.html",
-            {"request": request, "base_path": bp, "dest": bp + dest},
-            status_code=200,
-        )
+        dest_full = bp + dest
+        # Important: TemplateResponse may render immediately, so use an explicit
+        # response object, set cookies first (to populate debug logs), then render.
+        resp = HTMLResponse(content="", status_code=200)
         set_auth_cookie(resp, request=request, token=token)
+        logs = getattr(request.state, "cookie_debug_logs", None)
+        if not isinstance(logs, list):
+            logs = []
+        body = templates.get_template("debug_redirect.html").render(
+            {
+                "request": request,
+                "base_path": bp,
+                "dest": dest_full,
+                "cookie_debug_logs": logs,
+            }
+        )
+        resp.body = body.encode("utf-8")
         return resp
 
     resp = safe_redirect(request, dest, status_code=303)
