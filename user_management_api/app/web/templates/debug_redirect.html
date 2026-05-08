@@ -3,7 +3,7 @@
 {% block body %}
   <div class="card">
     <h2>Redirecting…</h2>
-    <p class="muted">Cookie debug is enabled, so this page is showing what the server tried to do before navigating.</p>
+    <p class="muted">Cookie debug is enabled, so this page is showing what the server tried to do. It will <strong>not</strong> auto-redirect; click Continue when you’re done copying the log.</p>
 
     <h3>Destination</h3>
     <pre>{{ dest }}</pre>
@@ -16,12 +16,5 @@
       <a class="navLink navLink--active" href="{{ dest }}" style="display: inline-flex;">Continue</a>
     </div>
   </div>
-
-  <script>
-    // Auto-continue quickly so behavior matches a redirect.
-    setTimeout(function () {
-      try { window.location.assign({{ dest|tojson }}); } catch (e) { window.location.href = {{ dest|tojson }}; }
-    }, 250);
-  </script>
 {% endblock %}
 
