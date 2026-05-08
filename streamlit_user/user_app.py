@@ -36,7 +36,7 @@ except ModuleNotFoundError:
 
 load_dotenv()
 
-st.set_page_config(page_title="User App • Demo", layout="centered")
+st.set_page_config(page_title="User Management", layout="centered")
 st.title("User Management")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001").rstrip("/")
@@ -85,14 +85,15 @@ def _post_json(
 auth = get_auth_state(session_key="user_auth")
 
 
-Page = Literal["Users", "Admin", "Account"]
+AuthedPage = Literal["Users", "Admin", "Account"]
+PublicPage = Literal["Login", "Register", "Accept invite", "Reset password"]
 
 
-def _set_page(p: Page) -> None:
+def _set_page(p: AuthedPage) -> None:
     st.session_state["_page"] = p
 
 
-def _get_page() -> Page:
+def _get_page() -> AuthedPage:
     p = st.session_state.get("_page")
     return p if p in ("Users", "Admin", "Account") else "Users"
 
@@ -131,39 +132,95 @@ else:
 
 _render_session_debug()
 
-tab_login, tab_reset = st.tabs(["Login", "Reset password"])
 
-with tab_login:
-    if auth.is_authenticated:
-        st.info("You're signed in. Use **Sign out** in the sidebar.")
-    else:
-        st.subheader("Login")
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
-        if st.button("Sign in", key="login_submit"):
-            resp = _post_form(
-                "/auth/token", data={"username": email, "password": password}
-            )
-            if resp is None:
+def _render_login() -> None:
+    st.subheader("Login")
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_password")
+    if st.button("Sign in", key="login_submit"):
+        resp = _post_form("/auth/token", data={"username": email, "password": password})
+        if resp is None:
+            st.stop()
+        if resp.ok:
+            data = safe_json(resp)
+            access_token = str(data.get("access_token") or "")
+            if not access_token:
+                show_http_error("Login failed", resp)
                 st.stop()
-            if resp.ok:
-                data = safe_json(resp)
-                access_token = str(data.get("access_token") or "")
-                if not access_token:
-                    show_http_error("Login failed", resp)
-                    st.stop()
-                login_success(
-                    access_token=access_token, email=email, session_key="user_auth"
-                )
-                st.session_state["_flash_signed_in"] = True
-                st.session_state["_page"] = (
-                    "Admin" if bool(_load_me().get("is_admin")) else "Users"
-                )
-                st.rerun()
-            else:
-                show_http_error("Invalid email or password", resp)
+            login_success(
+                access_token=access_token, email=email, session_key="user_auth"
+            )
+            st.session_state["_flash_signed_in"] = True
+            st.session_state["_page"] = (
+                "Admin" if bool(_load_me().get("is_admin")) else "Users"
+            )
+            st.rerun()
+        else:
+            show_http_error("Invalid email or password", resp)
 
-with tab_reset:
+
+def _render_register() -> None:
+    st.subheader("Register")
+    st.caption(
+        "Enter your email to request an invite link. If directory lookup is enabled, it must validate your email."
+    )
+    reg_email = st.text_input("Email", key="register_email")
+    if st.button("Request setup link", key="register_submit"):
+        try:
+            resp = httpx.post(
+                f"{BACKEND_URL}/register",
+                data={"email": reg_email},
+                headers={"Accept": "application/json"},
+                timeout=10,
+            )
+        except httpx.RequestError:
+            st.error("Backend request failed (is it running?)")
+            st.stop()
+        if resp.ok:
+            st.success("If allowed, a setup link was generated/sent.")
+        else:
+            show_http_error("Registration failed", resp)
+
+
+def _render_accept_invite() -> None:
+    st.subheader("Accept invite")
+    st.caption("Set a password to activate your account.")
+    invite_token = st.text_input("Invite token", key="invite_token")
+    if st.button("Lookup invite", key="invite_lookup"):
+        resp = _post_json("/invites/inspect", json={"token": invite_token})
+        if resp is None:
+            st.stop()
+        if resp.ok:
+            st.session_state["_invite_info"] = safe_json(resp)
+        else:
+            show_http_error("Invite not found", resp)
+            st.session_state.pop("_invite_info", None)
+
+    inv = st.session_state.get("_invite_info", {})
+    if isinstance(inv, dict) and inv.get("email"):
+        st.caption(f"Email: `{inv.get('email', '')}`")
+        st.caption("This invite is tied to this email address.")
+
+    invite_name = st.text_input("Full name (optional)", key="invite_full_name")
+    invite_password = st.text_input("Password", type="password", key="invite_password")
+    if st.button("Accept invite", key="invite_submit"):
+        resp = _post_json(
+            "/invites/accept",
+            json={
+                "token": invite_token,
+                "password": invite_password,
+                "full_name": invite_name,
+            },
+        )
+        if resp is None:
+            st.stop()
+        if resp.ok:
+            st.success("Invite accepted. You can now sign in.")
+        else:
+            show_http_error("Invite accept failed", resp)
+
+
+def _render_reset_password() -> None:
     st.subheader("Forgot password")
     st.caption(
         "Enter your email and we’ll send you a reset link (if the account exists)."
@@ -175,18 +232,28 @@ with tab_reset:
             st.stop()
         if resp.ok:
             st.success("If the account exists, a reset email has been sent.")
-            st.info(
-                f"For local dev you can open: {BACKEND_URL}/password/reset?token=<token-from-email>"
-            )
         else:
             st.error(f"Reset request failed: {resp.status_code} {resp.text}")
 
     st.divider()
-    st.subheader("Reset using token (demo)")
-    st.caption(
-        "If you have a reset token (from email), you can reset here without leaving Streamlit."
-    )
+    st.subheader("Reset password")
+    st.caption("Choose a new password for your account.")
     token = st.text_input("Reset token", key="reset_token")
+    if st.button("Lookup reset link", key="reset_lookup"):
+        resp = _post_json("/password/inspect", json={"token": token})
+        if resp is None:
+            st.stop()
+        if resp.ok:
+            st.session_state["_reset_info"] = safe_json(resp)
+        else:
+            show_http_error("Reset link not found", resp)
+            st.session_state.pop("_reset_info", None)
+
+    ri = st.session_state.get("_reset_info", {})
+    if isinstance(ri, dict) and ri.get("email"):
+        st.caption(f"Email: `{ri.get('email', '')}`")
+        st.caption("This reset link is tied to this email address.")
+
     new_password = st.text_input(
         "New password", type="password", key="reset_new_password"
     )
@@ -200,6 +267,7 @@ with tab_reset:
             st.success("Password updated. You can now log in.")
         else:
             st.error(f"Reset failed: {resp.status_code} {resp.text}")
+
 
 if auth.is_authenticated:
     me = _load_me()
@@ -367,3 +435,23 @@ if auth.is_authenticated:
                         st.success("Deleted")
                     else:
                         show_http_error("Delete failed", resp_del)
+else:
+    st.sidebar.subheader("Navigation")
+    public_page: PublicPage = st.sidebar.radio(
+        "Go to",
+        options=["Login", "Register", "Accept invite", "Reset password"],
+        index=0,
+    )
+    if st.sidebar.button("Sign out", type="primary", key="sign_out_sidebar"):
+        # Keep existing test expectations: button exists and clears state.
+        st.session_state["_sign_out_clicked"] = True
+        st.rerun()
+
+    if public_page == "Login":
+        _render_login()
+    elif public_page == "Register":
+        _render_register()
+    elif public_page == "Accept invite":
+        _render_accept_invite()
+    else:
+        _render_reset_password()

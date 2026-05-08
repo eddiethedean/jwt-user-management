@@ -2,20 +2,17 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_external_redirect, safe_redirect
 from app.core.security import decode_token, hash_password, verify_password
 from app.db import get_db
 from app.models import User
-from app.web.session import get_auth_token, set_auth_cookie
-from app.web.templates import templates
 
 
 router = APIRouter(tags=["users"])
@@ -101,73 +98,13 @@ async def change_my_password(
     return {"ok": True}
 
 
-@router.get("/users", response_class=Response)
+@router.get("/users")
 async def users(
-    request: Request,
-    token: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-) -> Response:
-    """
-    One route with two modes:\n+    - HTML mode: uses the HttpOnly cookie (or legacy `?token=...`).\n+    - JSON mode: provide `Authorization: Bearer <token>`.\n+"""
-    bp = base_path(request)
-
-    if token:
-        # Promote legacy/demo URL token into the cookie and clean up the URL.
-        try:
-            payload: dict[str, Any] = decode_token(token)
-            user_id = int(payload.get("sub") or 0)
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user = (await db.exec(select(User).where(User.id == user_id))).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        resp = safe_external_redirect(
-            request,
-            "/users",
-            status_code=303,
-        )
-        set_auth_cookie(resp, request=request, token=token)
-        return resp
-
-    cookie_token = get_auth_token(request)
-    if cookie_token:
-        try:
-            payload = decode_token(cookie_token)
-            user_id = int(payload.get("sub") or 0)
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user = (await db.exec(select(User).where(User.id == user_id))).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        users = (await db.exec(select(User).order_by(text("id")))).all()
-        return templates.TemplateResponse(
-            request,
-            "users.html",
-            {
-                "request": request,
-                "users": users,
-                "email": user.email,
-                "session_email": user.email,
-                "is_admin": bool(getattr(user, "is_admin", False)),
-                "base_path": bp,
-            },
-        )
-
+) -> JSONResponse:
     if not creds:
-        # Browser navigation (e.g. clicking "Users" in the navbar) should go to login.
-        # Keep JSON 401 for API callers.
-        accept = (request.headers.get("accept") or "").lower()
-        wants_html = ("text/html" in accept) or ("*/*" in accept) or not accept
-        if wants_html:
-            return safe_redirect(
-                request,
-                "/login?msg=Please%20log%20in%20to%20view%20Users.&next=/users",
-                status_code=303,
-            )
-        raise HTTPException(
-            status_code=401, detail="Provide Authorization: Bearer <token>"
-        )
+        raise HTTPException(status_code=401, detail="Missing bearer token")
     _ = await get_current_user(db=db, creds=creds)
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(

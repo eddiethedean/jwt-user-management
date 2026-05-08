@@ -24,12 +24,11 @@ class _Resp:
         return self._json_data
 
 
-def _input_text(at: AppTest, label: str, value: str, key_contains: str) -> None:
-    matches = [t for t in at.text_input if getattr(t, "label", None) == label]
-    matches = [t for t in matches if key_contains in (getattr(t, "key", "") or "")]
+def _text_input_by_key(at: AppTest, key: str):
+    matches = [t for t in at.text_input if getattr(t, "key", None) == key]
     if not matches:
-        raise AssertionError(f"Text input not found: {label!r} ({key_contains=})")
-    matches[0].input(value)
+        raise AssertionError(f"Text input not found for key={key!r}")
+    return matches[0]
 
 
 def _click_button(at: AppTest, label: str) -> None:
@@ -38,6 +37,13 @@ def _click_button(at: AppTest, label: str) -> None:
             b.click()
             return
     raise AssertionError(f"Button not found: {label}")
+
+
+def _set_public_page(at: AppTest, page: str) -> None:
+    matches = [r for r in at.radio if getattr(r, "label", None) == "Go to"]
+    if not matches:
+        raise AssertionError("Public navigation radio not found")
+    matches[0].set_value(page)
 
 
 def test_login_invalid_credentials_shows_error(monkeypatch):
@@ -52,10 +58,11 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
-    _input_text(at, "Email", "bad@test.local", "login_email")
-    _input_text(at, "Password", "wrong", "login_password")
+    _text_input_by_key(at, "login_email").input("bad@test.local")
+    _text_input_by_key(at, "login_password").input("wrong")
     _click_button(at, "Sign in")
     at.run()
+    assert not at.exception
 
     assert "access_token" not in at.session_state
     assert len(at.error) >= 1
@@ -76,15 +83,18 @@ def test_sign_out_clears_username_and_token(monkeypatch):
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30)
     at.run()
-    _input_text(at, "Email", "user@test.local", "login_email")
-    _input_text(at, "Password", "pw", "login_password")
+    assert not at.exception
+    _text_input_by_key(at, "login_email").input("user@test.local")
+    _text_input_by_key(at, "login_password").input("pw")
     _click_button(at, "Sign in")
     at.run()
+    assert not at.exception
     assert at.session_state["access_token"] == "tok"
     assert at.session_state["username"] == "user@test.local"
 
     _click_button(at, "Sign out")
     at.run()
+    assert not at.exception
     assert "access_token" not in at.session_state
     assert "username" not in at.session_state
     assert "_me" not in at.session_state
@@ -100,9 +110,14 @@ def test_forgot_password_shows_error_when_backend_fails(monkeypatch):
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(ok=True, json_data={}))
 
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
-    _input_text(at, "Email", "x@test.local", "forgot_email")
+    assert not at.exception
+    _set_public_page(at, "Reset password")
+    at.run()
+    assert not at.exception
+    _text_input_by_key(at, "forgot_email").input("x@test.local")
     _click_button(at, "Send reset link")
     at.run()
+    assert not at.exception
 
     assert len(at.error) >= 1
     assert "503" in at.error[0].value or "failed" in at.error[0].value.lower()

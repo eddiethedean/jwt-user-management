@@ -4,21 +4,19 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, external_url, safe_external_redirect
+from fastapi_workbench import external_url
 from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
-from app.web.templates import templates
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
@@ -149,37 +147,31 @@ async def lookup_invite_email(
     }
 
 
-@router.get("/accept", response_class=HTMLResponse, include_in_schema=False)
-async def accept_invite_page(
-    request: Request, token: str, db: AsyncSession = Depends(get_db)
-) -> HTMLResponse:
-    bp = base_path(request)
+@router.post("/inspect")
+async def inspect_invite_token(
+    payload: dict = Body(...), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Helper endpoint for non-HTML clients (e.g. Streamlit) to display the
+    email bound to an invite token, matching the HTML accept page behavior.
+    """
+    token = str(payload.get("token") or "")
+    if not token:
+        raise HTTPException(status_code=422, detail="token is required")
+
     token_hash = InviteToken.hash_token(token)
     invite: Optional[InviteToken] = (
         await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
     ).first()
     if not invite:
-        return templates.TemplateResponse(
-            request,
-            "accept_invite.html",
-            {
-                "request": request,
-                "token": token,
-                "error": "Invite not found",
-                "base_path": bp,
-            },
-            status_code=404,
-        )
-    return templates.TemplateResponse(
-        request,
-        "accept_invite.html",
-        {
-            "request": request,
-            "token": token,
-            "invite_email": invite.email,
-            "base_path": bp,
-        },
-    )
+        raise HTTPException(status_code=404, detail="Invite not found")
+    return {
+        "ok": True,
+        "email": invite.email,
+        "expires_at": invite.expires_at,
+        "used_at": invite.used_at,
+        "grant_admin": bool(invite.grant_admin),
+    }
 
 
 async def _accept(
@@ -233,45 +225,6 @@ async def _accept(
     invite.used_at = now
     db.add(invite)
     await db.commit()
-
-
-@router.post("/accept-form", response_class=HTMLResponse, include_in_schema=False)
-async def accept_invite_form(
-    request: Request,
-    token: str = Form(...),
-    full_name: Optional[str] = Form(default=None),
-    password: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    bp = base_path(request)
-    try:
-        await _accept(db=db, token=token, password=password, full_name=full_name)
-    except HTTPException as e:
-        token_hash = InviteToken.hash_token(token)
-        invite: Optional[InviteToken] = (
-            await db.exec(
-                select(InviteToken).where(InviteToken.token_hash == token_hash)
-            )
-        ).first()
-        return templates.TemplateResponse(
-            request,
-            "accept_invite.html",
-            {
-                "request": request,
-                "token": token,
-                "invite_email": invite.email if invite else "",
-                "error": e.detail,
-                "base_path": bp,
-            },
-            status_code=e.status_code,
-        )
-    # Use a full external URL so Workbench doesn't rewrite it to /proxy/<port>/...
-    # and so the browser doesn't resolve relative paths incorrectly.
-    return safe_external_redirect(
-        request,
-        "/login",
-        status_code=303,
-    )
 
 
 @router.post("/accept")

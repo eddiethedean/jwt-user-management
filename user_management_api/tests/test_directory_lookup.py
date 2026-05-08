@@ -200,15 +200,20 @@ def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> N
     monkeypatch.setattr(directory.httpx, "get", lambda *a, **k: _Resp(status_code=404))
 
     client = TestClient(app, base_url="http://testserver")
-    r_login = client.post(
-        "/login",
-        data={"email": "admin@example.com", "password": "admin123"},
-        follow_redirects=False,
+
+    # Authenticate as admin using the API token endpoint.
+    r_token = client.post(
+        "/auth/token",
+        data={"username": "admin@example.com", "password": "admin123"},
     )
-    assert r_login.status_code == 303
+    assert r_token.status_code == 200
+    token = r_token.json().get("access_token")
+    assert token
 
     r = client.post(
-        "/admin/invite", data={"email": "nobody@example.com"}, follow_redirects=False
+        "/invites",
+        json={"email": "nobody@example.com", "grant_admin": False},
+        headers={"Authorization": f"Bearer {token}"},
     )
-    assert r.status_code == 400
-    assert "Email not found in directory" in r.text
+    assert r.status_code == 422
+    assert "email not found in directory" in r.text.lower()

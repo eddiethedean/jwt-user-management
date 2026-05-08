@@ -3,7 +3,7 @@
 This repo contains:
 
 - `user_management_api/`: **Bare-bones FastAPI + SQLModel + Alembic** backend with **JWT auth** and **simple HTML forms** (register/login/users page).
-- `streamlit_user/`: Streamlit demo that logs in against the backend.
+- `streamlit_user/`: Streamlit UI that logs in against the backend (**recommended UI for Connect deployments**).
 - `e2e/`: Browser E2E tests (Playwright).
 - `fastapi_workbench/`: Reusable helpers for Posit Workbench / RStudio Server proxy prefixes.
 
@@ -52,6 +52,13 @@ streamlit run app.py --server.port 8502
 ```
 
 User demo: `http://localhost:8502`
+
+## Posit Connect note (HTML UI vs Streamlit)
+
+The backend originally shipped with a server-rendered HTML UI (cookie-based session via `Set-Cookie`).
+When deployed to **Posit Connect**, that HTML UI proved unreliable because browsers would not persist the app’s login cookie in the Connect embedded context. We attempted standard mitigations (e.g. `SameSite=None; Secure`, legacy cookies), but cookie persistence still failed.
+
+As a result, we recommend deploying the **Streamlit UI** (`streamlit_user/`) on Connect instead. Streamlit keeps the JWT in server-side session state and avoids browser cookie persistence issues.
 
 ## Environment
 

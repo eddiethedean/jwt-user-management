@@ -54,3 +54,7 @@ infra/**/certs/*.pfx
 
 # Deleted CAC nginx stack left local tmp artifacts
 infra/cac-nginx/certs/tmp/
+
+# Local Posit Connect docs
+connect_config.txt
+connect_security.txt

@@ -5,6 +5,10 @@ Minimal FastAPI + SQLModel + Alembic app with:
 - **JWT auth**: obtain token via form login or API token endpoint
 - **SQLite** persistence
 
+## Posit Connect note (HTML UI)
+
+This backend includes a legacy HTML UI, but when deployed to **Posit Connect** the browser often does **not** persist the login cookie in the embedded Connect context. For Connect deployments, prefer the **Streamlit UI** in `../streamlit_user/` (JWT stored in Streamlit session state).
+
 ## Run locally
 
 Prereqs: **Python 3.10+**.

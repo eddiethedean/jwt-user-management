@@ -1,6 +1,4 @@
 import os
-from typing import Optional
-
 import pytest
 import httpx
 from streamlit.testing.v1 import AppTest
@@ -25,16 +23,11 @@ class _Resp:
         return self._json_data
 
 
-def _input_text(
-    at: AppTest, label: str, value: str, key_contains: Optional[str] = None
-) -> None:
-    # Match by label; if ambiguous, filter by key substring when available
-    matches = [t for t in at.text_input if getattr(t, "label", None) == label]
-    if key_contains:
-        matches = [t for t in matches if key_contains in (getattr(t, "key", "") or "")]
+def _text_input_by_key(at: AppTest, key: str):
+    matches = [t for t in at.text_input if getattr(t, "key", None) == key]
     if not matches:
-        raise AssertionError(f"Text input not found: {label}")
-    matches[0].input(value)
+        raise AssertionError(f"Text input not found for key={key!r}")
+    return matches[0]
 
 
 def _click_button(at: AppTest, label: str) -> None:
@@ -43,6 +36,13 @@ def _click_button(at: AppTest, label: str) -> None:
             b.click()
             return
     raise AssertionError(f"Button not found: {label}")
+
+
+def _set_public_page(at: AppTest, page: str) -> None:
+    matches = [r for r in at.radio if getattr(r, "label", None) == "Go to"]
+    if not matches:
+        raise AssertionError("Public navigation radio not found")
+    matches[0].set_value(page)
 
 
 def test_login_success_sets_session(monkeypatch):
@@ -65,10 +65,11 @@ def test_login_success_sets_session(monkeypatch):
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
-    _input_text(at, "Email", "user@test.local", key_contains="login_email")
-    _input_text(at, "Password", "pw", key_contains="login_password")
+    _text_input_by_key(at, "login_email").input("user@test.local")
+    _text_input_by_key(at, "login_password").input("pw")
     _click_button(at, "Sign in")
     at.run()
+    assert not at.exception
 
     assert "access_token" in at.session_state
     assert at.session_state["access_token"] == "tok"
@@ -89,10 +90,14 @@ def test_forgot_password_shows_non_enumerating_message(monkeypatch):
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
-    # Switch to "Reset password" tab; AppTest runs all tabs but widgets exist.
-    _input_text(at, "Email", "user@test.local", key_contains="forgot_email")
+    _set_public_page(at, "Reset password")
+    at.run()
+    assert not at.exception
+
+    _text_input_by_key(at, "forgot_email").input("user@test.local")
     _click_button(at, "Send reset link")
     at.run()
+    assert not at.exception
 
     assert any("reset email has been sent" in s.value.lower() for s in at.success)
 
@@ -112,15 +117,17 @@ def test_sign_out_clears_session_state(monkeypatch):
     at.run()
     assert not at.exception
 
-    _input_text(at, "Email", "user@test.local", key_contains="login_email")
-    _input_text(at, "Password", "pw", key_contains="login_password")
+    _text_input_by_key(at, "login_email").input("user@test.local")
+    _text_input_by_key(at, "login_password").input("pw")
     _click_button(at, "Sign in")
     at.run()
+    assert not at.exception
     assert "access_token" in at.session_state
     assert at.session_state["access_token"] == "tok"
 
     _click_button(at, "Sign out")
     at.run()
+    assert not at.exception
     assert (
         "access_token" not in at.session_state
         or at.session_state["access_token"] is None
@@ -137,10 +144,11 @@ def test_login_backend_request_exception_is_shown(monkeypatch):
     at = AppTest.from_file(USER_APP_PY, default_timeout=30).run()
     assert not at.exception
 
-    _input_text(at, "Email", "user@test.local", key_contains="login_email")
-    _input_text(at, "Password", "pw", key_contains="login_password")
+    _text_input_by_key(at, "login_email").input("user@test.local")
+    _text_input_by_key(at, "login_password").input("pw")
     _click_button(at, "Sign in")
     at.run()
+    assert not at.exception
 
     assert len(at.error) >= 1
     assert "Backend request failed" in at.error[0].value
