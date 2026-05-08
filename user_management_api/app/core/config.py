@@ -27,6 +27,8 @@ class Settings(BaseSettings):
         None  # None => infer from request scheme/forwarded proto
     )
     auth_cookie_domain: str = ""  # optional; usually leave blank
+    # Some browsers require Partitioned cookies (CHIPS) for embedded apps.
+    auth_cookie_partitioned: bool = False
 
     # SMTP (optional). If SMTP_HOST and SMTP_FROM_EMAIL are unset, email sending is disabled.
     smtp_host: str = ""

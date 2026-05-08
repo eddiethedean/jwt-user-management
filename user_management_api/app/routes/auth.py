@@ -246,6 +246,9 @@ async def login_submit(
         logs = getattr(request.state, "cookie_debug_logs", None)
         if not isinstance(logs, list):
             logs = []
+        logs.append(
+            f"cookie:set_cookie_header | value={resp.headers.get('set-cookie')!r}"
+        )
         body = templates.get_template("debug_redirect.html").render(
             {
                 "request": request,

@@ -88,6 +88,7 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
         name=AUTH_COOKIE_NAME,
         secure=secure,
         samesite=samesite,
+        partitioned=bool(getattr(settings, "auth_cookie_partitioned", False)),
         domain=domain,
         path=path,
         url=str(request.url),
@@ -101,6 +102,7 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
         samesite=samesite,
         path=path,
         domain=domain,
+        partitioned=bool(getattr(settings, "auth_cookie_partitioned", False)),
     )
 
 
