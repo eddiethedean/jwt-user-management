@@ -40,9 +40,11 @@ st.title("User Management")
 
 _default_port = (os.getenv("PORT") or "8001").strip()
 _default_base_path = (os.getenv("BASE_PATH") or "").rstrip("/")
-BACKEND_URL = os.getenv(
-    "BACKEND_URL", f"http://localhost:{_default_port}{_default_base_path}"
-).rstrip("/")
+_default_backend_url = f"http://localhost:{_default_port}{_default_base_path}".rstrip(
+    "/"
+)
+_env_backend_url = os.getenv("BACKEND_URL")
+BACKEND_URL = str(_env_backend_url or _default_backend_url).rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
 if "_debug_logs" not in st.session_state:
@@ -125,9 +127,23 @@ try:
 except ValueError as e:
     _dbg(f"validate_backend_url: error={str(e)!r}")
     _backend_url_diagnostics(BACKEND_URL)
-    _render_debug_logs()
-    st.error(str(e))
-    st.stop()
+    # If an explicit BACKEND_URL is set but fails validation (common on enterprise
+    # networks where public hostnames resolve to RFC1918 addresses), fall back
+    # to the same-process backend URL used for the FastAPI-mounted Streamlit app.
+    if _env_backend_url:
+        _dbg(f"attempting fallback BACKEND_URL={_default_backend_url!r}")
+        try:
+            validate_backend_url(_default_backend_url)
+        except ValueError as e2:
+            _dbg(f"fallback validate_backend_url failed: {str(e2)!r}")
+        else:
+            BACKEND_URL = _default_backend_url
+            _dbg("fallback validate_backend_url: ok; continuing with localhost backend")
+    if BACKEND_URL != _default_backend_url and _env_backend_url:
+        # Still failing after fallback attempt.
+        _render_debug_logs()
+        st.error(str(e))
+        st.stop()
 
 client = BackendClient(base_url=BACKEND_URL)
 
