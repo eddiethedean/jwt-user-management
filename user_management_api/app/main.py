@@ -12,7 +12,13 @@ from app.routes.password_reset import router as password_reset_router
 from app.routes.invites import router as invites_router
 from app.routes.users import router as users_router
 
-from app.web.debug_panel import init_cookie_debug
+from typing import Literal, cast
+
+from app.web.debug_panel import (
+    COOKIE_DEBUG_LOG_COOKIE,
+    cookie_debug_payload,
+    init_cookie_debug,
+)
 
 app = FastAPI(title="User Management API")
 
@@ -55,6 +61,32 @@ async def cookie_debug_middleware(request: Request, call_next):
             status_code=getattr(resp, "status_code", None),
             set_cookie_header=resp.headers.get("set-cookie"),
         )
+        # Persist per-request debug logs through redirects by storing them in a cookie.
+        payload = cookie_debug_payload(request)
+        if payload:
+            from app.web.session import _is_https, cookie_path
+
+            secure = (
+                _is_https(request)
+                if settings.auth_cookie_secure is None
+                else settings.auth_cookie_secure
+            )
+            samesite = cast(
+                Literal["lax", "strict", "none"],
+                (settings.auth_cookie_samesite or "lax").lower(),
+            )
+            if samesite == "none" and not secure:
+                secure = True
+
+            resp.set_cookie(
+                key=COOKIE_DEBUG_LOG_COOKIE,
+                value=payload,
+                httponly=True,
+                secure=secure,
+                samesite=samesite,
+                path=cookie_path(request),
+                domain=settings.auth_cookie_domain or None,
+            )
     return resp
 
 
