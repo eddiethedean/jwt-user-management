@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Dict, Optional, Literal
 from urllib.parse import urlparse
 
+# ruff: noqa: E402
+
 import httpx
 import ipaddress
 import streamlit as st
@@ -40,11 +42,12 @@ st.title("User Management")
 
 _default_port = (os.getenv("PORT") or "8001").strip()
 _default_base_path = (os.getenv("BASE_PATH") or "").rstrip("/")
-_default_backend_url = f"http://localhost:{_default_port}{_default_base_path}".rstrip(
-    "/"
+_test_mode = os.getenv("STREAMLIT_TEST_MODE", "").lower() in ("1", "true", "yes")
+BACKEND_URL = (
+    "http://testserver"
+    if _test_mode
+    else f"http://localhost:{_default_port}{_default_base_path}".rstrip("/")
 )
-_env_backend_url = os.getenv("BACKEND_URL")
-BACKEND_URL = str(_env_backend_url or _default_backend_url).rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
 if "_debug_logs" not in st.session_state:
@@ -72,7 +75,6 @@ def _render_session_debug() -> None:
     st.sidebar.json({"authenticated": a.is_authenticated, "email": a.email or "(none)"})
 
 
-_dbg(f"env BACKEND_URL={os.getenv('BACKEND_URL')!r}")
 _dbg(f"env PORT={os.getenv('PORT')!r} BASE_PATH={os.getenv('BASE_PATH')!r}")
 _dbg(f"computed BACKEND_URL={BACKEND_URL!r}")
 
@@ -86,7 +88,9 @@ def _backend_url_diagnostics(url: str) -> None:
     except Exception as e:  # pragma: no cover
         _dbg(f"urlparse failed: {e!r}")
         return
-    _dbg(f"parsed scheme={p.scheme!r} netloc={p.netloc!r} host={p.hostname!r} port={p.port!r}")
+    _dbg(
+        f"parsed scheme={p.scheme!r} netloc={p.netloc!r} host={p.hostname!r} port={p.port!r}"
+    )
     host = p.hostname or ""
     if host.lower() in {"localhost", "testserver"}:
         _dbg("host is localhost/testserver (allowed)")
@@ -127,23 +131,9 @@ try:
 except ValueError as e:
     _dbg(f"validate_backend_url: error={str(e)!r}")
     _backend_url_diagnostics(BACKEND_URL)
-    # If an explicit BACKEND_URL is set but fails validation (common on enterprise
-    # networks where public hostnames resolve to RFC1918 addresses), fall back
-    # to the same-process backend URL used for the FastAPI-mounted Streamlit app.
-    if _env_backend_url:
-        _dbg(f"attempting fallback BACKEND_URL={_default_backend_url!r}")
-        try:
-            validate_backend_url(_default_backend_url)
-        except ValueError as e2:
-            _dbg(f"fallback validate_backend_url failed: {str(e2)!r}")
-        else:
-            BACKEND_URL = _default_backend_url
-            _dbg("fallback validate_backend_url: ok; continuing with localhost backend")
-    if BACKEND_URL != _default_backend_url and _env_backend_url:
-        # Still failing after fallback attempt.
-        _render_debug_logs()
-        st.error(str(e))
-        st.stop()
+    _render_debug_logs()
+    st.error(str(e))
+    st.stop()
 
 client = BackendClient(base_url=BACKEND_URL)
 
@@ -236,8 +226,14 @@ def _public_url(url: str) -> str:
         # Same-origin -> re-base.
         try:
             cur = urlparse(PUBLIC_API_BASE)
-            if cur.scheme in {"http", "https"} and cur.netloc and p.netloc == cur.netloc:
-                return f"{PUBLIC_API_BASE}{p.path or ''}" + (f"?{p.query}" if p.query else "")
+            if (
+                cur.scheme in {"http", "https"}
+                and cur.netloc
+                and p.netloc == cur.netloc
+            ):
+                return f"{PUBLIC_API_BASE}{p.path or ''}" + (
+                    f"?{p.query}" if p.query else ""
+                )
         except Exception:
             return raw
     return raw
@@ -420,7 +416,9 @@ if auth.is_authenticated:
         st.sidebar.button("Admin", on_click=_set_page, args=("Admin",))
 
     st.sidebar.divider()
-    st.sidebar.link_button("API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True)
+    st.sidebar.link_button(
+        "API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True
+    )
     country = str(me.get("country") or "").strip()
     who = f"{auth.email}" + (f" ({country})" if country else "")
     st.sidebar.caption(f"Signed in as `{who}`")
@@ -579,7 +577,9 @@ if auth.is_authenticated:
                         show_http_error("Delete failed", resp_del)
 else:
     st.sidebar.subheader("Navigation")
-    st.sidebar.link_button("API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True)
+    st.sidebar.link_button(
+        "API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True
+    )
     public_page: PublicPage = st.sidebar.radio(
         "Go to",
         options=["Login", "Register", "Accept invite", "Reset password"],

@@ -9,7 +9,7 @@ from app_paths import USER_APP_PY
 
 @pytest.fixture(autouse=True)
 def _env():
-    os.environ["BACKEND_URL"] = "http://testserver"
+    os.environ["STREAMLIT_TEST_MODE"] = "true"
     yield
 
 

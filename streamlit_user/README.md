@@ -21,7 +21,6 @@ cd streamlit_user
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 streamlit run user_app.py --server.port 8502 --server.fileWatcherType none
 ```
 
@@ -34,7 +33,7 @@ Open `http://localhost:8502`.
 
 ### Backend URL safety checks
 
-The user app validates `BACKEND_URL`:
+The user app validates its backend base URL:
 
 - It must be a full `http(s)://` URL and must not include credentials.
 - It rejects targeting private / link-local / reserved IP ranges.

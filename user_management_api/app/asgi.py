@@ -73,5 +73,6 @@ except Exception:
             status_code=503,
         )
 
+
 # ASGI entrypoint used by `run_workbench.py`.
 app = workbenchify(fastapi_app)

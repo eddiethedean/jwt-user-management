@@ -25,4 +25,3 @@ def test_meta_endpoint_includes_external_base_and_prefix(tmp_path) -> None:
     assert j["external_base"] in {"http://testserver", "https://example.com"}
     # When a connect-style header is provided, external_api_base should include the prefix.
     assert j["external_api_base"].endswith("/prefix/app")
-
