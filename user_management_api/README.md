@@ -1,13 +1,15 @@
 # Backend (bare-bones)
 
 Minimal FastAPI + SQLModel + Alembic app with:
-- **HTML forms**: register + login + user list page
 - **JWT auth**: obtain token via form login or API token endpoint
 - **SQLite** persistence
+- **Streamlit UI mount** (optional): serves `../streamlit_user/user_app.py` under `GET /app` when Streamlit is installed
 
 ## Posit Connect note (HTML UI)
 
-This backend includes a legacy HTML UI, but when deployed to **Posit Connect** the browser often does **not** persist the login cookie in the embedded Connect context. For Connect deployments, prefer the **Streamlit UI** in `../streamlit_user/` (JWT stored in Streamlit session state).
+This backend previously included a legacy HTML UI, but when deployed to **Posit Connect** the browser often does **not** persist the login cookie in the embedded Connect context. The legacy HTML UI is now archived under `app/web/archive/`.
+
+For Connect deployments, prefer the **Streamlit UI** in `../streamlit_user/` (JWT stored in Streamlit session state). You can run it as a separate Streamlit app, or serve it from the same FastAPI process at `GET /app`.
 
 ## Run locally
 
@@ -20,10 +22,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-uvicorn app.main:app --reload --port 8001
+uvicorn app.asgi:app --reload --port 8001
 ```
 
 - Docs: `http://127.0.0.1:8001/docs`
+- UI (Streamlit, same process): `http://127.0.0.1:8001/app`
 
 ## Run with Hypercorn (optional)
 
@@ -52,11 +55,7 @@ Notes:
 
 ## HTML pages
 
-- Register: `GET /register`
-- Login: `GET /login`
-- Users page: `GET /users?token=...` (paste token from `/login`)
-- Admin page: `GET /admin?token=...` (paste token from `/login`)
-- Invite accept page: `GET /invites/accept?token=...`
+The legacy HTML UI is archived and no longer served.
 
 ## JSON API
 

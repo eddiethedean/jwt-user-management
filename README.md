@@ -2,8 +2,8 @@
 
 This repo contains:
 
-- `user_management_api/`: **Bare-bones FastAPI + SQLModel + Alembic** backend with **JWT auth** and **simple HTML forms** (register/login/users page).
-- `streamlit_user/`: Streamlit UI that logs in against the backend (**recommended UI for Connect deployments**).
+- `user_management_api/`: **Bare-bones FastAPI + SQLModel + Alembic** backend with **JWT auth** (API-only).
+- `streamlit_user/`: Streamlit UI that logs in against the backend (also mountable under the FastAPI app at **`/app`**).
 - `e2e/`: Browser E2E tests (Playwright).
 - `fastapi_workbench/`: Reusable helpers for Posit Workbench / RStudio Server proxy prefixes.
 
@@ -25,10 +25,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-uvicorn app.main:app --reload --port 8001
+uvicorn app.asgi:app --reload --port 8001
 ```
 
 API docs: `http://localhost:8001/docs`
+UI (Streamlit, served by the same process): `http://localhost:8001/app`
 
 ### Hypercorn (optional)
 
@@ -42,13 +43,17 @@ hypercorn app.asgi:app --bind 127.0.0.1:8001
 
 ### 2) Streamlit user demo
 
+The Streamlit UI can be run either:
+- **Through FastAPI** at `http://localhost:8001/app` (preferred for Connect/Workbench), or
+- As a standalone Streamlit process (developer convenience).
+
 ```bash
 cd streamlit_user
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-streamlit run app.py --server.port 8502
+streamlit run user_app.py --server.port 8502
 ```
 
 User demo: `http://localhost:8502`

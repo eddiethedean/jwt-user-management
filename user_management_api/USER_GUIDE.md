@@ -8,7 +8,7 @@ This guide explains how to **run**, **use**, and **deploy** the FastAPI backend 
 - **JWT authentication** (`/auth/token` issues bearer tokens)
 - **Invites** (admin generates invite links; users accept invites)
 - **Password resets** (request reset link; set a new password)
-- **Admin Web UI** at `/admin/` (session + CSRF protected)
+- **Streamlit UI** optionally served at `/app` (from `../streamlit_user/`)
 
 ## Prerequisites
 
@@ -26,11 +26,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-uvicorn app.main:app --reload --port 8001
+uvicorn app.asgi:app --reload --port 8001
 ```
 
 - **API docs**: `http://127.0.0.1:8001/docs`
-- **Admin UI**: `http://127.0.0.1:8001/admin/`
+- **UI (Streamlit, same process)**: `http://127.0.0.1:8001/app`
 
 ## Configuration (`.env`)
 
@@ -109,21 +109,16 @@ curl -sS "http://127.0.0.1:8001/users" \
   -H "X-Admin-Api-Key: $ADMIN_API_KEY"
 ```
 
-## Admin Web UI (`/admin/`)
+## UI
 
-The admin UI is served by the backend under `/admin/` and uses:
+This service is API-first. The legacy HTML UI (including `/admin/`, `/login`, etc.)
+was archived because cookie-based sessions proved unreliable in embedded Posit
+Connect contexts.
 
-- **Session auth** (signed cookie)
-- **CSRF protection** for state-changing actions
-- Same-origin fetch to `/admin/api/*`
+The supported UI is the Streamlit app in `../streamlit_user/`, which can be:
 
-### Login
-
-Open:
-
-- `http://127.0.0.1:8001/admin/`
-
-Then sign in with an admin user account.
+- Run as a separate Streamlit process (dev convenience), or
+- Served by the same FastAPI process at `GET /app`
 
 ### Seeding an initial admin user (optional)
 
@@ -143,7 +138,6 @@ If the email already exists, the migration does nothing.
 
 ### User accepts the invite
 
-- HTML page: `GET /invites/accept?token=...`
 - API: `POST /invites/accept`
 
 ## Password reset
@@ -154,7 +148,6 @@ If the email already exists, the migration does nothing.
 
 ### Reset password
 
-- HTML page: `GET /password/reset?token=...`
 - API: `POST /password/reset`
 
 ## Running behind a reverse proxy (Posit Connect / Workbench / path prefix)
@@ -193,7 +186,7 @@ docker compose -f infra/connect-proxy/docker-compose.yml up
 Then access:
 
 - `http://127.0.0.1:8080/connect/app/docs`
-- `http://127.0.0.1:8080/connect/app/admin/`
+- `http://127.0.0.1:8080/connect/app/app`
 
 If your proxy strips the prefix before proxying:
 
@@ -228,7 +221,6 @@ E2E_USE_PROXY=1 E2E_PROXY_MODE=strip pytest -q e2e
 
 ## Troubleshooting
 
-- **Admin UI redirects to login repeatedly**: confirm `SESSION_SECRET` is set and you’re accessing the app under the same prefix as `BASE_PATH` (if any).
 - **Invite/reset links point to the wrong place**: set `PUBLIC_BASE_URL` and `BASE_PATH` correctly for your deployment.
 - **Running behind a proxy**: ensure the proxy forwards `X-Forwarded-*` headers and (for strip mode) sets `X-Forwarded-Prefix`.
 - **Airgapped intranet**: set `OFFLINE_MODE=true` and do not set `AZURE_*`.

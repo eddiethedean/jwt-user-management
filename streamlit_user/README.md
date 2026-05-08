@@ -11,7 +11,7 @@ Prereqs: **Python 3.10+**.
 ```bash
 cd user_management_api
 source .venv/bin/activate
-uvicorn app.main:app --reload --port 8001
+uvicorn app.asgi:app --reload --port 8001
 ```
 
 2) Start the user demo app.
@@ -22,7 +22,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-streamlit run app.py --server.port 8502 --server.fileWatcherType none
+streamlit run user_app.py --server.port 8502 --server.fileWatcherType none
 ```
 
 Open `http://localhost:8502`.
