@@ -16,7 +16,9 @@ from app.web.debug_panel import (
     init_cookie_debug,
 )
 
-app = FastAPI(title="User Management API")
+# Disable automatic slash redirects so mounted sub-apps (e.g. Streamlit at /app)
+# can control their own trailing-slash behavior without redirect loops.
+app = FastAPI(title="User Management API", redirect_slashes=False)
 
 _APP_ROOT = Path(__file__).resolve().parent
 ## Legacy HTML UI assets were archived; no static mount needed.
