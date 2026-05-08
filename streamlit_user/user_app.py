@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 from typing import Dict, Optional, Literal
 
 import httpx
@@ -12,27 +14,22 @@ except Exception:  # pragma: no cover
         return False
 
 
-try:
-    from streamlit_user.user_common.auth_state import (  # type: ignore
-        get_auth_state,
-        login_success,
-        logout,
-    )
-    from streamlit_user.user_common.backend_client import (  # type: ignore
-        BackendClient,
-        safe_json,
-        validate_backend_url,
-    )
-    from streamlit_user.user_common.ui import show_http_error  # type: ignore
-except ModuleNotFoundError:
-    # Running from inside `streamlit_user/`
-    from user_common.auth_state import get_auth_state, login_success, logout  # type: ignore
-    from user_common.backend_client import (  # type: ignore
-        BackendClient,
-        safe_json,
-        validate_backend_url,
-    )
-    from user_common.ui import show_http_error  # type: ignore
+_here = Path(__file__).resolve()
+_streamlit_dir = str(_here.parent)
+_repo_root = str(_here.parent.parent)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+if _streamlit_dir not in sys.path:
+    sys.path.insert(0, _streamlit_dir)
+
+# With the paths above, `user_common` should always be importable.
+from user_common.auth_state import get_auth_state, login_success, logout  # type: ignore
+from user_common.backend_client import (  # type: ignore
+    BackendClient,
+    safe_json,
+    validate_backend_url,
+)
+from user_common.ui import show_http_error  # type: ignore
 
 load_dotenv()
 
