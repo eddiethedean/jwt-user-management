@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.main import app as fastapi_app
+from fastapi.responses import PlainTextResponse
 from fastapi_workbench import workbenchify
 
 try:
@@ -16,7 +17,15 @@ try:
 except Exception:
     # If Streamlit (or its Starlette extras) isn't installed, we still want the
     # API to start normally. The Streamlit UI will simply be unavailable.
-    pass
+    @fastapi_app.get("/app", include_in_schema=False)
+    async def _streamlit_unavailable() -> PlainTextResponse:
+        return PlainTextResponse(
+            "Streamlit UI is not available in this environment.\n\n"
+            "To enable it, install backend dependencies including:\n"
+            "  pip install -r user_management_api/requirements.txt\n"
+            "which includes streamlit[starlette].\n",
+            status_code=503,
+        )
 
 # ASGI entrypoint used by `run_workbench.py`.
 app = workbenchify(fastapi_app)
