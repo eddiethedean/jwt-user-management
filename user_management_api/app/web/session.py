@@ -32,6 +32,8 @@ def _try_add_partitioned_set_cookie_header(
     for k, v in raw:
         if k.lower() == b"set-cookie" and v.startswith(name_prefix):
             vv_l = v.lower()
+            # Some clients are picky about `SameSite=None` casing.
+            v = v.replace(b"SameSite=none", b"SameSite=None")
             if b"partitioned" not in vv_l:
                 v = v + b"; Partitioned"
                 updated += 1

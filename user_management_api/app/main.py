@@ -39,6 +39,14 @@ async def cookie_debug_middleware(request: Request, call_next):
     if enabled:
         from app.web.debug_panel import add_cookie_debug
 
+        cookie_header = request.headers.get("cookie") or ""
+        cookie_names: list[str] = []
+        if cookie_header:
+            for part in cookie_header.split(";"):
+                k = (part.split("=", 1)[0] or "").strip()
+                if k:
+                    cookie_names.append(k)
+
         add_cookie_debug(
             request,
             "cookie:req",
@@ -50,6 +58,7 @@ async def cookie_debug_middleware(request: Request, call_next):
             xf_proto=request.headers.get("x-forwarded-proto"),
             connect_base_url=request.headers.get("rstudio-connect-app-base-url"),
             cookie_header_present=bool(request.headers.get("cookie")),
+            cookie_names=cookie_names,
         )
     resp = await call_next(request)
     if enabled:
