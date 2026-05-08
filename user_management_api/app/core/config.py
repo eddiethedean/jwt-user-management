@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     auth_cookie_domain: str = ""  # optional; usually leave blank
     # Some browsers require Partitioned cookies (CHIPS) for embedded apps.
     auth_cookie_partitioned: bool = False
+    # Connect sets a secondary "-legacy" cookie without SameSite for compatibility.
+    auth_cookie_legacy: bool = True
 
     # SMTP (optional). If SMTP_HOST and SMTP_FROM_EMAIL are unset, email sending is disabled.
     smtp_host: str = ""

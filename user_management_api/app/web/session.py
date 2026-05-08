@@ -11,6 +11,7 @@ from app.web.debug_panel import add_cookie_debug
 
 
 AUTH_COOKIE_NAME = "um_access_token"
+AUTH_COOKIE_LEGACY_NAME = "um_access_token-legacy"
 
 
 def _try_add_partitioned_set_cookie_header(
@@ -92,6 +93,9 @@ def cookie_path(request: Request) -> str:
 
 def get_auth_token(request: Request) -> str | None:
     tok = request.cookies.get(AUTH_COOKIE_NAME)
+    legacy = request.cookies.get(AUTH_COOKIE_LEGACY_NAME)
+    if not tok and legacy and bool(getattr(settings, "auth_cookie_legacy", True)):
+        tok = legacy
     # Never log token contents; only presence and length.
     add_cookie_debug(
         request,
@@ -99,6 +103,7 @@ def get_auth_token(request: Request) -> str | None:
         name=AUTH_COOKIE_NAME,
         present=bool(tok),
         length=(len(tok) if tok else 0),
+        legacy_present=bool(legacy),
         request_path=request.url.path,
     )
     return tok
@@ -118,6 +123,7 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
     path = cookie_path(request)
     wants_partitioned = bool(getattr(settings, "auth_cookie_partitioned", False))
     partitioned_supported = sys.version_info >= (3, 14)
+    wants_legacy = bool(getattr(settings, "auth_cookie_legacy", True))
 
     # Modern browsers require Secure when SameSite=None. Enforce to avoid silent drops.
     if samesite == "none" and not secure:
@@ -154,6 +160,7 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
         secure=secure,
         samesite=samesite,
         partitioned=(wants_partitioned and partitioned_supported),
+        legacy=wants_legacy,
         domain=domain,
         path=path,
         url=str(request.url),
@@ -186,6 +193,27 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
             response, request=request, cookie_name=AUTH_COOKIE_NAME
         )
 
+    # Connect pattern: if SameSite=None, emit a second cookie without SameSite for
+    # compatibility with older/quirky clients.
+    if wants_legacy and samesite == "none":
+        response.set_cookie(
+            key=AUTH_COOKIE_LEGACY_NAME,
+            value=token,
+            httponly=True,
+            secure=secure,
+            # Intentionally omit samesite=
+            path=path,
+            domain=domain,
+        )
+        add_cookie_debug(
+            request,
+            "cookie:set legacy",
+            name=AUTH_COOKIE_LEGACY_NAME,
+            secure=secure,
+            path=path,
+            domain=domain,
+        )
+
 
 def clear_auth_cookie(response: Response, *, request: Request) -> None:
     path = cookie_path(request)
@@ -197,3 +225,8 @@ def clear_auth_cookie(response: Response, *, request: Request) -> None:
         url=str(request.url),
     )
     response.delete_cookie(key=AUTH_COOKIE_NAME, path=path)
+    if bool(getattr(settings, "auth_cookie_legacy", True)):
+        response.delete_cookie(key=AUTH_COOKIE_LEGACY_NAME, path=path)
+        add_cookie_debug(
+            request, "cookie:clear legacy", name=AUTH_COOKIE_LEGACY_NAME, path=path
+        )
