@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import Request, Response
 
 from fastapi_workbench import base_path
+from app.core.config import settings
 
 
 AUTH_COOKIE_NAME = "um_access_token"
@@ -25,13 +26,15 @@ def get_auth_token(request: Request) -> str | None:
 
 
 def set_auth_cookie(response: Response, *, request: Request, token: str) -> None:
+    secure = _is_https(request) if settings.auth_cookie_secure is None else settings.auth_cookie_secure
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=_is_https(request),
-        samesite="lax",
+        secure=secure,
+        samesite=settings.auth_cookie_samesite,
         path=cookie_path(request),
+        domain=settings.auth_cookie_domain or None,
     )
 
 
