@@ -234,6 +234,19 @@ async def login_submit(
         else None,
     )
     dest = "/admin" if bool(getattr(user, "is_admin", False)) else "/users"
+    # In Connect, redirects can make debugging cookies painful because the POST
+    # response doesn't render. When COOKIE_DEBUG=true, show a one-hop page that
+    # displays debug info then navigates.
+    if bool(getattr(settings, "cookie_debug", False)):
+        resp = templates.TemplateResponse(
+            request,
+            "debug_redirect.html",
+            {"request": request, "base_path": bp, "dest": bp + dest},
+            status_code=200,
+        )
+        set_auth_cookie(resp, request=request, token=token)
+        return resp
+
     resp = safe_redirect(request, dest, status_code=303)
     set_auth_cookie(resp, request=request, token=token)
     return resp
