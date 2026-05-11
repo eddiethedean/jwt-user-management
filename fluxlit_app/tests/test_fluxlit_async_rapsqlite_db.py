@@ -23,11 +23,11 @@ def _reload_db_for_url(*, db_url: str):
             sys.modules.pop(k, None)
 
     here = os.path.dirname(__file__)
-    api_root = os.path.abspath(os.path.join(here, "..", "..", "user_management_api"))
-    if api_root not in sys.path:
-        sys.path.insert(0, api_root)
+    fluxlit_root = os.path.abspath(os.path.join(here, ".."))
+    if fluxlit_root not in sys.path:
+        sys.path.insert(0, fluxlit_root)
 
-    app_pkg_dir = os.path.join(api_root, "app")
+    app_pkg_dir = os.path.join(fluxlit_root, "app")
     app_init = os.path.join(app_pkg_dir, "__init__.py")
     spec = spec_from_file_location(
         "app", app_init, submodule_search_locations=[app_pkg_dir]

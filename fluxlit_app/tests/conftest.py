@@ -1,31 +1,55 @@
 """
-Shared helpers to load ``fluxlit_app.main:app`` with a fresh
-``user_management_api`` ``app`` package and SQLite DB (same strategy as
-``user_management_api/tests``).
+Shared helpers to load ``fluxlit_app.main:app`` with a fresh ``app`` package
+and SQLite DB.
 """
 
 from __future__ import annotations
 
-import importlib
+# Avoid loading ``fluxlit_app/.env`` during pytest (would leak PUBLIC_BASE_URL, etc.).
 import os
+
+os.environ.setdefault("FLUXLIT_TESTS", "1")
+
+import importlib
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any
 
+import pytest
 from sqlmodel import SQLModel
 
-# ``fluxlit_app/tests/conftest.py`` → repo root is ``parents[2]``.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_UM_ROOT = _REPO_ROOT / "user_management_api"
 _FLUX_ROOT = _REPO_ROOT / "fluxlit_app"
 
 
+def purge_other_repo_app_packages(*, repo_root: Path, fluxlit_app_root: Path) -> None:
+    """Remove sibling repo dirs that expose a top-level ``app`` (except ``fluxlit_app``)."""
+    flux = fluxlit_app_root.resolve()
+    for child in repo_root.iterdir():
+        if not child.is_dir() or child.resolve() == flux:
+            continue
+        if not (child / "app" / "__init__.py").is_file():
+            continue
+        p = str(child.resolve())
+        while p in sys.path:
+            sys.path.remove(p)
+
+
 def _ensure_sys_path() -> None:
-    # FluxLit app dir first so ``import ui`` resolves to this project (not ``app``).
-    for p in (str(_FLUX_ROOT), str(_UM_ROOT)):
-        if p not in sys.path:
-            sys.path.insert(0, p)
+    flux = str(_FLUX_ROOT)
+    if flux not in sys.path:
+        sys.path.insert(0, flux)
+
+
+@pytest.fixture(autouse=True)
+def _fluxlit_tests_restore_sys_path() -> Any:
+    """Other repo trees also ship a top-level ``app``; prefer ours only for these tests."""
+    saved = list(sys.path)
+    purge_other_repo_app_packages(repo_root=_REPO_ROOT, fluxlit_app_root=_FLUX_ROOT)
+    _ensure_sys_path()
+    yield
+    sys.path[:] = saved
 
 
 def _purge_reloadable_modules() -> None:
@@ -48,7 +72,7 @@ def _purge_reloadable_modules() -> None:
 
 def _load_app_package() -> None:
     _ensure_sys_path()
-    app_pkg_dir = _UM_ROOT / "app"
+    app_pkg_dir = _FLUX_ROOT / "app"
     app_init = app_pkg_dir / "__init__.py"
     spec = spec_from_file_location(
         "app", str(app_init), submodule_search_locations=[str(app_pkg_dir)]

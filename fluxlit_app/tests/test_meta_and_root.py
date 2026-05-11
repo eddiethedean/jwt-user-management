@@ -26,10 +26,7 @@ def test_meta_gateway_returns_shape(tmp_path, monkeypatch) -> None:
 
 
 def test_meta_inner_fastapi_matches_workbench_header(tmp_path, monkeypatch) -> None:
-    """
-    Same expectations as ``user_management_api/tests/test_meta_endpoint.py`` on the
-    inner FastAPI app (no gateway path rewriting).
-    """
+    """Inner FastAPI ``/__meta`` with Workbench-style base URL header."""
     monkeypatch.setenv("PUBLIC_BASE_URL", "http://testserver")
     db_url = f"sqlite:///{tmp_path / 'm2.db'}"
     app = load_fluxlit_app(db_url=db_url)
@@ -57,5 +54,5 @@ def test_api_root_json(tmp_path, monkeypatch) -> None:
     assert r.status_code == 200
     j = r.json()
     assert j["ok"] is True
-    assert j["service"] == "user_management_api"
+    assert j["service"] == "jwt_users_api"
     assert j["docs"] == "/api/docs"

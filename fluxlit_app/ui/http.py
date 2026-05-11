@@ -1,4 +1,4 @@
-"""HTTP helpers for Streamlit (parity with ``streamlit_user/user_common/ui.py``)."""
+"""HTTP helpers for the Streamlit UI."""
 
 from __future__ import annotations
 

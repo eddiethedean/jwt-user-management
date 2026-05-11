@@ -1,5 +1,5 @@
 """
-User management Streamlit UI (FluxLit ``discover_pages`` pattern).
+JWT users Streamlit UI (FluxLit ``discover_pages`` pattern).
 
 https://fluxlit.readthedocs.io/en/stable/quickstart.html#project-layout
 """
@@ -44,7 +44,7 @@ def register(app: FluxLit) -> None:
     url_session_param = app.settings.url_session_query_param
 
     @app.page("/", title="User Management")
-    def user_management(st, client) -> None:  # noqa: ANN001
+    def jwt_users_home(st, client) -> None:  # noqa: ANN001
         st.title("User Management")
 
         if "_debug_logs" not in st.session_state:

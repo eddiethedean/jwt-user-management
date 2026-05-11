@@ -1,4 +1,4 @@
-"""Mount ``user_management_api`` routers and gateway-local routes onto ``FluxLit.api``."""
+"""Mount bundled FastAPI routers and gateway-local routes onto ``FluxLit.api``."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.routes.users import router as users_router
 from cookie_debug_middleware import attach_cookie_debug_middleware
 
 
-def install_user_management_routes(api: FastAPI) -> None:
+def install_bundled_app_routes(api: FastAPI) -> None:
     for router in (
         auth_router,
         admin_router,
@@ -32,7 +32,7 @@ def install_user_management_routes(api: FastAPI) -> None:
         return JSONResponse(
             {
                 "ok": True,
-                "service": "user_management_api",
+                "service": "jwt_users_api",
                 "docs": "/api/docs",
             }
         )

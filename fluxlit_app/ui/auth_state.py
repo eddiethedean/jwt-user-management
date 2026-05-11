@@ -1,4 +1,4 @@
-"""Same session semantics as ``streamlit_user/user_common/auth_state.py``."""
+"""JWT session state for the Streamlit UI (email + bearer token)."""
 
 from __future__ import annotations
 

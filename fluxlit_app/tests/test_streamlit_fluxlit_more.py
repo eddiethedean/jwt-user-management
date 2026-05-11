@@ -1,4 +1,4 @@
-"""Parity with ``streamlit_user/tests/test_user_app_more_apptest.py``."""
+"""Additional Streamlit AppTests for the FluxLit user management page."""
 
 from __future__ import annotations
 
@@ -13,14 +13,13 @@ import fluxlit
 from fluxlit.client import ApiClient
 
 _REPO = Path(__file__).resolve().parents[2]
-_UM = _REPO / "user_management_api"
 _FLUX = _REPO / "fluxlit_app"
 _FLUXLIT_MAIN = Path(fluxlit.__file__).resolve().parent / "streamlit" / "main.py"
 
 
 @pytest.fixture(autouse=True)
 def _paths_and_env(tmp_path, monkeypatch):
-    for p in (str(_FLUX), str(_UM)):
+    for p in (str(_FLUX),):
         if p not in sys.path:
             sys.path.insert(0, p)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/st2.db")

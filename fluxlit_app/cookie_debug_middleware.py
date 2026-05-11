@@ -1,4 +1,4 @@
-"""Cookie debug middleware (same behavior as ``user_management_api`` standalone app)."""
+"""Cookie debug middleware for the bundled FastAPI app."""
 
 from __future__ import annotations
 

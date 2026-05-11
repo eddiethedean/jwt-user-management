@@ -1,7 +1,7 @@
 # Gateway + UI (pin matches stable docs). Optional: fluxlit[metrics] for Prometheus.
 fluxlit[auth]==0.6.0
 
-# Backend stack (user_management_api routers, DB, email, JWT — keep in sync when UM deps change)
+# Bundled FastAPI backend (``fluxlit_app/app``): DB, email, JWT, routes
 fastapi[standard]
 uvicorn[standard]
 hypercorn

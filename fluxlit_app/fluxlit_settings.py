@@ -6,7 +6,7 @@ from fluxlit.config import FluxlitSettings
 
 
 def load_fluxlit_settings() -> FluxlitSettings:
-    """Defaults mirror ``streamlit_user`` layout; override with ``FLUXLIT_*`` env vars."""
+    """Defaults for title and page layout; override with ``FLUXLIT_*`` env vars."""
     return FluxlitSettings(
         title="User Management",
         streamlit_page_config={
