@@ -1,0 +1,21 @@
+# Gateway + UI (pin matches stable docs). Optional: fluxlit[metrics] for Prometheus.
+fluxlit[auth]==0.6.0
+
+# Backend stack (user_management_api routers, DB, email, JWT — keep in sync when UM deps change)
+fastapi[standard]
+uvicorn[standard]
+hypercorn
+sqlmodel
+alembic
+rapsqlite==0.3.0
+greenlet
+python-dotenv
+python-jose[cryptography]
+passlib
+pydantic-settings
+jinja2
+python-multipart
+pytest
+fastapi-workbench==0.2.0
+httpx
+streamlit[starlette]

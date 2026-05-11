@@ -1,0 +1,7 @@
+# https://fluxlit.readthedocs.io/en/stable/configuration.html#project-file
+# Run ``fluxlit`` from this directory, or set ``PYTHONPATH`` to this directory (see FluxLit troubleshooting).
+# Additional gateway behavior is configured via ``FLUXLIT_*`` in ``.env`` (see ``.env.example``).
+target = "fluxlit_gateway:app"
+gateway_host = "127.0.0.1"
+gateway_port = 8000
+log_level = "info"
