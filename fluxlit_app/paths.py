@@ -1,4 +1,4 @@
-"""Repository paths and dotenv loading (keeps ``fluxlit_gateway`` imports ordered)."""
+"""Repository paths and dotenv loading (import before ``main`` / ``FluxLit``)."""
 
 from __future__ import annotations
 

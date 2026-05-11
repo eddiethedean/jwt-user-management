@@ -66,7 +66,7 @@ def _set_public_page(at: AppTest, page: str) -> None:
 
 
 def _fluxlit_env(monkeypatch):
-    monkeypatch.setenv("FLUXLIT_APP", "fluxlit_gateway:app")
+    monkeypatch.setenv("FLUXLIT_APP", "main:app")
     monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
     monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
 

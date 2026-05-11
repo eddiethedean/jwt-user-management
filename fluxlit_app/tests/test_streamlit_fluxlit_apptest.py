@@ -95,7 +95,7 @@ def test_login_success_sets_session(monkeypatch):
 
     _patch_api_client(monkeypatch, fake_request)
 
-    monkeypatch.setenv("FLUXLIT_APP", "fluxlit_gateway:app")
+    monkeypatch.setenv("FLUXLIT_APP", "main:app")
     monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
     monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
 
@@ -126,7 +126,7 @@ def test_forgot_password_shows_non_enumerating_message(monkeypatch):
 
     _patch_api_client(monkeypatch, fake_request)
 
-    monkeypatch.setenv("FLUXLIT_APP", "fluxlit_gateway:app")
+    monkeypatch.setenv("FLUXLIT_APP", "main:app")
     monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
     monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
 
@@ -158,7 +158,7 @@ def test_sign_out_clears_session_state(monkeypatch):
 
     _patch_api_client(monkeypatch, fake_request)
 
-    monkeypatch.setenv("FLUXLIT_APP", "fluxlit_gateway:app")
+    monkeypatch.setenv("FLUXLIT_APP", "main:app")
     monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
     monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
 
@@ -194,7 +194,7 @@ def test_login_backend_request_exception_is_shown(monkeypatch):
 
     _patch_api_client(monkeypatch, fake_request)
 
-    monkeypatch.setenv("FLUXLIT_APP", "fluxlit_gateway:app")
+    monkeypatch.setenv("FLUXLIT_APP", "main:app")
     monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
     monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
 

@@ -1,5 +1,5 @@
 """
-Shared helpers to load ``fluxlit_app.fluxlit_gateway:app`` with a fresh
+Shared helpers to load ``fluxlit_app.main:app`` with a fresh
 ``user_management_api`` ``app`` package and SQLite DB (same strategy as
 ``user_management_api/tests``).
 """
@@ -123,7 +123,7 @@ def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) ->
 
     import app.models  # noqa: F401 — register models on metadata
 
-    flux = importlib.import_module("fluxlit_gateway")
+    flux = importlib.import_module("main")
 
     SQLModel.metadata.create_all(db.engine)
     return flux.app
