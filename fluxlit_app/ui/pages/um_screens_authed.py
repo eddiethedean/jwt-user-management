@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import httpx
+import pandas as pd
 import streamlit as st
 from fluxlit.client import ApiClient
 
@@ -20,10 +21,6 @@ from ui.pages.um_helpers import public_url
 from ui.pages.um_profile import load_me
 
 AuthedPage = Literal["Users", "Admin", "Account"]
-
-
-def _set_page(p: AuthedPage) -> None:
-    st.session_state["_page"] = p
 
 
 def _get_page() -> AuthedPage:
@@ -76,7 +73,9 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
             with ApiClient.for_fluxlit(
                 bearer_token=auth.access_token, **fluxlit_api_client_kwargs()
             ) as api:
-                resp = api.post("/users/me", json={"full_name": full_name})
+                resp = patch_json(
+                    api, "/users/me", json={"full_name": full_name}
+                )
         except httpx.RequestError:
             st.error("Backend request failed (is it running?)")
             st.stop()
@@ -119,6 +118,10 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
 def _render_admin(
     st: Any, auth: AuthState, *, public_api_base: str
 ) -> None:
+    _admin_flash = st.session_state.pop("_admin_flash", None)
+    if isinstance(_admin_flash, str) and _admin_flash:
+        st.success(_admin_flash)
+
     st.subheader("Admin")
     with st.form("invite_form"):
         invite_email = st.text_input("Invite email")
@@ -163,13 +166,52 @@ def _render_admin(
     users = rows.get("data") if isinstance(rows.get("data"), list) else rows
     if not isinstance(users, list):
         users = []
-    options = {
-        f"{u.get('email', '')} (id={u.get('id')})": u
-        for u in users
-        if isinstance(u, dict)
-    }
-    sel = st.selectbox("Select user", options=list(options.keys()))
-    u = options.get(sel) if sel else None
+    users = [u for u in users if isinstance(u, dict)]
+
+    _table_gen_key = "_admin_users_table_gen"
+    _gen = int(st.session_state.get(_table_gen_key, 0))
+    _table_key = f"fluxlit_admin_users_{_gen}"
+
+    if not users:
+        st.info("No users returned from the API.")
+        u = None
+    else:
+        display_cols = [
+            "id",
+            "email",
+            "full_name",
+            "country",
+            "is_active",
+            "is_admin",
+            "created_at",
+        ]
+        table_rows = [{c: raw.get(c) for c in display_cols} for raw in users]
+        df = pd.DataFrame(table_rows, columns=display_cols)
+
+        st.caption("Click a row in the table to load that user into the editor below.")
+        event = st.dataframe(
+            df,
+            key=_table_key,
+            on_select="rerun",
+            selection_mode="single-row",
+            width="stretch",
+            hide_index=True,
+        )
+
+        u = None
+        sel_block = (
+            event.get("selection", {})
+            if isinstance(event, dict)
+            else getattr(event, "selection", {}) or {}
+        )
+        row_ixs = sel_block.get("rows", []) if isinstance(sel_block, dict) else []
+        if row_ixs:
+            idx = int(row_ixs[0])
+            if 0 <= idx < len(users):
+                u = users[idx]
+        else:
+            st.info("Select a row in the table above to edit or delete a user.")
+
     if isinstance(u, dict):
         st.caption(f"User id: `{u.get('id')}`")
         with st.form("edit_user"):
@@ -191,7 +233,9 @@ def _render_admin(
                     },
                 )
             if response_ok(rr):
-                st.success("Saved")
+                st.session_state["_admin_flash"] = "Saved"
+                st.session_state[_table_gen_key] = _gen + 1
+                st.rerun()
             else:
                 show_http_error("Save failed", rr)
 
@@ -203,7 +247,9 @@ def _render_admin(
             ) as api:
                 resp_del = api.delete(f"/admin/users/{user_id}")
             if resp_del.status_code < 300:
-                st.success("Deleted")
+                st.session_state["_admin_flash"] = "Deleted"
+                st.session_state[_table_gen_key] = _gen + 1
+                st.rerun()
             else:
                 show_http_error("Delete failed", resp_del)
 
@@ -218,10 +264,24 @@ def render_authenticated(
     docs_href: str,
 ) -> None:
     st.sidebar.subheader("Navigation")
-    st.sidebar.button("Users", on_click=_set_page, args=("Users",))
-    st.sidebar.button("Account", on_click=_set_page, args=("Account",))
+    opts: list[AuthedPage] = ["Users", "Account"]
     if is_admin:
-        st.sidebar.button("Admin", on_click=_set_page, args=("Admin",))
+        opts.append("Admin")
+    cur = _get_page()
+    if cur not in opts:
+        st.session_state["_page"] = "Users"
+        cur = "Users"
+    if (
+        "authed_nav_radio" not in st.session_state
+        or st.session_state["authed_nav_radio"] not in opts
+    ):
+        st.session_state["authed_nav_radio"] = cur
+    selected = st.sidebar.radio(
+        "Menu",
+        options=opts,
+        key="authed_nav_radio",
+    )
+    st.session_state["_page"] = selected
 
     st.sidebar.divider()
     st.sidebar.link_button("API docs", docs_href, use_container_width=True)
@@ -233,7 +293,7 @@ def render_authenticated(
         st.rerun()
 
     st.session_state.pop("_flash_signed_in", None)
-    page = _get_page()
+    page = selected
 
     if page == "Users":
         _render_users(st, auth)

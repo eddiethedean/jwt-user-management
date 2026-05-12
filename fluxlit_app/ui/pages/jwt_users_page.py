@@ -131,17 +131,30 @@ def register(app: FluxLit) -> None:
             )
         else:
             st.sidebar.subheader("Navigation")
+            _public_nav: tuple[PublicPage, ...] = (
+                "Login",
+                "Register",
+                "Accept invite",
+                "Reset password",
+            )
+            if (
+                "public_page_nav" not in st.session_state
+                or st.session_state["public_page_nav"] not in _public_nav
+            ):
+                st.session_state["public_page_nav"] = "Login"
+            nav_raw = st.sidebar.radio(
+                "Menu",
+                options=list(_public_nav),
+                key="public_page_nav",
+            )
+            public_page: PublicPage = (
+                nav_raw if nav_raw in _public_nav else "Login"
+            )
+
+            st.sidebar.divider()
             st.sidebar.link_button(
                 "API docs", docs_link, use_container_width=True
             )
-            public_page: PublicPage = st.sidebar.radio(
-                "Go to",
-                options=["Login", "Register", "Accept invite", "Reset password"],
-                index=0,
-            )
-            if st.sidebar.button("Sign out", type="primary", key="sign_out_sidebar"):
-                st.session_state["_sign_out_clicked"] = True
-                st.rerun()
 
             def _load_me_for_login(token: str):
                 return load_me(st, token)

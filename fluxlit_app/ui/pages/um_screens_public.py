@@ -17,12 +17,19 @@ def render_login(
     post_form: Callable[[str, dict], Optional[httpx.Response]],
     load_me_fn: Callable[[str], dict[str, Any]],
 ) -> None:
-    st.subheader("Login")
-    email = st.text_input("Email", key="login_email")
-    password = st.text_input("Password", type="password", key="login_password")
-    if st.button("Sign in", key="login_submit"):
+    with st.form("login_form"):
+        st.subheader("Login to App")
+
+        username = st.text_input("Username", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+
+        submit_button = st.form_submit_button("Login")
+
+    if submit_button:
+        username = str(username or "").strip()
+        password = str(password or "")
         resp = post_form(
-            "/auth/token", data={"username": email, "password": password}
+            "/auth/token", data={"username": username, "password": password}
         )
         if resp is None:
             st.stop()
@@ -33,7 +40,9 @@ def render_login(
                 show_http_error("Login failed", resp)
                 st.stop()
             login_success(
-                access_token=access_token, email=email, session_key=SESSION_KEY
+                access_token=access_token,
+                email=username,
+                session_key=SESSION_KEY,
             )
             st.session_state["_flash_signed_in"] = True
             st.session_state["_page"] = (
@@ -43,7 +52,7 @@ def render_login(
             )
             st.rerun()
         else:
-            show_http_error("Invalid email or password", resp)
+            show_http_error("Invalid username or password", resp)
 
 
 def render_register(

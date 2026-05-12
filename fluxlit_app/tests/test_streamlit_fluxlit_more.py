@@ -58,7 +58,7 @@ def _click_button(at: AppTest, label: str) -> None:
 
 
 def _set_public_page(at: AppTest, page: str) -> None:
-    matches = [r for r in at.radio if getattr(r, "label", None) == "Go to"]
+    matches = [r for r in at.radio if getattr(r, "label", None) == "Menu"]
     if not matches:
         raise AssertionError("Public navigation radio not found")
     matches[0].set_value(page)
@@ -87,7 +87,7 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
 
     _text_input_by_key(at, "login_email").input("bad@test.local")
     _text_input_by_key(at, "login_password").input("wrong")
-    _click_button(at, "Sign in")
+    _click_button(at, "Login")
     at.run()
     assert not at.exception
 
@@ -116,7 +116,7 @@ def test_sign_out_clears_username_and_token(monkeypatch):
     assert not at.exception
     _text_input_by_key(at, "login_email").input("user@test.local")
     _text_input_by_key(at, "login_password").input("pw")
-    _click_button(at, "Sign in")
+    _click_button(at, "Login")
     at.run()
     assert not at.exception
     assert at.session_state["access_token"] == "tok"

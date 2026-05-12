@@ -34,10 +34,21 @@ async def admin_api_update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user.id == admin.id and ("is_active" in payload or "is_admin" in payload):
-        raise HTTPException(
-            status_code=400, detail="You can’t modify your own role/status here"
-        )
+    if user.id == admin.id:
+        if "is_active" in payload and bool(payload.get("is_active")) != bool(
+            user.is_active
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="You can’t modify your own role/status here",
+            )
+        if "is_admin" in payload and bool(payload.get("is_admin")) != bool(
+            user.is_admin
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="You can’t modify your own role/status here",
+            )
 
     if "full_name" in payload:
         fn = str(payload.get("full_name") or "").strip() or None
