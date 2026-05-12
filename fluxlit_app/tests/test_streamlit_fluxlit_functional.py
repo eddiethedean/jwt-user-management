@@ -15,11 +15,13 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from fluxlit.client import ApiClient
-from fluxlit.testing import streamlit_main_path
+import fluxlit.testing as _fluxlit_testing
 
 _REPO = Path(__file__).resolve().parents[2]
 _FLUX = _REPO / "fluxlit_app"
-_FLUXLIT_MAIN = streamlit_main_path()
+_FLUXLIT_MAIN = (
+    Path(_fluxlit_testing.__file__).resolve().parent / "streamlit" / "main.py"
+)
 
 
 @pytest.fixture(autouse=True)

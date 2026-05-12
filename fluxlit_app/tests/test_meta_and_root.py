@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fluxlit.gateway import build_gateway
 from fluxlit.testing import FluxLitTestClient
 from starlette.testclient import TestClient
 
@@ -9,14 +10,23 @@ from ui.pages.um_helpers import api_docs_link
 
 def test_meta_gateway_returns_shape(tmp_path, monkeypatch) -> None:
     """``/__meta`` via FluxLit gateway (used by Streamlit ``client``)."""
+    monkeypatch.setenv("PUBLIC_BASE_URL", "")
     db_url = f"sqlite:///{tmp_path / 'm.db'}"
     app = load_fluxlit_app(
         db_url=db_url,
         extra_env={"FLUXLIT_ROOT_PATH": "/prefix/app"},
     )
-    tc = FluxLitTestClient(app).with_root_path("/prefix/app")
+    gateway = build_gateway(
+        app.api,
+        "http://127.0.0.1:9",
+        api_prefix="/api",
+        access_log=app.settings.enable_gateway_access_log,
+        proxy_settings=app.settings,
+        root_mount="/prefix/app",
+    )
+    client = TestClient(gateway, root_path="/prefix/app")
 
-    r = tc.api_get("/__meta")
+    r = client.get("/api/__meta")
     assert r.status_code == 200
     j = r.json()
     assert j["ok"] is True
@@ -27,6 +37,7 @@ def test_meta_gateway_returns_shape(tmp_path, monkeypatch) -> None:
 
 def test_meta_inner_fastapi_matches_workbench_header(tmp_path, monkeypatch) -> None:
     """Inner FastAPI ``/__meta`` uses ASGI root_path / FluxLit public URL helpers."""
+    monkeypatch.setenv("PUBLIC_BASE_URL", "")
     db_url = f"sqlite:///{tmp_path / 'm2.db'}"
     app = load_fluxlit_app(
         db_url=db_url,

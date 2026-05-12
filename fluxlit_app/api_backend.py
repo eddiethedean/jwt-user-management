@@ -16,7 +16,6 @@ from app.routes.users import router as users_router
 
 def install_bundled_app_routes(fluxlit_app: FluxLit) -> None:
     api = fluxlit_app.api
-    api.state.fluxlit_urls = fluxlit_app.urls
 
     for router in (
         auth_router,

@@ -641,6 +641,7 @@ if auth.is_authenticated:
                     st.success("Saved")
                     st.session_state.pop("_me", None)
                     _load_me()
+                    st.rerun()
                 else:
                     show_http_error("Save failed", resp)
 
