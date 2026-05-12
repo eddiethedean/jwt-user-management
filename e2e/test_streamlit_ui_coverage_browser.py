@@ -207,7 +207,9 @@ def test_sidebar_api_docs_link_href(page, app_urls, admin_credentials) -> None:
     )
     _expand_sidebar_if_needed(page)
 
-    link = page.locator('[data-testid="stSidebar"]').get_by_role("link", name="API docs")
+    link = page.locator('[data-testid="stSidebar"]').get_by_role(
+        "link", name="API docs"
+    )
     href = link.get_attribute("href") or ""
     assert "/docs" in href, f"unexpected API docs href: {href!r}"
 

@@ -356,10 +356,14 @@ def _render_login() -> None:
             '<p class="um-cardHint">Sign in to access your account and manage users.</p>',
             unsafe_allow_html=True,
         )
-        email = st.text_input("Email", key="login_email", placeholder="name@example.com")
+        email = st.text_input(
+            "Email", key="login_email", placeholder="name@example.com"
+        )
         password = st.text_input("Password", type="password", key="login_password")
         if st.button("Sign in", key="login_submit"):
-            resp = _post_form("/auth/token", data={"username": email, "password": password})
+            resp = _post_form(
+                "/auth/token", data={"username": email, "password": password}
+            )
             if resp is None:
                 st.stop()
             if resp.is_success:
@@ -483,7 +487,9 @@ def _render_reset_password() -> None:
         '<p class="um-cardHint">Enter your email and we’ll send you a reset link (if the account exists).</p>',
         unsafe_allow_html=True,
     )
-    forgot_email = st.text_input("Email", key="forgot_email", placeholder="name@example.com")
+    forgot_email = st.text_input(
+        "Email", key="forgot_email", placeholder="name@example.com"
+    )
     if st.button("Send reset link", key="forgot_submit"):
         resp = _post_json("/password/forgot", json={"email": forgot_email})
         if resp is None:
