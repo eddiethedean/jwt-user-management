@@ -355,7 +355,7 @@ def list_backend_users(app_urls):
             headers={"Authorization": f"Bearer {tok}"},
             timeout=10,
         )
-        if not r.ok:
+        if not r.is_success:
             raise RuntimeError(f"list users failed: {r.status_code} {r.text}")
         return r.json()
 

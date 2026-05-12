@@ -68,12 +68,15 @@ def select_public_go_to(page: Page, option: str) -> None:
     """
     idx = _GO_TO_OPTIONS.index(option)
 
-    main = page.locator('[data-testid="stMain"]')
-    radios = main.locator('input[type="radio"]')
-    if radios.count() >= len(_GO_TO_OPTIONS):
-        radios.nth(idx).evaluate("el => el.click()")
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        main = page.locator('[data-testid="stMain"]')
+        radios = main.locator('input[type="radio"]')
+        if radios.count() >= len(_GO_TO_OPTIONS):
+            radios.nth(idx).evaluate("el => el.click()")
+            page.wait_for_timeout(200)
+            return
         page.wait_for_timeout(200)
-        return
 
     _expand_sidebar_if_needed(page)
     sidebar = page.locator('[data-testid="stSidebar"]')
@@ -101,7 +104,7 @@ def select_public_go_to(page: Page, option: str) -> None:
     if global_radio.count():
         global_radio.first.click(timeout=15_000)
         return
-    sidebar.get_by_text(option, exact=False).first.click(timeout=15_000, force=True)
+    raise AssertionError(f"Could not select public Go to tab: {option!r}")
 
 
 def click_sidebar_button(page: Page, name: str, *, timeout_ms: int = 30_000) -> None:
@@ -146,6 +149,21 @@ def login_with_email_password(
         "Streamlit did not reach authenticated navigation after successful /auth/token. "
         f"stApp text snippet:\n{snippet!r}"
     )
+
+
+def click_sidebar_sign_out(page: Page) -> None:
+    """Sign out from the sidebar (matches HTML-era layout)."""
+    _expand_sidebar_if_needed(page)
+    page.locator('[data-testid="stSidebar"]').get_by_role(
+        "button", name="Sign out"
+    ).click(timeout=30_000)
+    page.wait_for_timeout(400)
+
+
+def open_public_page(page: Page, user_url: str, option: str) -> None:
+    """Load the user app and select a public **Go to** tab."""
+    goto_user_app(page, user_url)
+    select_public_go_to(page, option)
 
 
 def expect_authenticated(page: Page, *, email: Optional[str] = None) -> None:

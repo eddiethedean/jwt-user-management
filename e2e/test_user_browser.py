@@ -39,8 +39,12 @@ def test_user_login_and_logout(page, app_urls, create_backend_user):
     page.get_by_role("textbox", name="Password").fill(password)
     page.get_by_role("button", name="Sign in").click()
 
-    expect(page.get_by_text("Signed in as", exact=False)).to_be_visible(timeout=90_000)
-    page.get_by_text(email, exact=True).wait_for(timeout=30_000)
+    expect(
+        page.locator('[data-testid="stMain"]').get_by_text("Signed in as", exact=False)
+    ).to_be_visible(timeout=90_000)
+    page.locator('[data-testid="stMain"]').get_by_text(email, exact=True).wait_for(
+        timeout=30_000
+    )
 
     # Logout
     _click_sign_out(page)
@@ -48,10 +52,20 @@ def test_user_login_and_logout(page, app_urls, create_backend_user):
     # Allow rerun.
     deadline = time.time() + 30
     while time.time() < deadline:
-        if page.get_by_text("Signed in as", exact=False).count() == 0:
+        if (
+            page.locator('[data-testid="stMain"]')
+            .get_by_text("Signed in as", exact=False)
+            .count()
+            == 0
+        ):
             break
         page.wait_for_timeout(250)
-    assert page.get_by_text("Signed in as", exact=False).count() == 0
+    assert (
+        page.locator('[data-testid="stMain"]')
+        .get_by_text("Signed in as", exact=False)
+        .count()
+        == 0
+    )
 
 
 @pytest.mark.e2e
@@ -71,18 +85,32 @@ def test_user_login_not_persisted_across_refresh(page, app_urls, create_backend_
     page.get_by_role("textbox", name="Password").fill(password)
     page.get_by_role("button", name="Sign in").click()
 
-    expect(page.get_by_text("Signed in as", exact=False)).to_be_visible(timeout=90_000)
-    page.get_by_text(email, exact=True).wait_for(timeout=30_000)
+    expect(
+        page.locator('[data-testid="stMain"]').get_by_text("Signed in as", exact=False)
+    ).to_be_visible(timeout=90_000)
+    page.locator('[data-testid="stMain"]').get_by_text(email, exact=True).wait_for(
+        timeout=30_000
+    )
 
     page.reload(wait_until="networkidle")
     wait_streamlit_app(page)
 
     deadline = time.time() + 45
     while time.time() < deadline:
-        if page.get_by_text("Signed in as", exact=False).count() == 0:
+        if (
+            page.locator('[data-testid="stMain"]')
+            .get_by_text("Signed in as", exact=False)
+            .count()
+            == 0
+        ):
             break
         page.wait_for_timeout(300)
-    assert page.get_by_text("Signed in as", exact=False).count() == 0
+    assert (
+        page.locator('[data-testid="stMain"]')
+        .get_by_text("Signed in as", exact=False)
+        .count()
+        == 0
+    )
     select_public_go_to(page, "Login")
 
 
@@ -102,7 +130,9 @@ def test_user_logout_persists_across_refresh(page, app_urls, create_backend_user
     page.get_by_role("textbox", name="Password").fill(password)
     page.get_by_role("button", name="Sign in").click()
 
-    expect(page.get_by_text("Signed in as", exact=False)).to_be_visible(timeout=90_000)
+    expect(
+        page.locator('[data-testid="stMain"]').get_by_text("Signed in as", exact=False)
+    ).to_be_visible(timeout=90_000)
 
     # Logout
     _click_sign_out(page)
@@ -110,22 +140,42 @@ def test_user_logout_persists_across_refresh(page, app_urls, create_backend_user
     # Wait until logged-out UI (no authenticated banner).
     deadline = time.time() + 30
     while time.time() < deadline:
-        if page.get_by_text("Signed in as", exact=False).count() == 0:
+        if (
+            page.locator('[data-testid="stMain"]')
+            .get_by_text("Signed in as", exact=False)
+            .count()
+            == 0
+        ):
             break
         page.wait_for_timeout(250)
-    assert page.get_by_text("Signed in as", exact=False).count() == 0
+    assert (
+        page.locator('[data-testid="stMain"]')
+        .get_by_text("Signed in as", exact=False)
+        .count()
+        == 0
+    )
 
     # Refresh: must remain logged out.
     def _assert_logged_out_ui() -> None:
         wait_streamlit_app(page)
         select_public_go_to(page, "Login")
-        assert page.get_by_text("Signed in as", exact=False).count() == 0
+        assert (
+            page.locator('[data-testid="stMain"]')
+            .get_by_text("Signed in as", exact=False)
+            .count()
+            == 0
+        )
 
     for _ in range(3):
         page.reload(wait_until="networkidle")
         deadline = time.time() + 20
         while time.time() < deadline:
-            if page.get_by_text("Signed in as", exact=False).count() == 0:
+            if (
+                page.locator('[data-testid="stMain"]')
+                .get_by_text("Signed in as", exact=False)
+                .count()
+                == 0
+            ):
                 break
             page.wait_for_timeout(250)
         _assert_logged_out_ui()

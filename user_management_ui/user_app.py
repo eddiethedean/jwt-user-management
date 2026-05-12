@@ -267,6 +267,16 @@ def _post_json_authed(
         return None
 
 
+def _patch_json_authed(
+    path: str, json: Optional[Dict] = None
+) -> Optional[httpx.Response]:
+    try:
+        return _authed_client().patch_json(path, json=json or {})
+    except httpx.RequestError:
+        st.error("Backend request failed (is it running?)")
+        return None
+
+
 def _public_url(url: str) -> str:
     """
     Normalize a URL for display/copy so it uses the externally-visible base.
@@ -624,7 +634,7 @@ if auth.is_authenticated:
                 )
                 saved = st.form_submit_button("Save")
             if saved:
-                resp = _post_json_authed("/users/me", json={"full_name": full_name})
+                resp = _patch_json_authed("/users/me", json={"full_name": full_name})
                 if resp is None:
                     st.stop()
                 if resp.is_success:

@@ -6,8 +6,9 @@ import subprocess
 import sys
 import webbrowser
 from pathlib import Path
+from typing import Callable, cast
 
-from fluxlit.runtime import run_unified
+from fluxlit.runtime import find_free_port, run_unified
 
 here = Path(__file__).resolve()
 app_root = here.parent
@@ -40,9 +41,13 @@ def _run_migrations_if_enabled() -> None:
     )
 
 
-def _env_int(name: str, default: int) -> int:
+def _env_int(name: str) -> int | None:
     raw = (os.environ.get(name) or "").strip()
-    return int(raw) if raw else default
+    return int(raw) if raw else None
+
+
+def _gateway_port() -> int:
+    return _env_int("PORT") or _env_int("FLUXLIT_GATEWAY_PORT") or find_free_port()
 
 
 def _browser_url(host: str, port: int) -> str:
@@ -53,6 +58,10 @@ def _browser_url(host: str, port: int) -> str:
         if root
         else f"http://{browser_host}:{port}/"
     )
+
+
+def _public_base_url(host: str, port: int) -> str:
+    return _browser_url(host, port).rstrip("/")
 
 
 def start_app(
@@ -81,7 +90,10 @@ def start_app(
     host = (
         os.environ.get("HOST") or os.environ.get("FLUXLIT_GATEWAY_HOST") or "127.0.0.1"
     )
-    port = _env_int("PORT", _env_int("FLUXLIT_GATEWAY_PORT", 8000))
+    port = _gateway_port()
+    os.environ.setdefault("PORT", str(port))
+    os.environ.setdefault("FLUXLIT_GATEWAY_PORT", str(port))
+    os.environ.setdefault("FLUXLIT_PUBLIC_BASE_URL", _public_base_url(host, port))
     log_level = (
         os.environ.get("LOG_LEVEL") or os.environ.get("FLUXLIT_LOG_LEVEL") or "info"
     )
@@ -91,7 +103,8 @@ def start_app(
     if open_with_browser:
         webbrowser.open(_browser_url(host, port))
 
-    run_unified(
+    run_workbench_unified = cast(Callable[..., None], run_unified)
+    run_workbench_unified(
         target,
         host=host,
         port=port,
