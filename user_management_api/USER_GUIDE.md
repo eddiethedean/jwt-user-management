@@ -8,7 +8,8 @@ This guide explains how to **run**, **use**, and **deploy** the FastAPI backend 
 - **JWT authentication** (`/auth/token` issues bearer tokens)
 - **Invites** (admin generates invite links; users accept invites)
 - **Password resets** (request reset link; set a new password)
-- **Streamlit UI** optionally served at `/app` (from `../streamlit_user/`)
+
+The browser UI is the **Streamlit** app in `../user_management_ui/`, run as a **separate process** with `BACKEND_URL` pointing at this API.
 
 ## Prerequisites
 
@@ -30,7 +31,8 @@ uvicorn app.asgi:app --reload --port 8001
 ```
 
 - **API docs**: `http://127.0.0.1:8001/docs`
-- **UI (Streamlit, same process)**: `http://127.0.0.1:8001/app`
+
+Run the Streamlit UI from `../user_management_ui/` separately; set `BACKEND_URL` there to this API (see that folder’s README).
 
 ## Configuration (`.env`)
 
@@ -115,10 +117,7 @@ This service is API-first. The legacy HTML UI (including `/admin/`, `/login`, et
 was archived because cookie-based sessions proved unreliable in embedded Posit
 Connect contexts.
 
-The supported UI is the Streamlit app in `../streamlit_user/`, which can be:
-
-- Run as a separate Streamlit process (dev convenience), or
-- Served by the same FastAPI process at `GET /app`
+The supported UI is the Streamlit app in `../user_management_ui/`. Run it as its own Streamlit process and set **`BACKEND_URL`** to the URL of this API (include any path prefix the API is served under).
 
 ### Seeding an initial admin user (optional)
 
@@ -183,10 +182,11 @@ PROXY_PORT=8080 \
 docker compose -f infra/connect-proxy/docker-compose.yml up
 ```
 
-Then access:
+Then access the API, for example:
 
 - `http://127.0.0.1:8080/connect/app/docs`
-- `http://127.0.0.1:8080/connect/app/app`
+
+Run the Streamlit app in `../user_management_ui/` as a separate process. Set `BACKEND_URL` to the browser-visible API base URL (for the example above, `http://127.0.0.1:8080/connect/app`).
 
 If your proxy strips the prefix before proxying:
 

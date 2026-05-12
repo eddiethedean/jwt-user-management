@@ -2,3 +2,6 @@ pytest
 requests
 playwright
 pytest-playwright
+streamlit
+python-dotenv
+httpx

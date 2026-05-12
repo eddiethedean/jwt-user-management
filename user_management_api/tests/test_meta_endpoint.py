@@ -28,7 +28,7 @@ def _ensure_this_package_app_first() -> None:
 
 def test_meta_endpoint_includes_external_base_and_prefix(tmp_path) -> None:
     """
-    /__meta is used by the mounted Streamlit UI to learn the externally-visible
+    /__meta is used by the Streamlit UI (``user_management_ui``) to learn the externally-visible
     base URL and prefix behind proxies.
     """
 

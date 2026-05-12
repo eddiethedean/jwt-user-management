@@ -14,13 +14,13 @@ venv/
 env/
 backend/.venv/
 streamlit_admin/.venv/
-streamlit_user/.venv/
+user_management_ui/.venv/
 
 # Env files / secrets
 .env
 backend/.env
 streamlit_admin/.env
-streamlit_user/.env
+user_management_ui/.env
 streamlit_admin/config.yaml
 
 # Local databases

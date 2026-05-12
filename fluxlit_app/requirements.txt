@@ -4,7 +4,6 @@ fluxlit[auth]==0.6.1
 # Bundled FastAPI backend (``fluxlit_app/app``): DB, email, JWT, routes
 fastapi[standard]
 uvicorn[standard]
-hypercorn
 sqlmodel
 alembic
 rapsqlite==0.3.0

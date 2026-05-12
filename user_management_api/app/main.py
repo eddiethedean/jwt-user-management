@@ -17,9 +17,7 @@ from app.web.debug_panel import (
     init_cookie_debug,
 )
 
-# Disable automatic slash redirects so mounted sub-apps (e.g. Streamlit at /app)
-# can control their own trailing-slash behavior without redirect loops.
-app = FastAPI(title="User Management API", redirect_slashes=False)
+app = FastAPI(title="User Management API")
 
 _APP_ROOT = Path(__file__).resolve().parent
 ## Legacy HTML UI assets were archived; no static mount needed.
@@ -104,11 +102,10 @@ app.include_router(users_router)
 @app.get("/__meta", include_in_schema=False)
 async def meta(request: Request) -> JSONResponse:
     """
-    Small metadata endpoint intended for the mounted Streamlit UI.
+    Metadata for HTTP clients (e.g. the Streamlit app in ``user_management_ui/``).
 
-    It returns the externally-visible base URL (using fastapi_workbench’s proxy
-    detection) along with the normalized base path. This lets UIs compute
-    correct URLs without guessing.
+    Returns the externally-visible base URL (via fastapi_workbench proxy
+    detection) and the normalized base path so UIs can build correct URLs.
     """
 
     bp = wb_base_path(request)

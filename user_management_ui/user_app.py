@@ -40,14 +40,16 @@ load_dotenv()
 st.set_page_config(page_title="User Management", layout="centered")
 st.title("User Management")
 
-_default_port = (os.getenv("PORT") or "8001").strip()
-_default_base_path = (os.getenv("BASE_PATH") or "").rstrip("/")
 _test_mode = os.getenv("STREAMLIT_TEST_MODE", "").lower() in ("1", "true", "yes")
-BACKEND_URL = (
-    "http://testserver"
-    if _test_mode
-    else f"http://localhost:{_default_port}{_default_base_path}".rstrip("/")
-)
+_env_backend = (os.getenv("BACKEND_URL") or "").strip()
+if _test_mode:
+    BACKEND_URL = "http://testserver"
+elif _env_backend:
+    BACKEND_URL = _env_backend.rstrip("/")
+else:
+    _default_port = (os.getenv("PORT") or "8001").strip()
+    _default_base_path = (os.getenv("BASE_PATH") or "").rstrip("/")
+    BACKEND_URL = f"http://localhost:{_default_port}{_default_base_path}".rstrip("/")
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
 if "_debug_logs" not in st.session_state:
@@ -63,7 +65,7 @@ def _dbg(msg: str) -> None:
 def _render_debug_logs() -> None:
     if not DEBUG:
         return
-    with st.sidebar.expander("Debug (mounted Streamlit)", expanded=False):
+    with st.sidebar.expander("Debug (Streamlit UI)", expanded=False):
         st.code("\n".join(st.session_state.get("_debug_logs") or []))
 
 
@@ -75,7 +77,10 @@ def _render_session_debug() -> None:
     st.sidebar.json({"authenticated": a.is_authenticated, "email": a.email or "(none)"})
 
 
-_dbg(f"env PORT={os.getenv('PORT')!r} BASE_PATH={os.getenv('BASE_PATH')!r}")
+_dbg(
+    f"env BACKEND_URL={os.getenv('BACKEND_URL')!r} PORT={os.getenv('PORT')!r} "
+    f"BASE_PATH={os.getenv('BASE_PATH')!r}"
+)
 _dbg(f"computed BACKEND_URL={BACKEND_URL!r}")
 
 
@@ -137,9 +142,8 @@ except ValueError as e:
 
 client = BackendClient(base_url=BACKEND_URL)
 
-# Try to discover the externally-visible base URL from the backend (when the UI
-# is mounted under FastAPI behind Workbench/Connect). This avoids guessing the
-# public host/prefix. Fail silently so local dev isn't impacted.
+# Discover the externally-visible base URL from the backend ``/__meta`` endpoint
+# (Workbench/Connect proxies). Fail silently so plain local dev isn't impacted.
 if "_external_api_base" not in st.session_state:
     try:
         meta_url = f"{BACKEND_URL}/__meta"
@@ -204,12 +208,22 @@ def _authed_client() -> BackendClient:
     return BackendClient(base_url=BACKEND_URL, access_token=auth.access_token)
 
 
+def _post_json_authed(
+    path: str, params: Optional[Dict] = None, json: Optional[Dict] = None
+) -> Optional[httpx.Response]:
+    try:
+        return _authed_client().post_json(path, params=params, json=json or {})
+    except httpx.RequestError:
+        st.error("Backend request failed (is it running?)")
+        return None
+
+
 def _public_url(url: str) -> str:
     """
     Normalize a URL for display/copy so it uses the externally-visible base.
 
     The backend typically returns absolute links already (via PUBLIC_BASE_URL),
-    but in mounted/proxied environments it’s safer to re-base same-origin URLs
+    but behind proxies it’s safer to re-base same-origin URLs
     onto PUBLIC_API_BASE for a user to click/copy.
     """
 
@@ -248,7 +262,7 @@ def _load_me() -> dict:
     except httpx.RequestError:
         me = {}
     else:
-        me = safe_json(r) if r.ok else {}
+        me = safe_json(r) if r.is_success else {}
     st.session_state["_me"] = me
     return me
 
@@ -278,7 +292,7 @@ def _render_login() -> None:
         resp = _post_form("/auth/token", data={"username": email, "password": password})
         if resp is None:
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             data = safe_json(resp)
             access_token = str(data.get("access_token") or "")
             if not access_token:
@@ -313,7 +327,7 @@ def _render_register() -> None:
         except httpx.RequestError:
             st.error("Backend request failed (is it running?)")
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             st.success("If allowed, a setup link was generated/sent.")
         else:
             show_http_error("Registration failed", resp)
@@ -327,7 +341,7 @@ def _render_accept_invite() -> None:
         resp = _post_json("/invites/inspect", json={"token": invite_token})
         if resp is None:
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             st.session_state["_invite_info"] = safe_json(resp)
         else:
             show_http_error("Invite not found", resp)
@@ -351,7 +365,7 @@ def _render_accept_invite() -> None:
         )
         if resp is None:
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             st.success("Invite accepted. You can now sign in.")
         else:
             show_http_error("Invite accept failed", resp)
@@ -367,7 +381,7 @@ def _render_reset_password() -> None:
         resp = _post_json("/password/forgot", json={"email": forgot_email})
         if resp is None:
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             st.success("If the account exists, a reset email has been sent.")
         else:
             st.error(f"Reset request failed: {resp.status_code} {resp.text}")
@@ -380,7 +394,7 @@ def _render_reset_password() -> None:
         resp = _post_json("/password/inspect", json={"token": token})
         if resp is None:
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             st.session_state["_reset_info"] = safe_json(resp)
         else:
             show_http_error("Reset link not found", resp)
@@ -400,7 +414,7 @@ def _render_reset_password() -> None:
         )
         if resp is None:
             st.stop()
-        if resp.ok:
+        if resp.is_success:
             st.success("Password updated. You can now log in.")
         else:
             st.error(f"Reset failed: {resp.status_code} {resp.text}")
@@ -437,7 +451,7 @@ if auth.is_authenticated:
             except httpx.RequestError:
                 st.error("Backend request failed (is it running?)")
             else:
-                if not r.ok:
+                if not r.is_success:
                     show_http_error("Failed to load users", r)
                 else:
                     data = safe_json(r)
@@ -464,10 +478,10 @@ if auth.is_authenticated:
             )
             saved = st.form_submit_button("Save")
         if saved:
-            resp = _post_json("/users/me", json={"full_name": full_name})
+            resp = _post_json_authed("/users/me", json={"full_name": full_name})
             if resp is None:
                 st.stop()
-            if resp.ok:
+            if resp.is_success:
                 st.success("Saved")
                 st.session_state.pop("_me", None)
                 _load_me()
@@ -482,7 +496,7 @@ if auth.is_authenticated:
             cfm = st.text_input("Confirm new password", type="password")
             ok = st.form_submit_button("Update password")
         if ok:
-            resp = _post_json(
+            resp = _post_json_authed(
                 "/users/me/password",
                 json={
                     "current_password": cur,
@@ -492,7 +506,7 @@ if auth.is_authenticated:
             )
             if resp is None:
                 st.stop()
-            if resp.ok:
+            if resp.is_success:
                 st.success("Password updated")
             else:
                 show_http_error("Password update failed", resp)
@@ -508,20 +522,22 @@ if auth.is_authenticated:
                 submit = st.form_submit_button("Create invite")
             if submit:
                 with st.spinner("Looking up email…"):
-                    resp = _post_json("/invites/lookup", json={"email": invite_email})
+                    resp = _post_json_authed(
+                        "/invites/lookup", json={"email": invite_email}
+                    )
                 if resp is None:
                     st.stop()
-                if not resp.ok:
+                if not resp.is_success:
                     show_http_error("Could not verify email", resp)
                     st.stop()
                 with st.spinner("Sending email…"):
-                    r2 = _post_json(
+                    r2 = _post_json_authed(
                         "/invites",
                         json={"email": invite_email, "grant_admin": bool(grant_admin)},
                     )
                 if r2 is None:
                     st.stop()
-                if r2.ok:
+                if r2.is_success:
                     j = safe_json(r2)
                     st.success("Invite created")
                     st.code(_public_url(str(j.get("invite_url") or "")))
@@ -531,7 +547,7 @@ if auth.is_authenticated:
             st.divider()
             st.subheader("Manage users")
             r = _authed_client().get("/users")
-            rows = safe_json(r) if r.ok else {}
+            rows = safe_json(r) if r.is_success else {}
             users = rows.get("data") if isinstance(rows.get("data"), list) else rows
             if not isinstance(users, list):
                 users = []
@@ -558,7 +574,7 @@ if auth.is_authenticated:
                             "is_admin": admin_flag,
                         },
                     )
-                    if rr.ok:
+                    if rr.is_success:
                         st.success("Saved")
                     else:
                         show_http_error("Save failed", rr)

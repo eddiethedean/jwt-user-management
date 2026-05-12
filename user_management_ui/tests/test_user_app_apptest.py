@@ -15,6 +15,7 @@ def _env():
 class _Resp:
     def __init__(self, ok=True, status_code=200, json_data=None, text=""):
         self.ok = ok
+        self.is_success = bool(ok)
         self.status_code = status_code
         self._json_data = json_data if json_data is not None else {}
         self.text = text

@@ -3,13 +3,14 @@
 Minimal FastAPI + SQLModel + Alembic app with:
 - **JWT auth**: obtain token via form login or API token endpoint
 - **SQLite** persistence
-- **Streamlit UI mount** (optional): serves `../streamlit_user/user_app.py` under `GET /app` when Streamlit is installed
+
+The browser UI is the **separate** Streamlit app in `../user_management_ui/`; configure it with **`BACKEND_URL`** pointing at this API.
 
 ## Posit Connect note (HTML UI)
 
 This backend previously included a legacy HTML UI, but when deployed to **Posit Connect** the browser often does **not** persist the login cookie in the embedded Connect context. The legacy HTML UI is now archived under `app/web/archive/`.
 
-For Connect deployments, prefer the **Streamlit UI** in `../streamlit_user/` (JWT stored in Streamlit session state). You can run it as a separate Streamlit app, or serve it from the same FastAPI process at `GET /app`.
+For Connect deployments, deploy **`user_management_ui/`** as its own Streamlit content (JWT in Streamlit session state) and set **`BACKEND_URL`** to the public URL of this API.
 
 ## Run locally
 
@@ -26,15 +27,8 @@ uvicorn app.asgi:app --reload --port 8001
 ```
 
 - Docs: `http://127.0.0.1:8001/docs`
-- UI (Streamlit, same process): `http://127.0.0.1:8001/app`
 
-## Run with Hypercorn (optional)
-
-```bash
-cd user_management_api
-source .venv/bin/activate
-hypercorn app.asgi:app --bind 127.0.0.1:8001
-```
+Start the Streamlit UI separately (see `../user_management_ui/README.md`); set `BACKEND_URL=http://127.0.0.1:8001` (or your deployed API URL).
 
 ## Run on Workbench (behind a proxy prefix)
 

@@ -2,6 +2,7 @@ import pytest
 
 
 @pytest.mark.e2e
+@pytest.mark.skip(reason="Legacy HTML admin UI was removed; use Streamlit admin tests.")
 def test_admin_login_logout(page, app_urls, admin_credentials):
     page.context.clear_cookies()
     page.goto(app_urls["admin"], wait_until="domcontentloaded")

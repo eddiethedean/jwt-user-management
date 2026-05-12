@@ -1,6 +1,5 @@
 fastapi[standard]
 uvicorn[standard]
-hypercorn
 sqlmodel
 alembic
 rapsqlite==0.3.0
@@ -14,4 +13,3 @@ python-multipart
 pytest
 fastapi-workbench==0.2.0
 httpx
-streamlit[starlette]

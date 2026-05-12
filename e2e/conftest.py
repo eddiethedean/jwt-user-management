@@ -1,9 +1,15 @@
 import os
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Optional
+
+# Allow `import streamlit_nav` from this directory when running `pytest e2e/`.
+_E2E_DIR = str(Path(__file__).resolve().parent)
+if _E2E_DIR not in sys.path:
+    sys.path.insert(0, _E2E_DIR)
 
 import pytest
 import requests
@@ -13,10 +19,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _E2E_DB_PATH: Optional[Path] = None
 
-# Use the service virtualenvs for launching backend/Streamlit, since the e2e
-# environment only carries pytest/playwright dependencies.
-BACKEND_PY = REPO_ROOT / "user_management_api" / ".venv" / "bin" / "python"
-STREAMLIT_PY = REPO_ROOT / "streamlit_user" / ".venv" / "bin" / "python"
+# Interpreter for API + Streamlit (must have ``user_management_api`` and e2e deps).
+# Override only if needed: ``export JWT_USER_MGMT_E2E_PYTHON=/path/to/python``.
+BACKEND_PY = Path(
+    os.getenv(
+        "JWT_USER_MGMT_E2E_PYTHON",
+        str(REPO_ROOT / "user_management_api" / ".venv" / "bin" / "python"),
+    )
+)
+# Do not ``resolve()`` across ``.venv/bin/python`` → pyenv shims; that breaks venv site-packages.
 
 
 def _truthy_env(name: str) -> bool:
@@ -136,11 +147,15 @@ def run_apps(ports, admin_credentials):
     _E2E_DB_PATH = db_path
 
     env_backend = os.environ.copy()
+    # Pytest's ``pythonpath`` ends up in ``PYTHONPATH`` and can break subprocess
+    # imports (e.g. ``pydantic_settings``) when it shadows the venv.
+    env_backend.pop("PYTHONPATH", None)
     backend_public = f"http://127.0.0.1:{backend_port}"
     env_backend.update(
         {
             "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
             "PUBLIC_BASE_URL": backend_public,
+            "JWT_SECRET": os.getenv("JWT_SECRET", "e2e-jwt-secret-not-for-production"),
         }
     )
 
@@ -203,11 +218,11 @@ def run_apps(ports, admin_credentials):
             fp = log_path.open("a", encoding="utf-8")
             p = subprocess.Popen(
                 [
-                    str(STREAMLIT_PY),
+                    str(BACKEND_PY),
                     "-m",
                     "streamlit",
                     "run",
-                    "app.py",
+                    str(REPO_ROOT / "user_management_ui" / "user_app.py"),
                     "--server.port",
                     port,
                     "--server.headless",
@@ -215,7 +230,7 @@ def run_apps(ports, admin_credentials):
                     "--server.fileWatcherType",
                     "none",
                 ],
-                cwd=str(cwd),
+                cwd=str(REPO_ROOT),
                 env=env,
                 stdout=fp,
                 stderr=subprocess.STDOUT,
@@ -239,16 +254,17 @@ def run_apps(ports, admin_credentials):
         )
 
     env_user = os.environ.copy()
+    env_user.pop("PYTHONPATH", None)
     env_user.update(
         {
-            "BACKEND_URL": backend_public,
+            "BACKEND_URL": backend_public.rstrip("/"),
             "STREAMLIT_TEST_MODE": "",
             "DEBUG": "false",
         }
     )
 
     user = _start_streamlit_with_retry(
-        cwd=REPO_ROOT / "streamlit_user",
+        cwd=REPO_ROOT,
         env=env_user,
         log_path=user_log,
         port_key="user",
@@ -282,18 +298,45 @@ def e2e_db_path() -> Path:
 
 
 @pytest.fixture
-def create_backend_user(app_urls):
-    """Helper to create a backend user via HTML register form."""
+def create_backend_user(app_urls, admin_credentials):
+    """
+    Create a normal (non-admin) user by admin invite + accept (matches API behavior).
+    """
 
     def _create(email: str, password: str):
-        r = requests.post(
-            f"{app_urls['backend']}/register",
-            data={"email": email, "password": password},
+        from urllib.parse import parse_qs, urlparse
+
+        tok = requests.post(
+            f"{app_urls['backend']}/auth/token",
+            data={
+                "username": admin_credentials["email"],
+                "password": admin_credentials["password"],
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=10,
         )
-        if r.status_code not in (200, 400):
-            raise RuntimeError(f"create user failed: {r.status_code} {r.text}")
-        return r
+        tok.raise_for_status()
+        access = tok.json()["access_token"]
+        inv = requests.post(
+            f"{app_urls['backend']}/invites",
+            json={"email": email, "grant_admin": False},
+            headers={"Authorization": f"Bearer {access}"},
+            timeout=10,
+        )
+        if inv.status_code >= 400:
+            raise RuntimeError(f"invite failed: {inv.status_code} {inv.text}")
+        invite_url = str(inv.json().get("invite_url") or "")
+        token = (parse_qs(urlparse(invite_url).query).get("token") or [""])[0]
+        if not token:
+            raise RuntimeError(f"no token in invite_url: {invite_url!r}")
+        acc = requests.post(
+            f"{app_urls['backend']}/invites/accept",
+            json={"token": token, "password": password},
+            timeout=10,
+        )
+        if acc.status_code >= 400:
+            raise RuntimeError(f"accept failed: {acc.status_code} {acc.text}")
+        return acc
 
     return _create
 

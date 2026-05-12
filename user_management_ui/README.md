@@ -1,4 +1,4 @@
-# Streamlit User App (Demo)
+# User management UI (Streamlit)
 
 User-facing demo Streamlit app that logs in against the backend.
 
@@ -6,7 +6,7 @@ User-facing demo Streamlit app that logs in against the backend.
 
 Prereqs: **Python 3.10+**.
 
-1) Ensure the backend is running.
+1) Ensure the backend is running (separate terminal).
 
 ```bash
 cd user_management_api
@@ -14,13 +14,15 @@ source .venv/bin/activate
 uvicorn app.asgi:app --reload --port 8001
 ```
 
-2) Start the user demo app.
+2) Start the user demo app with **`BACKEND_URL`** set to that API (copy `.env.example` to `.env` or export in the shell).
 
 ```bash
-cd streamlit_user
+cd user_management_ui
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
+# Edit .env: BACKEND_URL=http://127.0.0.1:8001
 streamlit run user_app.py --server.port 8502 --server.fileWatcherType none
 ```
 
@@ -30,6 +32,11 @@ Open `http://localhost:8502`.
 
 - **Login** calls `POST /auth/token` and stores the returned JWT in session state.
 - This demo does not persist auth across browser refreshes; it’s intentionally minimal.
+
+## Environment (`user_management_ui/.env`)
+
+- **`BACKEND_URL`**: full base URL of the FastAPI API (no trailing slash), e.g. `http://127.0.0.1:8001`. Required for real deployments; if unset, the app falls back to `http://localhost:${PORT:-8001}${BASE_PATH}` for local dev.
+- **`DEBUG`**: set to `true` for sidebar diagnostics.
 
 ### Backend URL safety checks
 
@@ -42,7 +49,7 @@ The user app validates its backend base URL:
 ## Run tests
 
 ```bash
-cd streamlit_user
+cd user_management_ui
 source .venv/bin/activate
 pytest
 ```
