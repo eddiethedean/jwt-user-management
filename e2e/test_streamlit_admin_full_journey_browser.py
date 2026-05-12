@@ -16,7 +16,6 @@ from playwright.sync_api import expect
 
 from streamlit_nav import (
     click_sidebar_button,
-    goto_user_app,
     login_with_email_password,
     select_public_go_to,
     wait_streamlit_app,
@@ -46,7 +45,9 @@ def _admin_token(app_urls: dict, admin_credentials: dict) -> str:
     return str(r.json()["access_token"])
 
 
-def _create_invite_raw_token(app_urls: dict, admin_credentials: dict, email: str) -> str:
+def _create_invite_raw_token(
+    app_urls: dict, admin_credentials: dict, email: str
+) -> str:
     from urllib.parse import parse_qs, urlparse
 
     tok = _admin_token(app_urls, admin_credentials)
@@ -174,10 +175,12 @@ def test_admin_streamlit_full_journey_with_api(
         user_url=app_urls["user"],
         backend_base_url=app_urls["backend"],
     )
-    expect(page.locator('[data-testid="stApp"]')).to_contain_text(invitee_email, timeout=30_000)
+    expect(page.locator('[data-testid="stApp"]')).to_contain_text(
+        invitee_email, timeout=30_000
+    )
 
     # Invited user should not see Admin in sidebar (not granted admin).
     _expand_sidebar_if_needed(page)
-    expect(page.locator('[data-testid="stSidebar"]').get_by_role("button", name="Admin")).to_have_count(
-        0
-    )
+    expect(
+        page.locator('[data-testid="stSidebar"]').get_by_role("button", name="Admin")
+    ).to_have_count(0)

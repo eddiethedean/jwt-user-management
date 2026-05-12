@@ -28,7 +28,8 @@ def test_rejects_hostname_resolving_to_private_ip(monkeypatch):
         return [(2, 1, 6, "", ("10.0.0.5", port))]
 
     monkeypatch.setattr(
-        "user_management_ui.user_common.backend_client.socket.getaddrinfo", fake_getaddrinfo
+        "user_management_ui.user_common.backend_client.socket.getaddrinfo",
+        fake_getaddrinfo,
     )
 
     with pytest.raises(ValueError, match="resolve to private"):

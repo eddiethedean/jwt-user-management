@@ -11,8 +11,8 @@ _E2E_DIR = str(Path(__file__).resolve().parent)
 if _E2E_DIR not in sys.path:
     sys.path.insert(0, _E2E_DIR)
 
-import pytest
-import requests
+import pytest  # noqa: E402
+import requests  # noqa: E402
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
