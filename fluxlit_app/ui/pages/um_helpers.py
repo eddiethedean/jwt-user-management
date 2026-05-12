@@ -44,18 +44,7 @@ def public_url(url: str, *, public_api_base: str) -> str:
     except Exception:
         return raw
     if p.scheme in {"http", "https"} and p.netloc:
-        try:
-            cur = urlparse(public_api_base)
-            if (
-                cur.scheme in {"http", "https"}
-                and cur.netloc
-                and p.netloc == cur.netloc
-            ):
-                return f"{public_api_base.rstrip('/')}{p.path or ''}" + (
-                    f"?{p.query}" if p.query else ""
-                )
-        except Exception:
-            return raw
+        return raw
     return raw
 
 

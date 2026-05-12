@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -25,6 +26,14 @@ router = APIRouter(tags=["auth"])
 
 def _norm_email(v: str) -> str:
     return (v or "").strip().lower()
+
+
+def _setup_url(request: Request, token: str) -> str:
+    return external_url(
+        request,
+        "/?" + urlencode({"page": "Accept invite", "token": token}),
+        public_base_url=settings.public_base_url,
+    )
 
 
 @router.post("/register")
@@ -53,31 +62,29 @@ async def register_submit(
         if settings.directory_lookup_required and not rec:
             raise HTTPException(status_code=400, detail="Email not found in directory")
 
-    try:
-        raw = InviteToken.new_raw_token()
-        token_hash = InviteToken.hash_token(raw)
-        now = datetime.now(timezone.utc)
-        invite = InviteToken(
-            email=email_n,
-            token_hash=token_hash,
-            created_at=now,
-            expires_at=now + timedelta(hours=2),
-            used_at=None,
-            grant_admin=False,
-        )
-        db.add(invite)
-        await db.commit()
+    raw = InviteToken.new_raw_token()
+    token_hash = InviteToken.hash_token(raw)
+    now = datetime.now(timezone.utc)
+    invite = InviteToken(
+        email=email_n,
+        token_hash=token_hash,
+        created_at=now,
+        expires_at=now + timedelta(hours=2),
+        used_at=None,
+        grant_admin=False,
+    )
+    db.add(invite)
+    await db.commit()
 
-        setup_url = external_url(
-            request,
-            f"/invites/accept?token={raw}",
-            public_base_url=settings.public_base_url,
-        )
-        send_self_registration_email(to_email=email_n, setup_url=setup_url)
-    except Exception:
-        # Email should not block successful registration.
-        pass
-    return {"ok": True}
+    setup_url = _setup_url(request, raw)
+    email_sent = False
+    if settings.smtp_host and settings.smtp_from_email:
+        try:
+            send_self_registration_email(to_email=email_n, setup_url=setup_url)
+            email_sent = True
+        except Exception:
+            email_sent = False
+    return {"ok": True, "setup_url": setup_url, "email_sent": email_sent}
 
 
 @router.post("/auth/token")

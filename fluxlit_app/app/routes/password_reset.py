@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import os
-import logging
 from typing import Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
@@ -11,16 +10,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import external_url
 from app.core.config import settings
-from app.core.security import hash_password
+from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
 from app.services.email import send_password_reset_email
 
 
 router = APIRouter(prefix="/password", tags=["password"])
-log = logging.getLogger("uvicorn.error")
-
-ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -58,7 +54,7 @@ async def forgot_password_api(
         await db.commit()
         reset_url = external_url(
             request,
-            f"/password/reset?token={raw}",
+            "/?" + urlencode({"page": "Reset password", "token": raw}),
             public_base_url=settings.public_base_url,
         )
         try:
@@ -103,6 +99,10 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     password = str(payload.get("password") or "")
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
+    try:
+        validate_new_password(password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = (

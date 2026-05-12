@@ -6,7 +6,7 @@ Database migrations live here as well ([`alembic/`](alembic/), [`alembic.ini`](a
 
 ## Posit Connect / proxy
 
-- The Streamlit UI keeps the JWT in **Streamlit session state**, which tends to behave better in embedded Connect / proxy contexts than cookie-only HTML UIs.
+- The Streamlit UI keeps the JWT in **Streamlit session state**, which tends to behave better in embedded Connect / proxy contexts than the retired server-rendered HTML UI.
 - Invite and password-reset links use **`PUBLIC_BASE_URL`**. Align it (and **`FLUXLIT_PUBLIC_BASE_URL`** when set) with the URL users see in the browser.
 - Behind a path prefix or reverse proxy, set **`FLUXLIT_ROOT_PATH`** and typically **`FLUXLIT_TRUST_PROXY=1`**. Path-aware URL helpers use **`fastapi_workbench`** (add the repo’s `fastapi_workbench/src` directory to `PYTHONPATH` when it is not already installed as a package).
 
@@ -61,6 +61,20 @@ cd fluxlit_app
 source .venv/bin/activate
 python run_workbench.py
 ```
+
+For connection and proxy debugging:
+
+```bash
+python run_workbench.py --debug --no-browser
+```
+
+Debug mode turns on:
+
+- `DEBUG=1` for the Streamlit sidebar debug panel, including UI-side API-base information;
+- `WORKBENCH_DEBUG=1` for Workbench path/root-path normalization logs;
+- `LOG_LEVEL=debug` for Uvicorn;
+- `FLUXLIT_TRACE_LOGGING=1`, `FLUXLIT_ENABLE_REQUEST_LOGGING=1`, and `FLUXLIT_ENABLE_GATEWAY_ACCESS_LOG=1` for FluxLit gateway traces;
+- `FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID=1` so frontend-to-backend calls carry request IDs when supported.
 
 The launcher:
 
@@ -121,7 +135,7 @@ curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/users/me
 | `JWT_EXPIRES_MINUTES` | Default `60` |
 | `JWT_ALGORITHM` | Default `HS256` |
 
-Optional features (directory lookup, SMTP, cookie debug, etc.) are driven by the same settings as the bundled FastAPI [`app/core/config.py`](app/core/config.py).
+Optional features such as directory lookup and SMTP are driven by the same settings as the bundled FastAPI [`app/core/config.py`](app/core/config.py).
 
 ### FluxLit gateway (`FLUXLIT_*`)
 
@@ -161,8 +175,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest fluxlit_app/tests -q
 | [`run_workbench.py`](run_workbench.py) | Posit Workbench-friendly launcher using the local `fastapi_workbench` source tree. |
 | [`app/`](app/) | Bundled FastAPI application (models, routes, config). |
 | [`alembic/`](alembic/) | SQL migrations for `app`. |
-| [`api_backend.py`](api_backend.py) | Mounts routers, `GET /__meta`, cookie-debug middleware. |
-| [`cookie_debug_middleware.py`](cookie_debug_middleware.py) | Cookie debug middleware. |
+| [`api_backend.py`](api_backend.py) | Mounts routers and `GET /__meta`. |
 | [`paths.py`](paths.py) | Puts this directory on `sys.path` and loads `.env`. |
 | [`fluxlit_settings.py`](fluxlit_settings.py) | Default `FluxlitSettings`. |
 | [`fluxlit_trace.py`](fluxlit_trace.py) | Optional `FLUXLIT_TRACE_LOGGING` hook. |

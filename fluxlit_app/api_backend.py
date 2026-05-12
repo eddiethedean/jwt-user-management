@@ -12,8 +12,6 @@ from app.routes.invites import router as invites_router
 from app.routes.password_reset import router as password_reset_router
 from app.routes.users import router as users_router
 
-from cookie_debug_middleware import attach_cookie_debug_middleware
-
 
 def install_bundled_app_routes(api: FastAPI) -> None:
     for router in (
@@ -24,8 +22,6 @@ def install_bundled_app_routes(api: FastAPI) -> None:
         users_router,
     ):
         api.include_router(router)
-
-    attach_cookie_debug_middleware(api)
 
     @api.get("/", include_in_schema=False)
     async def api_root(_request: Request) -> Response:
@@ -40,11 +36,13 @@ def install_bundled_app_routes(api: FastAPI) -> None:
     @api.get("/__meta", include_in_schema=False)
     async def meta(request: Request) -> JSONResponse:
         bp = wb_base_path(request)
+        app_base = external_base(request) + (bp or "")
         return JSONResponse(
             {
                 "ok": True,
                 "base_path": bp,
                 "external_base": external_base(request),
-                "external_api_base": external_base(request) + (bp or ""),
+                "external_app_base": app_base,
+                "external_api_base": app_base + "/api",
             }
         )

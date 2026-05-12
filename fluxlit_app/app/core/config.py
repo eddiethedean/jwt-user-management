@@ -18,20 +18,6 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60
 
-    # Cookie settings for HTML login session.
-    # Note: When the app is embedded (e.g. in Connect UI iframe), you may need:
-    # AUTH_COOKIE_SAMESITE=none and AUTH_COOKIE_SECURE=true
-    cookie_debug: bool = False
-    auth_cookie_samesite: str = "lax"  # lax|strict|none
-    auth_cookie_secure: bool | None = (
-        None  # None => infer from request scheme/forwarded proto
-    )
-    auth_cookie_domain: str = ""  # optional; usually leave blank
-    # Some browsers require Partitioned cookies (CHIPS) for embedded apps.
-    auth_cookie_partitioned: bool = False
-    # Connect sets a secondary "-legacy" cookie without SameSite for compatibility.
-    auth_cookie_legacy: bool = True
-
     # SMTP (optional). If SMTP_HOST and SMTP_FROM_EMAIL are unset, email sending is disabled.
     smtp_host: str = ""
     smtp_port: int = 25
@@ -68,19 +54,6 @@ class Settings(BaseSettings):
         if not v:
             raise ValueError("JWT_SECRET must be set")
         return v
-
-    @field_validator("auth_cookie_samesite")
-    @classmethod
-    def _validate_cookie_samesite(cls, v: str) -> str:
-        vv = (v or "").strip().lower()
-        if vv not in {"lax", "strict", "none"}:
-            raise ValueError("AUTH_COOKIE_SAMESITE must be one of: lax, strict, none")
-        return vv
-
-    @field_validator("auth_cookie_domain")
-    @classmethod
-    def _validate_cookie_domain(cls, v: str) -> str:
-        return (v or "").strip()
 
 
 settings = Settings()

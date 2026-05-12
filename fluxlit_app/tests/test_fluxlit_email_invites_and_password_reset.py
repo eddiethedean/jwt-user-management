@@ -96,7 +96,7 @@ def test_invite_api_sends_email_when_smtp_configured(tmp_path, monkeypatch) -> N
     assert r.status_code == 200
     data = r.json()
     assert data["ok"] is True
-    assert "/invites/accept?token=" in data["invite_url"]
+    assert "/?page=Accept+invite&token=" in data["invite_url"]
     assert len(_FakeSMTP.sent) == 1
     msg = _FakeSMTP.sent[0].msg
     assert msg["To"] == "new.user@example.com"
@@ -143,7 +143,7 @@ def test_password_forgot_is_non_enumerating_and_emails_if_user_exists(
     assert msg["To"] == "user@example.com"
     assert "Password reset" in (msg["Subject"] or "")
     body = _extract_first_text_part(msg)
-    assert "/password/reset?token=" in body
+    assert "/?page=Reset+password&token=" in body
 
 
 def test_password_reset_api_updates_password_and_marks_token_used(tmp_path) -> None:
@@ -175,14 +175,14 @@ def test_password_reset_api_updates_password_and_marks_token_used(tmp_path) -> N
         s.commit()
 
     tc = FluxLitTestClient(app)
-    r = tc.api_post("/password/reset", json={"token": raw, "password": "newpw"})
+    r = tc.api_post("/password/reset", json={"token": raw, "password": "newpassword"})
     assert r.status_code == 200
     assert r.json() == {"ok": True}
 
     with Session(db.engine) as s:
         u = s.exec(select(User).where(User.email == "user@example.com")).first()
         assert u
-        assert verify_password("newpw", u.hashed_password)
+        assert verify_password("newpassword", u.hashed_password)
         pr = s.exec(
             select(PasswordResetToken).where(
                 PasswordResetToken.token_hash == PasswordResetToken.hash_token(raw)
@@ -199,5 +199,56 @@ def test_password_reset_api_errors(tmp_path) -> None:
     tc = FluxLitTestClient(app)
     r = tc.api_post("/password/reset", json={"token": "", "password": ""})
     assert r.status_code == 422
-    r2 = tc.api_post("/password/reset", json={"token": "bad", "password": "pw"})
+    r2 = tc.api_post("/password/reset", json={"token": "bad", "password": "validpass"})
     assert r2.status_code == 404
+
+
+def test_password_reset_rejects_short_password(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    app = load_fluxlit_app(db_url=db_url)
+
+    import app.db as db
+    from app.models import PasswordResetToken
+
+    raw = PasswordResetToken.new_raw_token()
+    rec = PasswordResetToken(
+        email="user@example.com",
+        token_hash=PasswordResetToken.hash_token(raw),
+        created_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc).replace(year=2099),
+        used_at=None,
+    )
+    with Session(db.engine) as s:
+        s.add(rec)
+        s.commit()
+
+    tc = FluxLitTestClient(app)
+    r = tc.api_post("/password/reset", json={"token": raw, "password": "short"})
+    assert r.status_code == 400
+    assert "at least 8" in str(r.json().get("detail", ""))
+
+
+def test_invite_accept_rejects_short_password(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    app = load_fluxlit_app(db_url=db_url)
+
+    import app.db as db
+    from app.models import InviteToken
+
+    raw = InviteToken.new_raw_token()
+    rec = InviteToken(
+        email="invited@example.com",
+        token_hash=InviteToken.hash_token(raw),
+        created_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc).replace(year=2099),
+        used_at=None,
+        grant_admin=False,
+    )
+    with Session(db.engine) as s:
+        s.add(rec)
+        s.commit()
+
+    tc = FluxLitTestClient(app)
+    r = tc.api_post("/invites/accept", json={"token": raw, "password": "short"})
+    assert r.status_code == 400
+    assert "at least 8" in str(r.json().get("detail", ""))

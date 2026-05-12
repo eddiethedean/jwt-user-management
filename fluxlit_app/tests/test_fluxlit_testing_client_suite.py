@@ -27,7 +27,14 @@ from conftest import load_fluxlit_app
 _FLUX_APP_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _seed_user(*, db_engine, email: str, password: str, is_admin: bool = False) -> int:
+def _seed_user(
+    *,
+    db_engine,
+    email: str,
+    password: str,
+    is_admin: bool = False,
+    is_active: bool = True,
+) -> int:
     from app.core.security import hash_password
     from app.models import User
 
@@ -36,6 +43,7 @@ def _seed_user(*, db_engine, email: str, password: str, is_admin: bool = False) 
             email=email,
             hashed_password=hash_password(password),
             is_admin=is_admin,
+            is_active=is_active,
             created_at=datetime.now(timezone.utc),
         )
         s.add(u)
@@ -208,7 +216,11 @@ def test_fluxlit_test_client_register_creates_invite_for_new_email(tmp_path) -> 
     tc = FluxLitTestClient(app)
     r = tc.api_post("/register", data={"email": "fresh@example.com"})
     assert r.status_code == 200
-    assert r.json().get("ok") is True
+    body = r.json()
+    assert body.get("ok") is True
+    assert body.get("setup_url")
+    assert "/?page=Accept+invite&token=" in body["setup_url"]
+    assert body.get("email_sent") is False
 
 
 def test_fluxlit_test_client_bearer_users_me(tmp_path) -> None:
@@ -229,6 +241,25 @@ def test_fluxlit_test_client_bearer_users_me(tmp_path) -> None:
     r = tc.api_get("/users/me", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200
     assert r.json().get("email") == "me@example.com"
+
+
+def test_fluxlit_test_client_rejects_inactive_bearer_user(tmp_path) -> None:
+    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'inactive.db'}")
+    import app.db as db
+    from app.core.security import create_access_token
+
+    uid = _seed_user(
+        db_engine=db.engine,
+        email="inactive@example.com",
+        password="pw12345678",
+        is_active=False,
+    )
+    tok = create_access_token(subject=str(uid))
+    tc = FluxLitTestClient(app)
+
+    r = tc.api_get("/users/me", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 403
+    assert "inactive" in str(r.json().get("detail", "")).lower()
 
 
 def test_fluxlit_test_client_patch_me_updates_full_name(tmp_path) -> None:

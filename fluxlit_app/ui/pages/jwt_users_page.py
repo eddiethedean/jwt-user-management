@@ -6,7 +6,7 @@ https://fluxlit.readthedocs.io/en/stable/quickstart.html#project-layout
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 import httpx
 from fluxlit import FluxLit
@@ -37,6 +37,43 @@ from ui.url_session_bridge import (
 )
 
 PublicPage = Literal["Login", "Register", "Accept invite", "Reset password"]
+PUBLIC_NAV: tuple[PublicPage, ...] = (
+    "Login",
+    "Register",
+    "Accept invite",
+    "Reset password",
+)
+
+
+def _query_param(st, name: str) -> str:
+    try:
+        raw = st.query_params.get(name)
+    except Exception:
+        return ""
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return str(raw or "")
+
+
+def _apply_public_link_params(st) -> None:
+    page_raw = _query_param(st, "page")
+    token = _query_param(st, "token")
+    page: PublicPage | None = (
+        cast(PublicPage, page_raw) if page_raw in PUBLIC_NAV else None
+    )
+    if page:
+        st.session_state["public_page_nav"] = page
+    if not page or not token:
+        return
+
+    marker = f"{page}:{token}"
+    if st.session_state.get("_public_link_marker") == marker:
+        return
+    if page == "Accept invite":
+        st.session_state["invite_token"] = token
+    elif page == "Reset password":
+        st.session_state["reset_token"] = token
+    st.session_state["_public_link_marker"] = marker
 
 
 def register(app: FluxLit) -> None:
@@ -129,24 +166,19 @@ def register(app: FluxLit) -> None:
                 docs_href=docs_link,
             )
         else:
+            _apply_public_link_params(st)
             st.sidebar.subheader("Navigation")
-            _public_nav: tuple[PublicPage, ...] = (
-                "Login",
-                "Register",
-                "Accept invite",
-                "Reset password",
-            )
             if (
                 "public_page_nav" not in st.session_state
-                or st.session_state["public_page_nav"] not in _public_nav
+                or st.session_state["public_page_nav"] not in PUBLIC_NAV
             ):
                 st.session_state["public_page_nav"] = "Login"
             nav_raw = st.sidebar.radio(
                 "Menu",
-                options=list(_public_nav),
+                options=list(PUBLIC_NAV),
                 key="public_page_nav",
             )
-            public_page: PublicPage = nav_raw if nav_raw in _public_nav else "Login"
+            public_page: PublicPage = nav_raw if nav_raw in PUBLIC_NAV else "Login"
 
             st.sidebar.divider()
             st.sidebar.link_button("API docs", docs_link, use_container_width=True)

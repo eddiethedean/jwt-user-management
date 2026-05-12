@@ -313,59 +313,6 @@
       .dataTable th,
       .dataTable td { white-space: nowrap; }
 
-      /* Cookie debug panel (toggle via COOKIE_DEBUG=true) */
-      .debugPanel {
-        position: fixed;
-        left: 14px;
-        right: 14px;
-        bottom: 14px;
-        max-height: 34vh;
-        overflow: auto;
-        z-index: 9999;
-        border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
-        background: color-mix(in srgb, var(--panel-strong) 85%, transparent);
-        border-radius: var(--radius-sm);
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
-      }
-      .debugPanel__head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--border);
-        font-size: 12px;
-        font-weight: 850;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-        color: color-mix(in srgb, var(--fg) 88%, transparent);
-      }
-      .debugPanel__btn {
-        margin: 0;
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: transparent;
-        font-size: 12px;
-        font-weight: 850;
-        cursor: pointer;
-      }
-      .debugPanel__btn:hover {
-        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-        background: color-mix(in srgb, var(--accent) 10%, transparent);
-      }
-      .debugPanel__body {
-        padding: 10px 12px;
-        font-size: 12px;
-        line-height: 1.45;
-        color: color-mix(in srgb, var(--fg) 92%, transparent);
-      }
-      .debugPanel__body pre {
-        margin: 0;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
     </style>
   </head>
   <body>
@@ -437,18 +384,6 @@
       {% block body %}{% endblock %}
     </div>
 
-    {% if request.state.cookie_debug_enabled %}
-      <div class="debugPanel" id="cookieDebugPanel" role="region" aria-label="Cookie debug">
-        <div class="debugPanel__head">
-          <div>Cookie debug (COOKIE_DEBUG=true)</div>
-          <button class="debugPanel__btn" type="button" onclick="(function(){var p=document.getElementById('cookieDebugPanel'); if(!p) return; var b=p.querySelector('.debugPanel__body'); if(!b) return; b.style.display=(b.style.display==='none'?'block':'none'); })()">Toggle</button>
-        </div>
-        <div class="debugPanel__body">
-          <pre>{% for line in (request.state.cookie_debug_logs or []) %}{{ line }}
-{% endfor %}</pre>
-        </div>
-      </div>
-    {% endif %}
   </body>
 </html>
 

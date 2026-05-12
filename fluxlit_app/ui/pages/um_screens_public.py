@@ -37,9 +37,7 @@ def render_login(
         password = str(password or "")
         resp = _require_resp(
             st,
-            post_form(
-                "/auth/token", data={"username": username, "password": password}
-            ),
+            post_form("/auth/token", data={"username": username, "password": password}),
         )
         if response_ok(resp):
             data = safe_json(resp)

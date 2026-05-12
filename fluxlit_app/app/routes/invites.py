@@ -1,28 +1,25 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import external_url
 from app.core.config import settings
-from app.core.security import decode_token, hash_password
+from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.routes.deps import admin_from_bearer, bearer_scheme
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
-
-bearer_scheme = HTTPBearer(auto_error=False)
-ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
 
 
 def _norm_email(v: str) -> str:
@@ -33,7 +30,7 @@ def _invite_url(request: Request, token: str) -> str:
     # Prefer an explicitly configured browser-routable host (PUBLIC_BASE_URL) if set.
     return external_url(
         request,
-        f"/invites/accept?token={token}",
+        "/?" + urlencode({"page": "Accept invite", "token": token}),
         public_base_url=settings.public_base_url,
     )
 
@@ -51,25 +48,7 @@ def _as_utc_aware(dt: datetime) -> datetime:
 async def _require_admin(
     db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
 ) -> User:
-    if not creds:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    try:
-        payload: dict[str, Any] = decode_token(creds.credentials)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    sub = payload.get("sub")
-    if not sub:
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    try:
-        user_id = int(sub)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    user = (await db.exec(select(User).where(User.id == user_id))).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+    return await admin_from_bearer(db=db, creds=creds)
 
 
 @router.post("")
@@ -237,5 +216,9 @@ async def accept_invite_api(
     full_name_s = None if full_name is None else str(full_name)
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
+    try:
+        validate_new_password(password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     await _accept(db=db, token=token, password=password, full_name=full_name_s)
     return {"ok": True}

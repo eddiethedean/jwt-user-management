@@ -135,6 +135,25 @@ def test_public_menu_navigate_to_accept_invite_shows_ui(monkeypatch):
     assert any("accept invite" in s.value.lower() for s in at.subheader)
 
 
+def test_invite_link_query_prefills_token(monkeypatch):
+    def fake_request(self, method: str, path: str, **kwargs):
+        p = path if path.startswith("/") else f"/{path}"
+        if method == "GET" and "/__meta" in p:
+            return httpx.Response(200, json={"ok": True, "external_api_base": ""})
+        return httpx.Response(200, json={})
+
+    _patch_api_client(monkeypatch, fake_request)
+    _fluxlit_env(monkeypatch)
+
+    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30)
+    at.query_params["page"] = "Accept invite"
+    at.query_params["token"] = "raw-token-xyz"
+    at = at.run()
+
+    assert not at.exception
+    assert _text_input_by_key(at, "invite_token").value == "raw-token-xyz"
+
+
 def test_public_menu_navigate_to_reset_password_shows_ui(monkeypatch):
     def fake_request(self, method: str, path: str, **kwargs):
         p = path if path.startswith("/") else f"/{path}"
@@ -151,6 +170,25 @@ def test_public_menu_navigate_to_reset_password_shows_ui(monkeypatch):
     assert not at.exception
     assert any("forgot password" in s.value.lower() for s in at.subheader)
     assert any("reset password" in s.value.lower() for s in at.subheader)
+
+
+def test_reset_link_query_prefills_token(monkeypatch):
+    def fake_request(self, method: str, path: str, **kwargs):
+        p = path if path.startswith("/") else f"/{path}"
+        if method == "GET" and "/__meta" in p:
+            return httpx.Response(200, json={"ok": True, "external_api_base": ""})
+        return httpx.Response(200, json={})
+
+    _patch_api_client(monkeypatch, fake_request)
+    _fluxlit_env(monkeypatch)
+
+    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30)
+    at.query_params["page"] = "Reset password"
+    at.query_params["token"] = "reset-token-abc"
+    at = at.run()
+
+    assert not at.exception
+    assert _text_input_by_key(at, "reset_token").value == "reset-token-abc"
 
 
 def test_register_request_setup_link_success(monkeypatch):

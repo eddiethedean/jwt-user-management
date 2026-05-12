@@ -4,6 +4,7 @@ from fluxlit.testing import FluxLitTestClient
 from starlette.testclient import TestClient
 
 from conftest import load_fluxlit_app
+from ui.pages.um_helpers import api_docs_link
 
 
 def test_meta_gateway_returns_shape(tmp_path, monkeypatch) -> None:
@@ -23,6 +24,7 @@ def test_meta_gateway_returns_shape(tmp_path, monkeypatch) -> None:
     assert isinstance(j["base_path"], str)
     assert j["external_base"]
     assert j["external_api_base"]
+    assert str(j["external_api_base"]).endswith("/api")
 
 
 def test_meta_inner_fastapi_matches_workbench_header(tmp_path, monkeypatch) -> None:
@@ -43,7 +45,8 @@ def test_meta_inner_fastapi_matches_workbench_header(tmp_path, monkeypatch) -> N
     eb = str(j["external_base"] or "")
     assert eb.startswith("http://")
     assert str(j["external_api_base"] or "").startswith(eb)
-    assert j["external_api_base"].endswith("/prefix/app")
+    assert j["external_app_base"].endswith("/prefix/app")
+    assert j["external_api_base"].endswith("/prefix/app/api")
 
 
 def test_api_root_json(tmp_path, monkeypatch) -> None:
@@ -56,3 +59,10 @@ def test_api_root_json(tmp_path, monkeypatch) -> None:
     assert j["ok"] is True
     assert j["service"] == "jwt_users_api"
     assert j["docs"] == "/api/docs"
+
+
+def test_api_docs_link_uses_api_base() -> None:
+    assert api_docs_link("https://example.com/prefix/app/api") == (
+        "https://example.com/prefix/app/api/docs"
+    )
+    assert api_docs_link("") == "/api/docs"
