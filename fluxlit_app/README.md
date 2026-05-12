@@ -54,9 +54,37 @@ fluxlit doctor
 
 ## Run behind Workbench (path prefix)
 
-- Set **`FLUXLIT_ROOT_PATH`** to the browser-visible prefix and enable **`FLUXLIT_TRUST_PROXY`** when the proxy terminates TLS and forwards `X-Forwarded-*`.
-- Keep **`PUBLIC_BASE_URL`** consistent with the external origin used for invite and reset links.
-- Workbench-style **`GET /__meta`** behavior uses `fastapi_workbench` (same headers as other apps in this repo that use that helper).
+Use [`run_workbench.py`](run_workbench.py) to launch the combined FluxLit app through this repo's local [`fastapi_workbench`](../fastapi_workbench/src/fastapi_workbench/) helper:
+
+```bash
+cd fluxlit_app
+source .venv/bin/activate
+python run_workbench.py
+```
+
+The launcher:
+
+- prepends `../fastapi_workbench/src` so this checkout's helper package wins over any installed wheel;
+- wraps `main:app` with `fastapi_workbench.workbenchify`;
+- runs Alembic migrations by default through `fastapi_workbench.start_app`;
+- enables `FLUXLIT_TRUST_PROXY=1` by default.
+
+For local prefix testing without a real Workbench session:
+
+```bash
+cd fluxlit_app
+source .venv/bin/activate
+BASE_PATH=/workbench \
+FLUXLIT_ROOT_PATH=/workbench \
+FLUXLIT_PUBLIC_BASE_URL=http://127.0.0.1:8768/workbench \
+PUBLIC_BASE_URL=http://127.0.0.1:8768 \
+PORT=8768 \
+python -c 'from run_workbench import start_app; start_app(open_with_browser=False)'
+```
+
+Then open `http://127.0.0.1:8768/workbench/`; API docs are at `http://127.0.0.1:8768/workbench/api/docs`.
+
+Keep **`PUBLIC_BASE_URL`** consistent with the external origin used for invite and reset links. If you set a prefix explicitly, set both **`BASE_PATH`** and **`FLUXLIT_ROOT_PATH`** to that browser-visible prefix.
 
 ## JSON API (mounted at `/api`)
 
@@ -129,6 +157,8 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest fluxlit_app/tests -q
 |------|------|
 | [`main.py`](main.py) | ASGI entry: `FluxLit`, `import_target="main:app"`, routes, `discover_pages`. |
 | [`fluxlit_gateway.py`](fluxlit_gateway.py) | Legacy `app` re-export. |
+| [`workbench_app.py`](workbench_app.py) | `main:app` wrapped with `fastapi_workbench.workbenchify`. |
+| [`run_workbench.py`](run_workbench.py) | Posit Workbench-friendly launcher using the local `fastapi_workbench` source tree. |
 | [`app/`](app/) | Bundled FastAPI application (models, routes, config). |
 | [`alembic/`](alembic/) | SQL migrations for `app`. |
 | [`api_backend.py`](api_backend.py) | Mounts routers, `GET /__meta`, cookie-debug middleware. |
