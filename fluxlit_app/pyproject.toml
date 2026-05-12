@@ -1,0 +1,8 @@
+# Scoped typecheck: from repo root, ``ty check --project fluxlit_app`` (uses ``fluxlit_app/.venv``).
+[tool.ty.environment]
+root = ["."]
+python = ".venv/bin/python"
+
+[tool.ty.src]
+include = ["app", "ui", "tests", "*.py"]
+exclude = [".venv", "alembic"]

@@ -176,10 +176,9 @@ def test_sign_out_clears_session_state(monkeypatch):
     _click_button(at, "Sign out")
     at.run()
     assert not at.exception
-    assert (
-        "access_token" not in at.session_state
-        or at.session_state.get("access_token") in (None, "")
-    )
+    assert "access_token" not in at.session_state or at.session_state.get(
+        "access_token"
+    ) in (None, "")
 
 
 def test_login_backend_request_exception_is_shown(monkeypatch):

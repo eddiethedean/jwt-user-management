@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any
 
 from fluxlit.config import JsonValue
@@ -93,7 +93,9 @@ def run_url_session_ensure(
     st: Any, store: SessionStore, auth: Any, *, param: str = "fluxlit_sid"
 ) -> None:
     initial: dict[str, JsonValue] | None = (
-        narrow_session_blob(st, auth) if getattr(auth, "is_authenticated", False) else None
+        narrow_session_blob(st, auth)
+        if getattr(auth, "is_authenticated", False)
+        else None
     )
     ensure_url_session(st, store, param=param, initial=initial)
 

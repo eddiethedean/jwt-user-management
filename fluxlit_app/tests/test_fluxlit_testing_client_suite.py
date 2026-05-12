@@ -287,9 +287,7 @@ def test_fluxlit_streamlit_smoke_via_test_client(
 ):
     monkeypatch.setenv("FLUXLIT_DISABLE_URL_SESSION", "1")
     _patch_api_client(
-        lambda *a, **k: httpx.Response(
-            200, json={"ok": True, "external_api_base": ""}
-        )
+        lambda *a, **k: httpx.Response(200, json={"ok": True, "external_api_base": ""})
     )
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'st.db'}")
     tc = FluxLitTestClient(app)
@@ -302,15 +300,12 @@ def test_fluxlit_streamlit_smoke_via_test_client(
     assert any("user management" in t.value.lower() for t in at.title)
 
 
-def test_fluxlit_streamlit_smoke_via_test_client(
+def test_fluxlit_streamlit_internal_api_base_wiring_via_test_client(
     tmp_path, monkeypatch, _patch_api_client
 ):
-    """``streamlit()`` accepts ``internal_api_base`` (exercise harness wiring)."""
     monkeypatch.setenv("FLUXLIT_DISABLE_URL_SESSION", "1")
     _patch_api_client(
-        lambda *a, **k: httpx.Response(
-            200, json={"ok": True, "external_api_base": ""}
-        )
+        lambda *a, **k: httpx.Response(200, json={"ok": True, "external_api_base": ""})
     )
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'stib.db'}")
     tc = FluxLitTestClient(app)

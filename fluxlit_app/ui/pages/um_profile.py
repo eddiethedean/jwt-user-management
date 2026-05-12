@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-import streamlit as st
 from fluxlit.client import ApiClient
 
 from ui.http import fluxlit_api_client_kwargs, response_ok, safe_json

@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 import httpx
-import streamlit as st
 from fluxlit import FluxLit
 
 from ui.auth_state import SESSION_KEY, get_auth_state, login_success, logout
@@ -77,9 +76,9 @@ def register(app: FluxLit) -> None:
             except Exception as e:
                 dbg(f"meta fetch failed: {e!r}")
 
-        public_api_base = str(
-            st.session_state.get("_external_api_base") or ""
-        ).rstrip("/")
+        public_api_base = str(st.session_state.get("_external_api_base") or "").rstrip(
+            "/"
+        )
         dbg(f"PUBLIC_API_BASE={public_api_base!r}")
 
         def _post_form(path: str, data: dict) -> Optional[httpx.Response]:
@@ -147,22 +146,16 @@ def register(app: FluxLit) -> None:
                 options=list(_public_nav),
                 key="public_page_nav",
             )
-            public_page: PublicPage = (
-                nav_raw if nav_raw in _public_nav else "Login"
-            )
+            public_page: PublicPage = nav_raw if nav_raw in _public_nav else "Login"
 
             st.sidebar.divider()
-            st.sidebar.link_button(
-                "API docs", docs_link, use_container_width=True
-            )
+            st.sidebar.link_button("API docs", docs_link, use_container_width=True)
 
             def _load_me_for_login(token: str):
                 return load_me(st, token)
 
             if public_page == "Login":
-                render_login(
-                    st, post_form=_post_form, load_me_fn=_load_me_for_login
-                )
+                render_login(st, post_form=_post_form, load_me_fn=_load_me_for_login)
             elif public_page == "Register":
                 render_register(st, post_form=_post_form)
             elif public_page == "Accept invite":
@@ -171,6 +164,4 @@ def register(app: FluxLit) -> None:
                 render_reset_password(st, post_json_pub=_post_json_pub)
 
         if url_session_enabled():
-            persist_url_session_narrow(
-                st, url_store, auth, param=url_session_param
-            )
+            persist_url_session_narrow(st, url_store, auth, param=url_session_param)

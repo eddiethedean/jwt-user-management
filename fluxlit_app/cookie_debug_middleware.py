@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Literal, cast
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
 
 
 def attach_cookie_debug_middleware(api: FastAPI) -> None:

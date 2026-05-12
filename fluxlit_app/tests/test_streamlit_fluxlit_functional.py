@@ -279,9 +279,7 @@ def test_reset_password_inspect_then_reset_success(monkeypatch):
         if method == "GET" and "/__meta" in p:
             return httpx.Response(200, json={"ok": True, "external_api_base": ""})
         if method == "POST" and "/password/inspect" in p:
-            return httpx.Response(
-                200, json={"email": "user@example.com", "ok": True}
-            )
+            return httpx.Response(200, json={"email": "user@example.com", "ok": True})
         if method == "POST" and "/password/reset" in p:
             return httpx.Response(200, json={"ok": True})
         return httpx.Response(404, json={"detail": "unexpected"})
@@ -305,7 +303,9 @@ def test_reset_password_inspect_then_reset_success(monkeypatch):
     assert any("password updated" in s.value.lower() for s in at.success)
 
 
-def _login(at: AppTest, *, email: str, pw: str, country: str, is_admin: bool) -> AppTest:
+def _login(
+    at: AppTest, *, email: str, pw: str, country: str, is_admin: bool
+) -> AppTest:
     _text_input_by_key(at, "login_email").input(email)
     _text_input_by_key(at, "login_password").input(pw)
     _click_button(at, "Login")

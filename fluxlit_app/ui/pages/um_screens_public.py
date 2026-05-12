@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 import httpx
-import streamlit as st
 
 from ui.auth_state import SESSION_KEY, login_success
 from ui.http import response_ok, safe_json, show_http_error
@@ -46,9 +45,7 @@ def render_login(
             )
             st.session_state["_flash_signed_in"] = True
             st.session_state["_page"] = (
-                "Admin"
-                if bool(load_me_fn(access_token).get("is_admin"))
-                else "Users"
+                "Admin" if bool(load_me_fn(access_token).get("is_admin")) else "Users"
             )
             st.rerun()
         else:

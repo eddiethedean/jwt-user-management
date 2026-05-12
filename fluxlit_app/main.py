@@ -22,16 +22,16 @@ _root = Path(__file__).resolve().parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from paths import ensure_backend_on_path, load_dotenv_files
+from paths import ensure_backend_on_path, load_dotenv_files  # noqa: E402
 
 ensure_backend_on_path()
 load_dotenv_files()
 
-from fluxlit import FluxLit
+from fluxlit import FluxLit  # noqa: E402
 
-from api_backend import install_bundled_app_routes
-from fluxlit_settings import load_fluxlit_settings
-from fluxlit_trace import install_optional_trace_logging
+from api_backend import install_bundled_app_routes  # noqa: E402
+from fluxlit_settings import load_fluxlit_settings  # noqa: E402
+from fluxlit_trace import install_optional_trace_logging  # noqa: E402
 
 install_optional_trace_logging()
 

@@ -43,11 +43,7 @@ def _render_users(st: Any, auth: AuthState) -> None:
                 show_http_error("Failed to load users", r)
             else:
                 data = safe_json(r)
-                rows = (
-                    data.get("data")
-                    if isinstance(data.get("data"), list)
-                    else data
-                )
+                rows = data.get("data") if isinstance(data.get("data"), list) else data
                 if not isinstance(rows, list):
                     rows = []
                 st.session_state["_users_cache"] = rows
@@ -73,9 +69,7 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
             with ApiClient.for_fluxlit(
                 bearer_token=auth.access_token, **fluxlit_api_client_kwargs()
             ) as api:
-                resp = patch_json(
-                    api, "/users/me", json={"full_name": full_name}
-                )
+                resp = patch_json(api, "/users/me", json={"full_name": full_name})
         except httpx.RequestError:
             st.error("Backend request failed (is it running?)")
             st.stop()
@@ -115,9 +109,7 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
             show_http_error("Password update failed", resp)
 
 
-def _render_admin(
-    st: Any, auth: AuthState, *, public_api_base: str
-) -> None:
+def _render_admin(st: Any, auth: AuthState, *, public_api_base: str) -> None:
     _admin_flash = st.session_state.pop("_admin_flash", None)
     if isinstance(_admin_flash, str) and _admin_flash:
         st.success(_admin_flash)
