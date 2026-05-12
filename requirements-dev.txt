@@ -1,0 +1,15 @@
+# Single virtualenv at repo root (see README "Run tests" / e2e README).
+#
+#   python3 -m venv .venv
+#   source .venv/bin/activate   # Windows: .venv\Scripts\activate
+#   pip install -U pip
+#   pip install -r requirements-dev.txt
+#   playwright install          # once, for e2e browsers
+#
+-r user_management_api/requirements.txt
+-r user_management_ui/requirements.txt
+-r e2e/requirements.txt
+-r fluxlit_app/requirements.txt
+pytest-xdist
+ruff
+ty

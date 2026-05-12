@@ -2,19 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_url
 from app.core.config import settings
 from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import InviteToken, User
 from app.routes.deps import admin_from_bearer, bearer_scheme
+from app.routes.public_urls import page_url
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 
@@ -27,12 +26,7 @@ def _norm_email(v: str) -> str:
 
 
 def _invite_url(request: Request, token: str) -> str:
-    # Prefer an explicitly configured browser-routable host (PUBLIC_BASE_URL) if set.
-    return external_url(
-        request,
-        "/?" + urlencode({"page": "Accept invite", "token": token}),
-        public_base_url=settings.public_base_url,
-    )
+    return page_url(request, page="Accept invite", token=token)
 
 
 def _as_utc_aware(dt: datetime) -> datetime:

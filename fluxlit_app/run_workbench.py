@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
+import webbrowser
 from pathlib import Path
 
+from fluxlit.runtime import run_unified
 
 here = Path(__file__).resolve()
-
-# Prefer the in-repo fastapi_workbench package when running from this checkout.
-fastapi_workbench_src = str(here.parents[1] / "fastapi_workbench" / "src")
-if fastapi_workbench_src not in sys.path:
-    sys.path.insert(0, fastapi_workbench_src)
-
-from fastapi_workbench import start_app as _start_app  # type: ignore[import-not-found]  # noqa: E402
+app_root = here.parent
+if str(app_root) not in sys.path:
+    sys.path.insert(0, str(app_root))
 
 
 def _truthy(value: str | None) -> bool:
@@ -24,17 +23,41 @@ def _enable_debug_defaults() -> None:
     """Turn on the useful frontend, backend, and proxy diagnostics together."""
 
     os.environ.setdefault("DEBUG", "1")
-    os.environ.setdefault("WORKBENCH_DEBUG", "1")
     os.environ.setdefault("LOG_LEVEL", "debug")
+    os.environ.setdefault("FLUXLIT_DEBUG", "1")
+    os.environ.setdefault("FLUXLIT_LOG_LEVEL", "debug")
     os.environ.setdefault("FLUXLIT_TRACE_LOGGING", "1")
-    os.environ.setdefault("FLUXLIT_ENABLE_REQUEST_LOGGING", "1")
-    os.environ.setdefault("FLUXLIT_ENABLE_GATEWAY_ACCESS_LOG", "1")
-    os.environ.setdefault("FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID", "1")
+
+
+def _run_migrations_if_enabled() -> None:
+    val = (os.environ.get("RUN_MIGRATIONS") or "").strip()
+    if val and not _truthy(val):
+        return
+    subprocess.check_call(
+        [sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
+        cwd=app_root,
+        env=os.environ.copy(),
+    )
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = (os.environ.get(name) or "").strip()
+    return int(raw) if raw else default
+
+
+def _browser_url(host: str, port: int) -> str:
+    browser_host = "127.0.0.1" if host in {"", "0.0.0.0", "::"} else host
+    root = (os.environ.get("FLUXLIT_ROOT_PATH") or "").strip().rstrip("/")
+    return (
+        f"http://{browser_host}:{port}{root}/"
+        if root
+        else f"http://{browser_host}:{port}/"
+    )
 
 
 def start_app(
     *,
-    app_module_name: str = "workbench_app",
+    app_module_name: str = "main",
     app_variable_name: str = "app",
     open_with_browser: bool = True,
     debug: bool | None = None,
@@ -55,11 +78,25 @@ def start_app(
     if base_path:
         os.environ.setdefault("FLUXLIT_ROOT_PATH", base_path.rstrip("/"))
 
-    _start_app(
-        app_module_name=app_module_name,
-        app_variable_name=app_variable_name,
-        open_with_browser=open_with_browser,
-        migrations_cwd=str(here.parent),
+    host = (
+        os.environ.get("HOST") or os.environ.get("FLUXLIT_GATEWAY_HOST") or "127.0.0.1"
+    )
+    port = _env_int("PORT", _env_int("FLUXLIT_GATEWAY_PORT", 8000))
+    log_level = (
+        os.environ.get("LOG_LEVEL") or os.environ.get("FLUXLIT_LOG_LEVEL") or "info"
+    )
+    target = f"{app_module_name}:{app_variable_name}"
+
+    _run_migrations_if_enabled()
+    if open_with_browser:
+        webbrowser.open(_browser_url(host, port))
+
+    run_unified(
+        target,
+        host=host,
+        port=port,
+        log_level=log_level,
+        workbench_mode=True,
     )
 
 

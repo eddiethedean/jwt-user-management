@@ -20,11 +20,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _E2E_DB_PATH: Optional[Path] = None
 
 # Interpreter for API + Streamlit (must have ``user_management_api`` and e2e deps).
-# Override only if needed: ``export JWT_USER_MGMT_E2E_PYTHON=/path/to/python``.
+# Default: repo root ``.venv``. Override: ``export JWT_USER_MGMT_E2E_PYTHON=/path/to/python``.
 BACKEND_PY = Path(
     os.getenv(
         "JWT_USER_MGMT_E2E_PYTHON",
-        str(REPO_ROOT / "user_management_api" / ".venv" / "bin" / "python"),
+        str(REPO_ROOT / ".venv" / "bin" / "python"),
     )
 )
 # Do not ``resolve()`` across ``.venv/bin/python`` → pyenv shims; that breaks venv site-packages.

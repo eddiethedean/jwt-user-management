@@ -1,5 +1,5 @@
 # Gateway + UI (pin matches stable docs). Optional: fluxlit[metrics] for Prometheus.
-fluxlit[auth]==0.6.1
+fluxlit[auth]==0.8.1
 
 # Bundled FastAPI backend (``fluxlit_app/app``): DB, email, JWT, routes
 fastapi[standard]
@@ -15,6 +15,5 @@ pydantic-settings
 jinja2
 python-multipart
 pytest
-fastapi-workbench==0.2.0
 httpx
 streamlit[starlette]

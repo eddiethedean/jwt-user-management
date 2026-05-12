@@ -41,7 +41,7 @@ app = FluxLit(
     fastapi_kwargs={"redirect_slashes": False},
 )
 
-install_bundled_app_routes(app.api)
+install_bundled_app_routes(app)
 app.discover_pages("pages", package="ui")
 
 __all__ = ["app"]

@@ -1,3 +1,4 @@
+import html
 import os
 import sys
 from pathlib import Path
@@ -33,12 +34,17 @@ from user_common.backend_client import (  # type: ignore
     safe_json,
     validate_backend_url,
 )
+from user_common.theme import apply_um_theme  # type: ignore
 from user_common.ui import show_http_error  # type: ignore
 
 load_dotenv()
 
-st.set_page_config(page_title="User Management", layout="centered")
-st.title("User Management")
+st.set_page_config(
+    page_title="User Management",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+apply_um_theme()
 
 _test_mode = os.getenv("STREAMLIT_TEST_MODE", "").lower() in ("1", "true", "yes")
 _env_backend = (os.getenv("BACKEND_URL") or "").strip()
@@ -75,6 +81,48 @@ def _render_session_debug() -> None:
     st.sidebar.caption("Session (debug)")
     a = get_auth_state(session_key="user_auth")
     st.sidebar.json({"authenticated": a.is_authenticated, "email": a.email or "(none)"})
+
+
+def _render_brand() -> None:
+    """Match archived HTML ``base.html`` masthead (title, demo tag, subtitle, stack pills)."""
+    st.markdown(
+        """
+<div class="um-topbar" aria-label="Brand">
+  <div class="um-brand">
+    <div class="um-brandTop">
+      <span class="um-brandTitle">User Management</span>
+      <span class="um-brandTag"><span class="um-brandTagDot" aria-hidden="true"></span>Demo</span>
+    </div>
+    <p class="um-brandSub">A minimal, browser-friendly user system with login, invites, and admin tools.</p>
+    <div class="um-brandStack" aria-label="Stack">
+      <span class="um-stackPill">FastAPI</span>
+      <span class="um-stackPill">SQLModel</span>
+      <span class="um-stackPill">JWT</span>
+      <span class="um-stackPill">Streamlit</span>
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_session_pill(*, email: str) -> None:
+    """HTML-style session pill (``Signed in as …``) from archived ``base.html``."""
+    safe = html.escape(email or "")
+    st.markdown(
+        f"""
+<div class="um-sessionRow" aria-label="Session">
+  <div class="um-sessionPill">
+    <div class="um-sessionPill__label">
+      <span class="um-sessionPill__dot" aria-hidden="true"></span>
+      <span>Signed in as <code>{safe}</code></span>
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 
 _dbg(
@@ -164,6 +212,7 @@ PUBLIC_API_BASE = str(st.session_state.get("_external_api_base") or BACKEND_URL)
 )
 _dbg(f"PUBLIC_API_BASE={PUBLIC_API_BASE!r}")
 _render_debug_logs()
+_render_brand()
 
 if st.session_state.pop("_sign_out_clicked", False):
     logout(session_key="user_auth")
@@ -268,6 +317,7 @@ def _load_me() -> dict:
 
 
 # One-run flash messages (survive reruns deterministically).
+_render_session_debug()
 if st.session_state.pop("_flash_signed_in", False):
     st.success("Signed in")
 
@@ -281,61 +331,97 @@ else:
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
 
-_render_session_debug()
+
+def _fmt_user_dt(val) -> str:
+    if val is None:
+        return ""
+    return str(val)
 
 
 def _render_login() -> None:
-    st.subheader("Login")
-    email = st.text_input("Email", key="login_email")
-    password = st.text_input("Password", type="password", key="login_password")
-    if st.button("Sign in", key="login_submit"):
-        resp = _post_form("/auth/token", data={"username": email, "password": password})
-        if resp is None:
-            st.stop()
-        if resp.is_success:
-            data = safe_json(resp)
-            access_token = str(data.get("access_token") or "")
-            if not access_token:
-                show_http_error("Login failed", resp)
+    """Match archived ``login.html`` (card, copy, inline password reset)."""
+    with st.container(border=True):
+        st.subheader("Login")
+        st.markdown(
+            '<p class="um-cardHint">Sign in to access your account and manage users.</p>',
+            unsafe_allow_html=True,
+        )
+        email = st.text_input("Email", key="login_email", placeholder="name@example.com")
+        password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Sign in", key="login_submit"):
+            resp = _post_form("/auth/token", data={"username": email, "password": password})
+            if resp is None:
                 st.stop()
-            login_success(
-                access_token=access_token, email=email, session_key="user_auth"
-            )
-            st.session_state["_flash_signed_in"] = True
-            st.session_state["_page"] = (
-                "Admin" if bool(_load_me().get("is_admin")) else "Users"
-            )
-            st.rerun()
-        else:
-            show_http_error("Invalid email or password", resp)
+            if resp.is_success:
+                data = safe_json(resp)
+                access_token = str(data.get("access_token") or "")
+                if not access_token:
+                    show_http_error("Login failed", resp)
+                    st.stop()
+                login_success(
+                    access_token=access_token, email=email, session_key="user_auth"
+                )
+                st.session_state["_flash_signed_in"] = True
+                st.session_state["_page"] = (
+                    "Admin" if bool(_load_me().get("is_admin")) else "Users"
+                )
+                st.rerun()
+            else:
+                show_http_error("Invalid email or password", resp)
+
+        st.divider()
+        st.markdown(
+            '<p class="um-cardHint">Forgot your password? <strong>Reset</strong></p>',
+            unsafe_allow_html=True,
+        )
+        reset_email = st.text_input(
+            "Email",
+            key="login_reset_email",
+            placeholder="name@example.com",
+        )
+        if st.button("Send reset link", key="login_send_reset"):
+            resp = _post_json("/password/forgot", json={"email": reset_email})
+            if resp is None:
+                st.stop()
+            if resp.is_success:
+                st.success("If the account exists, a reset email has been sent.")
+            else:
+                st.error(f"Reset request failed: {resp.status_code} {resp.text}")
 
 
 def _render_register() -> None:
-    st.subheader("Register")
-    st.caption(
-        "Enter your email to request an invite link. If directory lookup is enabled, it must validate your email."
-    )
-    reg_email = st.text_input("Email", key="register_email")
-    if st.button("Request setup link", key="register_submit"):
-        try:
-            resp = httpx.post(
-                f"{BACKEND_URL}/register",
-                data={"email": reg_email},
-                headers={"Accept": "application/json"},
-                timeout=10,
-            )
-        except httpx.RequestError:
-            st.error("Backend request failed (is it running?)")
-            st.stop()
-        if resp.is_success:
-            st.success("If allowed, a setup link was generated/sent.")
-        else:
-            show_http_error("Registration failed", resp)
+    with st.container(border=True):
+        st.subheader("Register")
+        st.markdown(
+            '<p class="um-cardHint">Enter your email and we’ll send you a link to set your password.</p>',
+            unsafe_allow_html=True,
+        )
+        reg_email = st.text_input(
+            "Email", key="register_email", placeholder="name@example.com"
+        )
+        if st.button("Send setup link", key="register_submit"):
+            try:
+                resp = httpx.post(
+                    f"{BACKEND_URL}/register",
+                    data={"email": reg_email},
+                    headers={"Accept": "application/json"},
+                    timeout=10,
+                )
+            except httpx.RequestError:
+                st.error("Backend request failed (is it running?)")
+                st.stop()
+            if resp.is_success:
+                st.success("If allowed, a setup link was generated/sent.")
+            else:
+                show_http_error("Registration failed", resp)
 
 
 def _render_accept_invite() -> None:
     st.subheader("Accept invite")
-    st.caption("Set a password to activate your account.")
+    st.markdown(
+        '<p class="um-cardHint">Set a password to activate your account.</p>',
+        unsafe_allow_html=True,
+    )
     invite_token = st.text_input("Invite token", key="invite_token")
     if st.button("Lookup invite", key="invite_lookup"):
         resp = _post_json("/invites/inspect", json={"token": invite_token})
@@ -349,12 +435,22 @@ def _render_accept_invite() -> None:
 
     inv = st.session_state.get("_invite_info", {})
     if isinstance(inv, dict) and inv.get("email"):
-        st.caption(f"Email: `{inv.get('email', '')}`")
-        st.caption("This invite is tied to this email address.")
+        st.text_input(
+            "Email",
+            value=str(inv.get("email", "")),
+            disabled=True,
+            key=f"invite_email_ro_{inv.get('email')}",
+        )
+        st.markdown(
+            '<p class="um-cardHint">This invite is tied to this email address.</p>',
+            unsafe_allow_html=True,
+        )
 
-    invite_name = st.text_input("Full name (optional)", key="invite_full_name")
+    invite_name = st.text_input(
+        "Full name (optional)", key="invite_full_name", placeholder="Jane Doe"
+    )
     invite_password = st.text_input("Password", type="password", key="invite_password")
-    if st.button("Accept invite", key="invite_submit"):
+    if st.button("Set password", key="invite_submit"):
         resp = _post_json(
             "/invites/accept",
             json={
@@ -373,10 +469,11 @@ def _render_accept_invite() -> None:
 
 def _render_reset_password() -> None:
     st.subheader("Forgot password")
-    st.caption(
-        "Enter your email and we’ll send you a reset link (if the account exists)."
+    st.markdown(
+        '<p class="um-cardHint">Enter your email and we’ll send you a reset link (if the account exists).</p>',
+        unsafe_allow_html=True,
     )
-    forgot_email = st.text_input("Email", key="forgot_email")
+    forgot_email = st.text_input("Email", key="forgot_email", placeholder="name@example.com")
     if st.button("Send reset link", key="forgot_submit"):
         resp = _post_json("/password/forgot", json={"email": forgot_email})
         if resp is None:
@@ -388,7 +485,10 @@ def _render_reset_password() -> None:
 
     st.divider()
     st.subheader("Reset password")
-    st.caption("Choose a new password for your account.")
+    st.markdown(
+        '<p class="um-cardHint">Choose a new password for your account.</p>',
+        unsafe_allow_html=True,
+    )
     token = st.text_input("Reset token", key="reset_token")
     if st.button("Lookup reset link", key="reset_lookup"):
         resp = _post_json("/password/inspect", json={"token": token})
@@ -402,8 +502,16 @@ def _render_reset_password() -> None:
 
     ri = st.session_state.get("_reset_info", {})
     if isinstance(ri, dict) and ri.get("email"):
-        st.caption(f"Email: `{ri.get('email', '')}`")
-        st.caption("This reset link is tied to this email address.")
+        st.text_input(
+            "Email",
+            value=str(ri.get("email", "")),
+            disabled=True,
+            key=f"reset_email_ro_{ri.get('email')}",
+        )
+        st.markdown(
+            '<p class="um-cardHint">This reset link is tied to this email address.</p>',
+            unsafe_allow_html=True,
+        )
 
     new_password = st.text_input(
         "New password", type="password", key="reset_new_password"
@@ -421,6 +529,7 @@ def _render_reset_password() -> None:
 
 
 if auth.is_authenticated:
+    _render_session_pill(email=str(auth.email or ""))
     me = _load_me()
     is_admin = bool(me.get("is_admin"))
     st.sidebar.subheader("Navigation")
@@ -463,53 +572,94 @@ if auth.is_authenticated:
                     st.session_state["_users_cache"] = rows
 
         rows = st.session_state.get("_users_cache", [])
+        head_l, head_r = st.columns([3, 1])
+        with head_l:
+            st.markdown("### All users")
+        with head_r:
+            st.markdown(
+                f'<p class="um-muted" style="text-align:right;margin:0;">{len(rows)} total</p>',
+                unsafe_allow_html=True,
+            )
         if rows:
             st.dataframe(rows, use_container_width=True)
         else:
             st.info("Click **Refresh users** to load the user list.")
 
     elif page == "Account":
-        st.subheader("Account")
-        st.caption(f"Email: `{me.get('email', '')}`")
-        st.caption(f"Country: `{me.get('country', '')}`")
-        with st.form("acct_name"):
-            full_name = st.text_input(
-                "Full name (optional)", value=str(me.get("full_name") or "")
+        with st.container(border=True):
+            st.subheader("Account")
+            status = "Active" if me.get("is_active") else "Disabled"
+            role = "Admin" if me.get("is_admin") else "User"
+            uid = html.escape(str(me.get("id", "")))
+            em = html.escape(str(me.get("email", "")))
+            fn_disp = html.escape(str(me.get("full_name") or ""))
+            country_e = html.escape(str(me.get("country") or ""))
+            role_e = html.escape(role)
+            status_e = html.escape(status)
+            created = html.escape(_fmt_user_dt(me.get("created_at")))
+            st.markdown(
+                "<h3 style='margin:0 0 6px 0; font-size:1rem;'>Your info</h3>",
+                unsafe_allow_html=True,
             )
-            saved = st.form_submit_button("Save")
-        if saved:
-            resp = _post_json_authed("/users/me", json={"full_name": full_name})
-            if resp is None:
-                st.stop()
-            if resp.is_success:
-                st.success("Saved")
-                st.session_state.pop("_me", None)
-                _load_me()
-            else:
-                show_http_error("Save failed", resp)
+            st.markdown(
+                f"""
+<div class="um-kvGrid" aria-label="Account details">
+  <div class="um-kvKey">ID</div><div class="um-kvVal"><code>{uid}</code></div>
+  <div class="um-kvKey">Email</div><div class="um-kvVal"><code>{em}</code></div>
+  <div class="um-kvKey">Name</div><div class="um-kvVal">{fn_disp or "—"}</div>
+  <div class="um-kvKey">Country</div><div class="um-kvVal">{country_e or "—"}</div>
+  <div class="um-kvKey">Status</div><div class="um-kvVal">{status_e}</div>
+  <div class="um-kvKey">Role</div><div class="um-kvVal">{role_e}</div>
+  <div class="um-kvKey">Created</div><div class="um-kvVal">{created or "—"}</div>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+            st.subheader("Edit")
+            with st.form("acct_name"):
+                full_name = st.text_input(
+                    "Full name (optional)",
+                    value=str(me.get("full_name") or ""),
+                    placeholder="e.g. Jane Doe",
+                )
+                saved = st.form_submit_button("Save")
+            if saved:
+                resp = _post_json_authed("/users/me", json={"full_name": full_name})
+                if resp is None:
+                    st.stop()
+                if resp.is_success:
+                    st.success("Saved")
+                    st.session_state.pop("_me", None)
+                    _load_me()
+                else:
+                    show_http_error("Save failed", resp)
 
-        st.divider()
-        st.subheader("Change password")
-        with st.form("acct_pw"):
-            cur = st.text_input("Current password", type="password")
-            new = st.text_input("New password", type="password")
-            cfm = st.text_input("Confirm new password", type="password")
-            ok = st.form_submit_button("Update password")
-        if ok:
-            resp = _post_json_authed(
-                "/users/me/password",
-                json={
-                    "current_password": cur,
-                    "new_password": new,
-                    "confirm_password": cfm,
-                },
+            st.divider()
+            st.subheader("Change password")
+            st.markdown(
+                '<p class="um-cardHint">No email required — this updates your password immediately.</p>',
+                unsafe_allow_html=True,
             )
-            if resp is None:
-                st.stop()
-            if resp.is_success:
-                st.success("Password updated")
-            else:
-                show_http_error("Password update failed", resp)
+            with st.form("acct_pw"):
+                cur = st.text_input("Current password", type="password")
+                new = st.text_input("New password", type="password")
+                cfm = st.text_input("Confirm new password", type="password")
+                ok = st.form_submit_button("Update password")
+            if ok:
+                resp = _post_json_authed(
+                    "/users/me/password",
+                    json={
+                        "current_password": cur,
+                        "new_password": new,
+                        "confirm_password": cfm,
+                    },
+                )
+                if resp is None:
+                    st.stop()
+                if resp.is_success:
+                    st.success("Password updated")
+                else:
+                    show_http_error("Password update failed", resp)
 
     elif page == "Admin":
         if not is_admin:
@@ -592,19 +742,21 @@ if auth.is_authenticated:
                     else:
                         show_http_error("Delete failed", resp_del)
 else:
-    st.sidebar.subheader("Navigation")
+    st.sidebar.caption("Links")
     st.sidebar.link_button(
         "API docs", f"{PUBLIC_API_BASE}/docs", use_container_width=True
-    )
-    public_page: PublicPage = st.sidebar.radio(
-        "Go to",
-        options=["Login", "Register", "Accept invite", "Reset password"],
-        index=0,
     )
     if st.sidebar.button("Sign out", type="primary", key="sign_out_sidebar"):
         # Keep existing test expectations: button exists and clears state.
         st.session_state["_sign_out_clicked"] = True
         st.rerun()
+
+    public_page = st.radio(
+        "Go to",
+        options=["Login", "Register", "Accept invite", "Reset password"],
+        horizontal=True,
+        key="public_go_to",
+    )
 
     if public_page == "Login":
         _render_login()

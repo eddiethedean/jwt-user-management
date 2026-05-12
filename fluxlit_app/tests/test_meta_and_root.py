@@ -9,42 +9,36 @@ from ui.pages.um_helpers import api_docs_link
 
 def test_meta_gateway_returns_shape(tmp_path, monkeypatch) -> None:
     """``/__meta`` via FluxLit gateway (used by Streamlit ``client``)."""
-    monkeypatch.setenv("PUBLIC_BASE_URL", "http://testserver")
     db_url = f"sqlite:///{tmp_path / 'm.db'}"
-    app = load_fluxlit_app(db_url=db_url)
-    tc = FluxLitTestClient(app)
-
-    r = tc.api_get(
-        "/__meta",
-        headers={"rstudio-connect-app-base-url": "https://example.com/prefix/app/"},
+    app = load_fluxlit_app(
+        db_url=db_url,
+        extra_env={"FLUXLIT_ROOT_PATH": "/prefix/app"},
     )
-    assert r.status_code == 200
-    j = r.json()
-    assert j["ok"] is True
-    assert isinstance(j["base_path"], str)
-    assert j["external_base"]
-    assert j["external_api_base"]
-    assert str(j["external_api_base"]).endswith("/api")
+    tc = FluxLitTestClient(app).with_root_path("/prefix/app")
 
-
-def test_meta_inner_fastapi_matches_workbench_header(tmp_path, monkeypatch) -> None:
-    """Inner FastAPI ``/__meta`` with Workbench-style base URL header."""
-    monkeypatch.setenv("PUBLIC_BASE_URL", "http://testserver")
-    db_url = f"sqlite:///{tmp_path / 'm2.db'}"
-    app = load_fluxlit_app(db_url=db_url)
-    client = TestClient(app.api, base_url="http://testserver")
-
-    r = client.get(
-        "/__meta",
-        headers={"rstudio-connect-app-base-url": "https://example.com/prefix/app/"},
-    )
+    r = tc.api_get("/__meta")
     assert r.status_code == 200
     j = r.json()
     assert j["ok"] is True
     assert j["base_path"] == "/prefix/app"
-    eb = str(j["external_base"] or "")
-    assert eb.startswith("http://")
-    assert str(j["external_api_base"] or "").startswith(eb)
+    assert str(j["external_app_base"]).endswith("/prefix/app")
+    assert str(j["external_api_base"]).endswith("/api")
+
+
+def test_meta_inner_fastapi_matches_workbench_header(tmp_path, monkeypatch) -> None:
+    """Inner FastAPI ``/__meta`` uses ASGI root_path / FluxLit public URL helpers."""
+    db_url = f"sqlite:///{tmp_path / 'm2.db'}"
+    app = load_fluxlit_app(
+        db_url=db_url,
+        extra_env={"FLUXLIT_ROOT_PATH": "/prefix/app"},
+    )
+    client = TestClient(app.api, base_url="http://testserver", root_path="/prefix/app")
+
+    r = client.get("/__meta")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["ok"] is True
+    assert j["base_path"] == "/prefix/app"
     assert j["external_app_base"].endswith("/prefix/app")
     assert j["external_api_base"].endswith("/prefix/app/api")
 
@@ -58,7 +52,7 @@ def test_api_root_json(tmp_path, monkeypatch) -> None:
     j = r.json()
     assert j["ok"] is True
     assert j["service"] == "jwt_users_api"
-    assert j["docs"] == "/api/docs"
+    assert str(j["docs"]).endswith("/api/docs")
 
 
 def test_api_docs_link_uses_api_base() -> None:

@@ -7,8 +7,8 @@ Database migrations live here as well ([`alembic/`](alembic/), [`alembic.ini`](a
 ## Posit Connect / proxy
 
 - The Streamlit UI keeps the JWT in **Streamlit session state**, which tends to behave better in embedded Connect / proxy contexts than the retired server-rendered HTML UI.
-- Invite and password-reset links use **`PUBLIC_BASE_URL`**. Align it (and **`FLUXLIT_PUBLIC_BASE_URL`** when set) with the URL users see in the browser.
-- Behind a path prefix or reverse proxy, set **`FLUXLIT_ROOT_PATH`** and typically **`FLUXLIT_TRUST_PROXY=1`**. Path-aware URL helpers use **`fastapi_workbench`** (add the repo’s `fastapi_workbench/src` directory to `PYTHONPATH` when it is not already installed as a package).
+- Invite and password-reset links use FluxLit's native public URL helpers. Prefer **`FLUXLIT_PUBLIC_BASE_URL`** and keep it aligned with the URL users see in the browser.
+- Behind a path prefix or reverse proxy, set **`FLUXLIT_ROOT_PATH`** and typically **`FLUXLIT_TRUST_PROXY=1`**. FluxLit 0.8.1 handles app/API/docs URLs and Workbench mode directly.
 
 ## Run locally
 
@@ -54,7 +54,7 @@ fluxlit doctor
 
 ## Run behind Workbench (path prefix)
 
-Use [`run_workbench.py`](run_workbench.py) to launch the combined FluxLit app through this repo's local [`fastapi_workbench`](../fastapi_workbench/src/fastapi_workbench/) helper:
+Use FluxLit's native Workbench/Connect mode. [`run_workbench.py`](run_workbench.py) is a small compatibility launcher around the same native runtime:
 
 ```bash
 cd fluxlit_app
@@ -71,17 +71,24 @@ python run_workbench.py --debug --no-browser
 Debug mode turns on:
 
 - `DEBUG=1` for the Streamlit sidebar debug panel, including UI-side API-base information;
-- `WORKBENCH_DEBUG=1` for Workbench path/root-path normalization logs;
 - `LOG_LEVEL=debug` for Uvicorn;
-- `FLUXLIT_TRACE_LOGGING=1`, `FLUXLIT_ENABLE_REQUEST_LOGGING=1`, and `FLUXLIT_ENABLE_GATEWAY_ACCESS_LOG=1` for FluxLit gateway traces;
-- `FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID=1` so frontend-to-backend calls carry request IDs when supported.
+- `FLUXLIT_DEBUG=1` for FluxLit gateway diagnostics, request logging, and `GET /__fluxlit/debug`;
+- `FLUXLIT_TRACE_LOGGING=1` for the optional local trace hook.
 
 The launcher:
 
-- prepends `../fastapi_workbench/src` so this checkout's helper package wins over any installed wheel;
-- wraps `main:app` with `fastapi_workbench.workbenchify`;
-- runs Alembic migrations by default through `fastapi_workbench.start_app`;
-- enables `FLUXLIT_TRUST_PROXY=1` by default.
+- runs Alembic migrations by default (`RUN_MIGRATIONS=0` disables this);
+- maps legacy `BASE_PATH` to `FLUXLIT_ROOT_PATH`;
+- enables `FLUXLIT_TRUST_PROXY=1` by default;
+- starts `main:app` with FluxLit's native `workbench_mode=True`.
+
+You can also call FluxLit directly:
+
+```bash
+cd fluxlit_app
+source .venv/bin/activate
+fluxlit workbench --debug
+```
 
 For local prefix testing without a real Workbench session:
 
@@ -91,14 +98,13 @@ source .venv/bin/activate
 BASE_PATH=/workbench \
 FLUXLIT_ROOT_PATH=/workbench \
 FLUXLIT_PUBLIC_BASE_URL=http://127.0.0.1:8768/workbench \
-PUBLIC_BASE_URL=http://127.0.0.1:8768 \
 PORT=8768 \
 python -c 'from run_workbench import start_app; start_app(open_with_browser=False)'
 ```
 
 Then open `http://127.0.0.1:8768/workbench/`; API docs are at `http://127.0.0.1:8768/workbench/api/docs`.
 
-Keep **`PUBLIC_BASE_URL`** consistent with the external origin used for invite and reset links. If you set a prefix explicitly, set both **`BASE_PATH`** and **`FLUXLIT_ROOT_PATH`** to that browser-visible prefix.
+Keep **`FLUXLIT_PUBLIC_BASE_URL`** consistent with the external app URL used for invite and reset links. `PUBLIC_BASE_URL` remains supported as a legacy fallback by FluxLit 0.8.1, but new deployments should prefer the namespaced setting.
 
 ## JSON API (mounted at `/api`)
 
@@ -171,8 +177,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest fluxlit_app/tests -q
 |------|------|
 | [`main.py`](main.py) | ASGI entry: `FluxLit`, `import_target="main:app"`, routes, `discover_pages`. |
 | [`fluxlit_gateway.py`](fluxlit_gateway.py) | Legacy `app` re-export. |
-| [`workbench_app.py`](workbench_app.py) | `main:app` wrapped with `fastapi_workbench.workbenchify`. |
-| [`run_workbench.py`](run_workbench.py) | Posit Workbench-friendly launcher using the local `fastapi_workbench` source tree. |
+| [`run_workbench.py`](run_workbench.py) | Posit Workbench-friendly launcher using FluxLit's native `workbench_mode`. |
 | [`app/`](app/) | Bundled FastAPI application (models, routes, config). |
 | [`alembic/`](alembic/) | SQL migrations for `app`. |
 | [`api_backend.py`](api_backend.py) | Mounts routers and `GET /__meta`. |

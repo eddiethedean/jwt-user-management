@@ -2,17 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_url
-from app.core.config import settings
 from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
+from app.routes.public_urls import page_url
 from app.services.email import send_password_reset_email
 
 
@@ -52,11 +50,7 @@ async def forgot_password_api(
         )
         db.add(rec)
         await db.commit()
-        reset_url = external_url(
-            request,
-            "/?" + urlencode({"page": "Reset password", "token": raw}),
-            public_base_url=settings.public_base_url,
-        )
+        reset_url = page_url(request, page="Reset password", token=raw)
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
         except Exception:

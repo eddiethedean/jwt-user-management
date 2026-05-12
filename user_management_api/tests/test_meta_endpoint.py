@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel
 
@@ -26,11 +27,16 @@ def _ensure_this_package_app_first() -> None:
     sys.path.insert(0, api_root)
 
 
-def test_meta_endpoint_includes_external_base_and_prefix(tmp_path) -> None:
+def test_meta_endpoint_includes_external_base_and_prefix(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """
     /__meta is used by the Streamlit UI (``user_management_ui``) to learn the externally-visible
     base URL and prefix behind proxies.
     """
+
+    # Other tests (e.g. ``start_app``) may mutate ``os.environ``; parallel runs make that visible.
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
 
     # Import the wrapped app so it behaves like Workbench runs it.
     _ensure_this_package_app_first()

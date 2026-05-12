@@ -91,6 +91,18 @@ As a result, we recommend deploying the **Streamlit UI** (`user_management_ui/`)
 
 ## Run tests
 
+Use a **repo root** virtualenv and install everything once:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+If the venv already exists:
+
 ```bash
 source .venv/bin/activate
 python -m pytest

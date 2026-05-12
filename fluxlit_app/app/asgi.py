@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from app.main import app as fastapi_app
 from fastapi.responses import PlainTextResponse
-from fastapi_workbench import workbenchify
 
 
 @fastapi_app.get("/app", include_in_schema=False)
@@ -15,5 +14,5 @@ async def _streamlit_legacy_mount_unavailable() -> PlainTextResponse:
     )
 
 
-# ASGI entrypoint used by ``run_workbench.py`` when this package is run standalone.
-app = workbenchify(fastapi_app)
+# Legacy API-only ASGI entrypoint. The supported browser UI is ``main:app``.
+app = fastapi_app

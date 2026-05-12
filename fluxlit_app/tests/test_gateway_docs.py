@@ -9,5 +9,4 @@ def test_openapi_docs_served_under_api_prefix(tmp_path) -> None:
     """OpenAPI docs should be reachable (same expectation as the API-only ASGI smoke test)."""
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'g.db'}")
     tc = FluxLitTestClient(app)
-    r = tc.api_get("/docs")
-    assert r.status_code == 200
+    tc.assert_docs_available()

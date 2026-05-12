@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.responses import JSONResponse, Response
-from fastapi_workbench import base_path as wb_base_path, external_base
+from fluxlit import FluxLit
 
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.invites import router as invites_router
 from app.routes.password_reset import router as password_reset_router
+from app.routes.public_urls import api_base, app_base, docs_url
 from app.routes.users import router as users_router
 
 
-def install_bundled_app_routes(api: FastAPI) -> None:
+def install_bundled_app_routes(fluxlit_app: FluxLit) -> None:
+    api = fluxlit_app.api
+    api.state.fluxlit_urls = fluxlit_app.urls
+
     for router in (
         auth_router,
         admin_router,
@@ -29,20 +33,20 @@ def install_bundled_app_routes(api: FastAPI) -> None:
             {
                 "ok": True,
                 "service": "jwt_users_api",
-                "docs": "/api/docs",
+                "docs": docs_url(_request),
             }
         )
 
     @api.get("/__meta", include_in_schema=False)
     async def meta(request: Request) -> JSONResponse:
-        bp = wb_base_path(request)
-        app_base = external_base(request) + (bp or "")
+        app_base_url = app_base(request)
+        api_base_url = api_base(request)
         return JSONResponse(
             {
                 "ok": True,
-                "base_path": bp,
-                "external_base": external_base(request),
-                "external_app_base": app_base,
-                "external_api_base": app_base + "/api",
+                "base_path": str(request.scope.get("root_path") or ""),
+                "external_base": app_base_url,
+                "external_app_base": app_base_url,
+                "external_api_base": api_base_url,
             }
         )

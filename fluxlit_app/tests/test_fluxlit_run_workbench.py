@@ -31,53 +31,62 @@ def _load_run_workbench() -> ModuleType:
 
 def test_start_app_debug_enables_diagnostics(monkeypatch) -> None:
     run_workbench = _load_run_workbench()
-    start_app = Mock()
-    monkeypatch.setattr(run_workbench, "_start_app", start_app)
+    run_unified = Mock()
+    check_call = Mock()
+    open_browser = Mock()
+    monkeypatch.setattr(run_workbench, "run_unified", run_unified)
+    monkeypatch.setattr(run_workbench.subprocess, "check_call", check_call)
+    monkeypatch.setattr(run_workbench.webbrowser, "open", open_browser)
 
     for key in (
         "DEBUG",
-        "WORKBENCH_DEBUG",
         "LOG_LEVEL",
+        "FLUXLIT_DEBUG",
+        "FLUXLIT_LOG_LEVEL",
         "FLUXLIT_TRACE_LOGGING",
-        "FLUXLIT_ENABLE_REQUEST_LOGGING",
-        "FLUXLIT_ENABLE_GATEWAY_ACCESS_LOG",
-        "FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID",
         "FLUXLIT_TRUST_PROXY",
         "BASE_PATH",
         "FLUXLIT_ROOT_PATH",
+        "RUN_MIGRATIONS",
     ):
         monkeypatch.delenv(key, raising=False)
 
     monkeypatch.setenv("BASE_PATH", "/workbench")
+    monkeypatch.setenv("RUN_MIGRATIONS", "0")
 
     run_workbench.start_app(open_with_browser=False, debug=True)
 
     assert run_workbench.os.environ["DEBUG"] == "1"
-    assert run_workbench.os.environ["WORKBENCH_DEBUG"] == "1"
     assert run_workbench.os.environ["LOG_LEVEL"] == "debug"
+    assert run_workbench.os.environ["FLUXLIT_DEBUG"] == "1"
+    assert run_workbench.os.environ["FLUXLIT_LOG_LEVEL"] == "debug"
     assert run_workbench.os.environ["FLUXLIT_TRACE_LOGGING"] == "1"
-    assert run_workbench.os.environ["FLUXLIT_ENABLE_REQUEST_LOGGING"] == "1"
-    assert run_workbench.os.environ["FLUXLIT_ENABLE_GATEWAY_ACCESS_LOG"] == "1"
-    assert run_workbench.os.environ["FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID"] == "1"
     assert run_workbench.os.environ["FLUXLIT_TRUST_PROXY"] == "1"
     assert run_workbench.os.environ["FLUXLIT_ROOT_PATH"] == "/workbench"
 
-    start_app.assert_called_once_with(
-        app_module_name="workbench_app",
-        app_variable_name="app",
-        open_with_browser=False,
-        migrations_cwd=str(Path(__file__).resolve().parents[1]),
+    check_call.assert_not_called()
+    open_browser.assert_not_called()
+    run_unified.assert_called_once_with(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        log_level="debug",
+        workbench_mode=True,
     )
 
 
 def test_start_app_uses_debug_env_flag(monkeypatch) -> None:
     run_workbench = _load_run_workbench()
-    start_app = Mock()
-    monkeypatch.setattr(run_workbench, "_start_app", start_app)
+    run_unified = Mock()
+    monkeypatch.setattr(run_workbench, "run_unified", run_unified)
+    monkeypatch.setattr(run_workbench.subprocess, "check_call", Mock())
+    monkeypatch.setattr(run_workbench.webbrowser, "open", Mock())
     monkeypatch.setenv("FLUXLIT_WORKBENCH_DEBUG", "1")
     monkeypatch.delenv("DEBUG", raising=False)
+    monkeypatch.setenv("RUN_MIGRATIONS", "0")
 
     run_workbench.start_app(open_with_browser=False)
 
     assert run_workbench.os.environ["DEBUG"] == "1"
-    assert run_workbench.os.environ["WORKBENCH_DEBUG"] == "1"
+    assert run_workbench.os.environ["FLUXLIT_DEBUG"] == "1"
+    run_unified.assert_called_once()

@@ -38,6 +38,7 @@ backend/app.db
 
 # Local process logs
 *.nohup.log
+.run-*.log
 
 # PID files (local process artifacts)
 *.pid

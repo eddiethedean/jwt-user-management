@@ -12,8 +12,10 @@ These tests run the **real apps** (FastAPI backend + Streamlit user demo) and dr
 From repo root:
 
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r e2e/requirements.txt
+pip install -U pip
+pip install -r requirements-dev.txt
 python -m playwright install chromium
 ```
 

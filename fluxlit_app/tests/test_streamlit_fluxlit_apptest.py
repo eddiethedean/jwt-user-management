@@ -9,12 +9,12 @@ import httpx
 import pytest
 from streamlit.testing.v1 import AppTest
 
-import fluxlit
 from fluxlit.client import ApiClient
+from fluxlit.testing import streamlit_main_path
 
 _REPO = Path(__file__).resolve().parents[2]
 _FLUX = _REPO / "fluxlit_app"
-_FLUXLIT_MAIN = Path(fluxlit.__file__).resolve().parent / "streamlit" / "main.py"
+_FLUXLIT_MAIN = streamlit_main_path()
 
 
 @pytest.fixture(autouse=True)

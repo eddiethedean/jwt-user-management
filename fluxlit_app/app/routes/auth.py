@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_url
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -17,6 +15,7 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.models import InviteToken, User
+from app.routes.public_urls import page_url
 from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
 
@@ -29,11 +28,7 @@ def _norm_email(v: str) -> str:
 
 
 def _setup_url(request: Request, token: str) -> str:
-    return external_url(
-        request,
-        "/?" + urlencode({"page": "Accept invite", "token": token}),
-        public_base_url=settings.public_base_url,
-    )
+    return page_url(request, page="Accept invite", token=token)
 
 
 @router.post("/register")

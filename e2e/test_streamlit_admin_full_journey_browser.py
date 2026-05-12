@@ -143,7 +143,7 @@ def test_admin_streamlit_full_journey_with_api(
     select_public_go_to(page, "Register")
     page.get_by_role("heading", name="Register").wait_for(timeout=30_000)
     page.get_by_role("textbox", name="Email").first.fill(f"e2e_reg_{ts}@test.local")
-    page.get_by_role("button", name="Request setup link").click()
+    page.get_by_role("button", name="Send setup link").click()
     expect(
         page.get_by_text(re.compile(r"setup link was generated", re.I))
     ).to_be_visible(timeout=60_000)
@@ -153,7 +153,7 @@ def test_admin_streamlit_full_journey_with_api(
     page.get_by_role("heading", name="Accept invite").wait_for(timeout=30_000)
     page.get_by_role("textbox", name="Invite token").fill(raw_token)
     page.get_by_role("textbox", name="Password").fill("InvitedUser#2")
-    page.get_by_role("button", name="Accept invite").click()
+    page.get_by_role("button", name="Set password").click()
     expect(page.get_by_text(re.compile(r"Invite accepted", re.I))).to_be_visible(
         timeout=60_000
     )

@@ -27,7 +27,11 @@ def response_ok(resp: Any) -> bool:
 
 
 def fluxlit_api_client_kwargs() -> FluxlitApiClientKwargs:
-    if os.getenv("FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID", "").lower() in (
+    if os.getenv("FLUXLIT_DEBUG", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    ) or os.getenv("FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID", "").lower() in (
         "1",
         "true",
         "yes",

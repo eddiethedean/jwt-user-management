@@ -62,19 +62,26 @@ _GO_TO_OPTIONS = ("Login", "Register", "Accept invite", "Reset password")
 
 def select_public_go_to(page: Page, option: str) -> None:
     """
-    Sidebar radio **Go to**: ``Login`` | ``Register`` | ``Accept invite`` | ``Reset password``.
+    Main-area radio **Go to**: ``Login`` | ``Register`` | ``Accept invite`` | ``Reset password``.
+
+    Falls back to the sidebar if an older layout is served.
     """
+    idx = _GO_TO_OPTIONS.index(option)
+
+    main = page.locator('[data-testid="stMain"]')
+    radios = main.locator('input[type="radio"]')
+    if radios.count() >= len(_GO_TO_OPTIONS):
+        radios.nth(idx).evaluate("el => el.click()")
+        page.wait_for_timeout(200)
+        return
+
     _expand_sidebar_if_needed(page)
     sidebar = page.locator('[data-testid="stSidebar"]')
     sidebar.wait_for(state="attached", timeout=15_000)
 
-    idx = _GO_TO_OPTIONS.index(option)
-
-    # Streamlit renders ``st.radio`` as native ``<input type="radio">`` in order of options.
-    radios = sidebar.locator('input[type="radio"]')
-    # Native radios can sit in an overflow-hidden sidebar; JS click is reliable.
-    if radios.count() >= len(_GO_TO_OPTIONS):
-        radios.nth(idx).evaluate("el => el.click()")
+    radios_sb = sidebar.locator('input[type="radio"]')
+    if radios_sb.count() >= len(_GO_TO_OPTIONS):
+        radios_sb.nth(idx).evaluate("el => el.click()")
         page.wait_for_timeout(200)
         return
 

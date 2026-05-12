@@ -1,6 +1,6 @@
 [tool.ty.environment]
 root = ["fastapi_workbench", "fastapi_workbench/src", "user_management_api"]
-python = "user_management_api/.venv/bin/python"
+python = ".venv/bin/python"
 
 [tool.ty.src]
 include = ["fastapi_workbench", "user_management_api"]

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Literal, Optional, cast
 
 import httpx
-from fluxlit import FluxLit
+from fluxlit import FluxLit, query_params
 
 from ui.auth_state import SESSION_KEY, get_auth_state, login_success, logout
 from ui.pages.um_helpers import (
@@ -45,19 +45,10 @@ PUBLIC_NAV: tuple[PublicPage, ...] = (
 )
 
 
-def _query_param(st, name: str) -> str:
-    try:
-        raw = st.query_params.get(name)
-    except Exception:
-        return ""
-    if isinstance(raw, list):
-        raw = raw[0] if raw else ""
-    return str(raw or "")
-
-
 def _apply_public_link_params(st) -> None:
-    page_raw = _query_param(st, "page")
-    token = _query_param(st, "token")
+    params = query_params(st)
+    page_raw = params.get("page") or ""
+    token = params.get("token") or ""
     page: PublicPage | None = (
         cast(PublicPage, page_raw) if page_raw in PUBLIC_NAV else None
     )
