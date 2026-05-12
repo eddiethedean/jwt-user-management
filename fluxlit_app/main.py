@@ -14,6 +14,14 @@ https://fluxlit.readthedocs.io/en/stable/configuration.html (``FLUXLIT_*``).
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# FluxLit loads ``main`` by file path; ensure sibling modules (``paths``, ``api_backend``, …) resolve.
+_root = Path(__file__).resolve().parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
 from paths import ensure_backend_on_path, load_dotenv_files
 
 ensure_backend_on_path()
