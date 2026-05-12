@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, TypedDict
 
 import httpx
 import streamlit as st
 from fluxlit.client import ApiClient
 
 
-def response_ok(resp: object) -> bool:
+class FluxlitApiClientKwargs(TypedDict, total=False):
+    """Keyword subset accepted by :meth:`fluxlit.client.ApiClient.for_fluxlit`."""
+
+    propagate_request_id: bool
+
+
+def response_ok(resp: Any) -> bool:
     """True for successful ``httpx.Response`` or legacy ``.ok`` / status_code."""
     if getattr(resp, "is_success", None) is not None:
         return bool(resp.is_success)
@@ -20,7 +26,7 @@ def response_ok(resp: object) -> bool:
     return 200 <= sc < 300
 
 
-def fluxlit_api_client_kwargs() -> dict[str, object]:
+def fluxlit_api_client_kwargs() -> FluxlitApiClientKwargs:
     if os.getenv("FLUXLIT_STREAMLIT_PROPAGATE_REQUEST_ID", "").lower() in (
         "1",
         "true",

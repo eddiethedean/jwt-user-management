@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import httpx
 
@@ -10,10 +10,18 @@ from ui.auth_state import SESSION_KEY, login_success
 from ui.http import response_ok, safe_json, show_http_error
 
 
+def _require_resp(st: Any, resp: httpx.Response | None) -> httpx.Response:
+    """Narrow optional client responses after :func:`streamlit.stop`."""
+    if resp is None:
+        st.stop()
+    assert resp is not None
+    return resp
+
+
 def render_login(
     st: Any,
     *,
-    post_form: Callable[[str, dict], Optional[httpx.Response]],
+    post_form: Callable[..., httpx.Response | None],
     load_me_fn: Callable[[str], dict[str, Any]],
 ) -> None:
     with st.form("login_form"):
@@ -27,11 +35,12 @@ def render_login(
     if submit_button:
         username = str(username or "").strip()
         password = str(password or "")
-        resp = post_form(
-            "/auth/token", data={"username": username, "password": password}
+        resp = _require_resp(
+            st,
+            post_form(
+                "/auth/token", data={"username": username, "password": password}
+            ),
         )
-        if resp is None:
-            st.stop()
         if response_ok(resp):
             data = safe_json(resp)
             access_token = str(data.get("access_token") or "")
@@ -55,7 +64,7 @@ def render_login(
 def render_register(
     st: Any,
     *,
-    post_form: Callable[[str, dict], Optional[httpx.Response]],
+    post_form: Callable[..., httpx.Response | None],
 ) -> None:
     st.subheader("Register")
     st.caption(
@@ -64,9 +73,7 @@ def render_register(
     )
     reg_email = st.text_input("Email", key="register_email")
     if st.button("Request setup link", key="register_submit"):
-        resp = post_form("/register", data={"email": reg_email})
-        if resp is None:
-            st.stop()
+        resp = _require_resp(st, post_form("/register", data={"email": reg_email}))
         if response_ok(resp):
             st.success("If allowed, a setup link was generated/sent.")
         else:
@@ -76,15 +83,15 @@ def render_register(
 def render_accept_invite(
     st: Any,
     *,
-    post_json_pub: Callable[..., Optional[httpx.Response]],
+    post_json_pub: Callable[..., httpx.Response | None],
 ) -> None:
     st.subheader("Accept invite")
     st.caption("Set a password to activate your account.")
     invite_token = st.text_input("Invite token", key="invite_token")
     if st.button("Lookup invite", key="invite_lookup"):
-        resp = post_json_pub("/invites/inspect", json={"token": invite_token})
-        if resp is None:
-            st.stop()
+        resp = _require_resp(
+            st, post_json_pub("/invites/inspect", json={"token": invite_token})
+        )
         if response_ok(resp):
             st.session_state["_invite_info"] = safe_json(resp)
         else:
@@ -99,16 +106,17 @@ def render_accept_invite(
     invite_name = st.text_input("Full name (optional)", key="invite_full_name")
     invite_password = st.text_input("Password", type="password", key="invite_password")
     if st.button("Accept invite", key="invite_submit"):
-        resp = post_json_pub(
-            "/invites/accept",
-            json={
-                "token": invite_token,
-                "password": invite_password,
-                "full_name": invite_name,
-            },
+        resp = _require_resp(
+            st,
+            post_json_pub(
+                "/invites/accept",
+                json={
+                    "token": invite_token,
+                    "password": invite_password,
+                    "full_name": invite_name,
+                },
+            ),
         )
-        if resp is None:
-            st.stop()
         if response_ok(resp):
             st.success("Invite accepted. You can now sign in.")
         else:
@@ -118,7 +126,7 @@ def render_accept_invite(
 def render_reset_password(
     st: Any,
     *,
-    post_json_pub: Callable[..., Optional[httpx.Response]],
+    post_json_pub: Callable[..., httpx.Response | None],
 ) -> None:
     st.subheader("Forgot password")
     st.caption(
@@ -126,9 +134,9 @@ def render_reset_password(
     )
     forgot_email = st.text_input("Email", key="forgot_email")
     if st.button("Send reset link", key="forgot_submit"):
-        resp = post_json_pub("/password/forgot", json={"email": forgot_email})
-        if resp is None:
-            st.stop()
+        resp = _require_resp(
+            st, post_json_pub("/password/forgot", json={"email": forgot_email})
+        )
         if response_ok(resp):
             st.success("If the account exists, a reset email has been sent.")
         else:
@@ -139,9 +147,9 @@ def render_reset_password(
     st.caption("Choose a new password for your account.")
     token = st.text_input("Reset token", key="reset_token")
     if st.button("Lookup reset link", key="reset_lookup"):
-        resp = post_json_pub("/password/inspect", json={"token": token})
-        if resp is None:
-            st.stop()
+        resp = _require_resp(
+            st, post_json_pub("/password/inspect", json={"token": token})
+        )
         if response_ok(resp):
             st.session_state["_reset_info"] = safe_json(resp)
         else:
@@ -157,11 +165,12 @@ def render_reset_password(
         "New password", type="password", key="reset_new_password"
     )
     if st.button("Reset password", key="reset_submit"):
-        resp = post_json_pub(
-            "/password/reset", json={"token": token, "password": new_password}
+        resp = _require_resp(
+            st,
+            post_json_pub(
+                "/password/reset", json={"token": token, "password": new_password}
+            ),
         )
-        if resp is None:
-            st.stop()
         if response_ok(resp):
             st.success("Password updated. You can now log in.")
         else:
