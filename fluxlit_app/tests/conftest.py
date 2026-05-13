@@ -96,6 +96,10 @@ def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) ->
     ):
         os.environ.pop(k, None)
 
+    for k in list(os.environ):
+        if k.startswith("FLUXLIT_"):
+            os.environ.pop(k, None)
+
     os.environ["DATABASE_URL"] = db_url
     os.environ["JWT_SECRET"] = "test-secret"
     if extra_env:

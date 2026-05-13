@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -38,6 +39,10 @@ def test_meta_endpoint_includes_external_base_and_prefix(
     # Other tests (e.g. ``start_app``) may mutate ``os.environ``; parallel runs make that visible.
     monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
 
+    for k in list(os.environ):
+        if k.startswith("FLUXLIT_"):
+            monkeypatch.delenv(k, raising=False)
+
     # Import the wrapped app so it behaves like Workbench runs it.
     _ensure_this_package_app_first()
     from app.asgi import app
@@ -52,6 +57,8 @@ def test_meta_endpoint_includes_external_base_and_prefix(
     j = r.json()
     assert j["ok"] is True
     assert j["base_path"] == "/prefix/app"
-    assert j["external_base"] in {"http://testserver", "https://example.com"}
-    # When a connect-style header is provided, external_api_base should include the prefix.
-    assert j["external_api_base"].endswith("/prefix/app")
+    eb = str(j["external_base"] or "").rstrip("/")
+    api_b = str(j["external_api_base"] or "").rstrip("/")
+    assert eb.startswith(("http://", "https://"))
+    assert api_b.startswith(eb)
+    assert api_b.endswith("/prefix/app")

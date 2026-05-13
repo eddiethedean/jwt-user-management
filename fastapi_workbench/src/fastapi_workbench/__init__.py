@@ -10,6 +10,8 @@ from .urls import (
     external_base,
     external_ui_url,
     external_url,
+    external_workbench_url,
+    merge_public_base_with_mount,
     workbench_browser_base,
 )
 
@@ -20,6 +22,8 @@ __all__ = [
     "external_base",
     "external_ui_url",
     "external_url",
+    "external_workbench_url",
+    "merge_public_base_with_mount",
     "workbench_browser_base",
     "is_workbench_env",
     "is_workbench_request",

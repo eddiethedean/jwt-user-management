@@ -6,7 +6,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 
 from .detect import is_workbench_request
-from .urls import external_url
+from .urls import external_workbench_url
 
 
 def _is_absolute_url(to: str) -> bool:
@@ -45,10 +45,10 @@ def safe_external_redirect(
     *,
     status_code: int = 303,
     public_base_url: str | None = None,
-    include_root_path: bool = True,
+    include_root_path: bool | None = None,
 ) -> Response:
     return RedirectResponse(
-        url=external_url(
+        url=external_workbench_url(
             request,
             path,
             include_root_path=include_root_path,

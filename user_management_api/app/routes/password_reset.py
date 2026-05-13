@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_url
+from fastapi_workbench import external_workbench_url
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db import get_db
@@ -56,10 +56,10 @@ async def forgot_password_api(
         )
         db.add(rec)
         await db.commit()
-        reset_url = external_url(
+        reset_url = external_workbench_url(
             request,
             f"/password/reset?token={raw}",
-            public_base_url=settings.public_base_url,
+            public_base_url=settings.public_base_url or None,
         )
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)

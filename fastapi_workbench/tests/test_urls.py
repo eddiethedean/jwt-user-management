@@ -7,6 +7,8 @@ from starlette.testclient import TestClient
 from fastapi_workbench import (
     browser_app_mount_path,
     external_ui_url,
+    external_workbench_url,
+    merge_public_base_with_mount,
     workbench_browser_base,
 )
 
@@ -63,6 +65,45 @@ def test_browser_app_mount_path_strips_api_after_workbench_prefix(app: FastAPI) 
     c = TestClient(app, root_path="/content/abc/api")
     r = c.get("/m2")
     assert r.json()["m"] == "/content/abc"
+
+
+def test_external_workbench_url_skips_duplicate_root_path(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    @app.get("/ew")
+    def ew(request: Request) -> dict:
+        return {
+            "url": external_workbench_url(
+                request,
+                "/invites/accept?token=t",
+                public_base_url="https://workbench.example/prefix/app",
+            )
+        }
+
+    monkeypatch.delenv("FLUXLIT_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    c = TestClient(app, base_url="http://internal", root_path="/prefix/app")
+    r = c.get("/ew")
+    assert r.status_code == 200
+    assert r.json()["url"] == (
+        "https://workbench.example/prefix/app/invites/accept?token=t"
+    )
+
+
+def test_merge_public_base_with_mount(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    @app.get("/m")
+    def m(request: Request) -> dict:
+        return {
+            "merged": merge_public_base_with_mount(
+                request, public_base_url="https://wb.example"
+            )
+        }
+
+    monkeypatch.delenv("FLUXLIT_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    c = TestClient(app, base_url="https://wb.example", root_path="/p1")
+    r = c.get("/m")
+    assert r.json()["merged"] == "https://wb.example/p1"
 
 
 def test_external_ui_url_no_duplicate_mount(

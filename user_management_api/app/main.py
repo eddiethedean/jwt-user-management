@@ -2,7 +2,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
-from fastapi_workbench import base_path as wb_base_path, external_base
+from fastapi_workbench import (
+    base_path as wb_base_path,
+    merge_public_base_with_mount,
+    workbench_browser_base,
+)
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.password_reset import router as password_reset_router
@@ -107,14 +111,20 @@ async def meta(request: Request) -> JSONResponse:
     Returns the externally-visible base URL (via fastapi_workbench proxy
     detection) and the normalized base path so UIs can build correct URLs.
     """
+    from app.core.config import settings
 
     bp = wb_base_path(request)
+    pub = workbench_browser_base(
+        request, public_base_url=settings.public_base_url or None
+    )
     return JSONResponse(
         {
             "ok": True,
             "base_path": bp,
-            "external_base": external_base(request),
-            "external_api_base": external_base(request) + (bp or ""),
+            "external_base": pub,
+            "external_api_base": merge_public_base_with_mount(
+                request, public_base_url=settings.public_base_url or None
+            ),
         }
     )
 

@@ -87,6 +87,41 @@ def _join_public_base_and_mount(base: str, mount: str) -> str:
     return f"{b}{m}" if m.startswith("/") else f"{b}/{m}"
 
 
+def merge_public_base_with_mount(
+    request: Request, *, public_base_url: str | None = None
+) -> str:
+    """
+    ``workbench_browser_base`` plus :func:`base_path`, without duplicating a trailing
+    mount segment (e.g. when ``PUBLIC_BASE_URL`` already includes the Workbench prefix).
+    """
+    pub = workbench_browser_base(request, public_base_url=public_base_url)
+    return _join_public_base_and_mount(pub, base_path(request)).rstrip("/")
+
+
+def external_workbench_url(
+    request: Request,
+    path: str,
+    *,
+    public_base_url: str | None = None,
+    include_root_path: bool | None = None,
+) -> str:
+    """
+    Like :func:`external_url` but resolves the public host via :func:`workbench_browser_base`.
+
+    When ``include_root_path`` is ``None`` (default), it is ``False`` if the resolved
+    public base already ends with :func:`base_path` (full browser URL in env), else
+    ``True`` so Workbench/Connect mounts are applied once.
+    """
+    wb = workbench_browser_base(request, public_base_url=public_base_url)
+    if include_root_path is None:
+        bp = base_path(request).rstrip("/")
+        wbn = wb.rstrip("/")
+        inc = not (bool(bp) and wbn.endswith(bp))
+    else:
+        inc = include_root_path
+    return external_url(request, path, public_base_url=wb, include_root_path=inc)
+
+
 def external_ui_url(
     request: Request,
     path: str,
