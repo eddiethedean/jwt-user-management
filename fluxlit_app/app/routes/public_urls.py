@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import Request
+from fastapi_workbench import external_url
 
 from app.core.config import settings
 
@@ -66,6 +68,19 @@ def page_url(request: Request, *, page: str, token: str) -> str:
     query = {"page": page, "token": token}
     if urls is not None:
         return str(urls.page_url(request, "/", query=query))
-    from urllib.parse import urlencode
-
     return f"{_join_url(app_base(request), '/')}?{urlencode(query)}"
+
+
+def email_browser_page_url(request: Request, *, page: str, token: str) -> str:
+    """
+    Public URL for emailed links (invites, self-registration, password reset).
+
+    Uses :func:`fastapi_workbench.external_url` so ``PUBLIC_BASE_URL`` and Workbench
+    ``root_path`` / Connect base headers match the standalone API behaviour.
+    """
+    query = urlencode({"page": page, "token": token})
+    return external_url(
+        request,
+        f"/?{query}",
+        public_base_url=settings.public_base_url,
+    )

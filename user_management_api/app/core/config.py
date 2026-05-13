@@ -1,5 +1,14 @@
-from pydantic import field_validator
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_cfg_path = Path(__file__).resolve().parents[2] / "config.py"
+_spec = spec_from_file_location("user_management_api_pkg_config", _cfg_path)
+assert _spec and _spec.loader
+_defaults = module_from_spec(_spec)
+_spec.loader.exec_module(_defaults)
 
 
 class Settings(BaseSettings):
@@ -8,45 +17,38 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "sqlite:///./app.db"
-    # Optional external path prefix when behind a reverse proxy (e.g. Workbench):
-    # Example: /s/<service>/p/<project>
-    base_path: str = ""
-    # External base URL used to generate invite links (scheme + host).
-    # Example: https://workbench.socom.mil
-    public_base_url: str = "http://127.0.0.1:8001"
+    base_path: str = Field(default=_defaults.BASE_PATH)
+    public_base_url: str = Field(default=_defaults.PUBLIC_BASE_URL)
     jwt_secret: str = "dev-secret"
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60
 
-    # Cookie settings for HTML login session.
-    # Note: When the app is embedded (e.g. in Connect UI iframe), you may need:
-    # AUTH_COOKIE_SAMESITE=none and AUTH_COOKIE_SECURE=true
-    cookie_debug: bool = False
-    auth_cookie_samesite: str = "lax"  # lax|strict|none
+    cookie_debug: bool = Field(default=_defaults.COOKIE_DEBUG)
+    auth_cookie_samesite: str = Field(default=_defaults.AUTH_COOKIE_SAMESITE)
     auth_cookie_secure: bool | None = (
         None  # None => infer from request scheme/forwarded proto
     )
-    auth_cookie_domain: str = ""  # optional; usually leave blank
-    # Some browsers require Partitioned cookies (CHIPS) for embedded apps.
-    auth_cookie_partitioned: bool = False
-    # Connect sets a secondary "-legacy" cookie without SameSite for compatibility.
-    auth_cookie_legacy: bool = True
+    auth_cookie_domain: str = ""
+    auth_cookie_partitioned: bool = Field(default=_defaults.AUTH_COOKIE_PARTITIONED)
+    auth_cookie_legacy: bool = Field(default=_defaults.AUTH_COOKIE_LEGACY)
 
-    # SMTP (optional). If SMTP_HOST and SMTP_FROM_EMAIL are unset, email sending is disabled.
     smtp_host: str = ""
-    smtp_port: int = 25
-    smtp_use_tls: bool = False
+    smtp_port: int = Field(default=_defaults.SMTP_PORT)
+    smtp_use_tls: bool = Field(default=_defaults.SMTP_USE_TLS)
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from_email: str = ""
 
-    # Optional: directory lookup for validating emails in secure environments.
-    # Example:
-    # DIRECTORY_LOOKUP_URL=https://connect.socom.mil/api/ldapEmail
     directory_lookup_url: str = ""
-    directory_lookup_timeout_s: int = 5
-    directory_lookup_required: bool = False
-    directory_lookup_verify_ssl: bool = False
+    directory_lookup_timeout_s: int = Field(
+        default=_defaults.DIRECTORY_LOOKUP_TIMEOUT_S
+    )
+    directory_lookup_required: bool = Field(
+        default=_defaults.DIRECTORY_LOOKUP_REQUIRED
+    )
+    directory_lookup_verify_ssl: bool = Field(
+        default=_defaults.DIRECTORY_LOOKUP_VERIFY_SSL
+    )
     directory_lookup_ca_bundle: str = ""
 
     @field_validator("base_path")

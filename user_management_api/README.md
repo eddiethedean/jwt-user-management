@@ -1,5 +1,7 @@
 # Backend (bare-bones)
 
+**Full from-scratch setup:** see the repository root [`README.md`](../README.md#setup-from-scratch) (Option A for API + Streamlit, Option B for FluxLit only).
+
 Minimal FastAPI + SQLModel + Alembic app with:
 - **JWT auth**: obtain token via form login or API token endpoint
 - **SQLite** persistence
@@ -71,14 +73,33 @@ curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
 
 ## Environment
 
-Configured via `user_management_api/.env`:
+- **Non-sensitive defaults** (`PUBLIC_BASE_URL`, `BASE_PATH`, cookie flags, SMTP port/TLS defaults, directory timeout/required/verify flags): edit **`config.py`** in this directory (`user_management_api/config.py`). These are the values used unless overridden by the environment.
 
-- `DATABASE_URL`: e.g. `sqlite:///./app.db`
-- `BASE_PATH`: optional external path prefix when served behind a reverse proxy (e.g. Workbench)
-- `PUBLIC_BASE_URL`: external scheme+host used to generate invite URLs (e.g. `https://workbench.socom.mil`)
-- `JWT_SECRET`: secret used to sign JWTs
-- `JWT_EXPIRES_MINUTES`: default `60`
-- `JWT_ALGORITHM`: default `HS256`
+- **Database, JWT, secrets, and per-deployment overrides**: copy **`.env.example`** to **`.env`** and set **`DATABASE_URL`**, **`JWT_SECRET`**, **`JWT_ALGORITHM`**, **`JWT_EXPIRES_MINUTES`**, and other variables there (credentials, **`DIRECTORY_LOOKUP_URL`**, `SEED_*`, etc.).
+
+### Optional: directory (LDAP) lookup
+
+Use this when an external HTTP service can confirm that an email exists in your directory (for example LDAP-backed APIs on Posit Connect).
+
+1. Set **`DIRECTORY_LOOKUP_URL`** in `.env` to the **base URL** of the lookup service. The backend issues:
+
+   `GET <DIRECTORY_LOOKUP_URL>?query=<url-encoded-email>`
+
+2. The response must be JSON with an **`attributes`** object. The backend reads:
+
+   - **Email:** `attributes.mail` or `attributes.userPrincipalName` (string or first element of an array).
+   - **Display name:** optional `displayName` or `cn`.
+   - **Country:** optional `c` or `co`. Values like `C=US` are normalized to `US` for storage and JWT claims.
+
+3. **`DIRECTORY_LOOKUP_REQUIRED`**: when `true`, **self-registration** (`POST /register`) and **admin invites** (`POST /invites`, after the optional `POST /invites/lookup` pre-check used by the Streamlit UI) reject emails that are not found (`404` from the directory) or that return unusable JSON. When `false`, a failed or missing lookup does not by itself block an invite, but transport or parsing errors during `POST /invites/lookup` still surface as errors to the client.
+
+4. Other knobs: **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`**, **`DIRECTORY_LOOKUP_CA_BUNDLE`** — defaults for the first two booleans and the timeout are defined in **`config.py`**; override in `.env` when needed.
+
+After a user accepts an invite, if **`DIRECTORY_LOOKUP_URL`** is set the API may set **`user.country`** from the directory record when it was empty.
+
+### Optional: SMTP (invites, self-registration, password reset)
+
+Set **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** (and port, TLS, credentials as needed) so the API can send **invite**, **self-registration setup**, and **password reset** emails. If SMTP is not configured, invite and reset flows still create tokens and return URLs in API responses; email calls are skipped where implemented as no-ops.
 
 ### Seed an initial admin user (optional)
 

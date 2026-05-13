@@ -1,5 +1,7 @@
 # FluxLit JWT user management
 
+**Full from-scratch setup:** see the repository root [`README.md`](../README.md#setup-from-scratch) (Option B).
+
 Self-contained [FluxLit](https://fluxlit.readthedocs.io/en/stable/) application: **one ASGI process** with a bundled **FastAPI** app under [`app/`](app/) (JSON API on `/api`) and a **Streamlit** UI in [`ui/pages/`](ui/pages/). Optional **URL session** continuity uses a query parameter (default `fluxlit_sid`) plus server-side storage; gateway behavior is configured with [`fluxlit.toml`](fluxlit.toml) and `FLUXLIT_*` environment variables.
 
 Database migrations live here as well ([`alembic/`](alembic/), [`alembic.ini`](alembic.ini)); run `alembic upgrade head` from **`fluxlit_app/`** after editing `.env`.
@@ -135,13 +137,32 @@ curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/users/me
 
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | SQLAlchemy URL (default in `.env.example`: `sqlite:///./app.db` beside this tree) |
-| `PUBLIC_BASE_URL` | External origin for invite/reset links |
-| `JWT_SECRET` | Signs JWTs |
-| `JWT_EXPIRES_MINUTES` | Default `60` |
-| `JWT_ALGORITHM` | Default `HS256` |
+| `DATABASE_URL` | Set in `.env` (see `.env.example`). |
+| `JWT_SECRET` | Set in `.env`. |
+| `JWT_ALGORITHM` / `JWT_EXPIRES_MINUTES` | Set in `.env` (defaults in `.env.example`). |
+| `PUBLIC_BASE_URL` | Default from `config.py`; override in `.env` when needed. |
 
-Optional features such as directory lookup and SMTP are driven by the same settings as the bundled FastAPI [`app/core/config.py`](app/core/config.py).
+Other non-sensitive FastAPI defaults (SMTP port/flags, directory timeouts, `BASE_PATH`, etc.) live in **[`config.py`](config.py)** beside `app/`.
+
+### Optional: directory (LDAP) lookup
+
+This matches the standalone **`user_management_api`** behavior (see that package’s README for the full contract). Summary:
+
+1. Set **`DIRECTORY_LOOKUP_URL`** to the directory HTTP **base URL**. The app calls:
+
+   `GET <DIRECTORY_LOOKUP_URL>?query=<email>`
+
+2. Expect JSON with **`attributes`**: **`mail`** or **`userPrincipalName`** for identity; optional **`displayName`** / **`cn`**; optional country from **`c`** or **`co`** (values like `C=US` are stored as `US`).
+
+3. Set **`DIRECTORY_LOOKUP_REQUIRED=true`** if invites and self-registration must only proceed for addresses the directory confirms. The Streamlit **Admin** flow calls **`POST /api/invites/lookup`** before **`POST /api/invites`** and shows returned directory email, name, and country when present.
+
+4. Tune **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`**, and **`DIRECTORY_LOOKUP_CA_BUNDLE`** as in `.env.example`.
+
+JSON routes live under **`/api`** (for example **`POST /api/invites/lookup`**).
+
+### Optional: SMTP (invites, self-registration, password reset)
+
+Configure **`SMTP_HOST`**, **`SMTP_FROM_EMAIL`**, and related variables from [`.env.example`](.env.example) so the API can send email. If SMTP is unset, token creation and invite URLs still work; sending is skipped.
 
 ### FluxLit gateway (`FLUXLIT_*`)
 

@@ -8,7 +8,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_url
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -16,6 +15,7 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.models import InviteToken, User
+from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
 
@@ -53,31 +53,30 @@ async def register_submit(
         if settings.directory_lookup_required and not rec:
             raise HTTPException(status_code=400, detail="Email not found in directory")
 
-    try:
-        raw = InviteToken.new_raw_token()
-        token_hash = InviteToken.hash_token(raw)
-        now = datetime.now(timezone.utc)
-        invite = InviteToken(
-            email=email_n,
-            token_hash=token_hash,
-            created_at=now,
-            expires_at=now + timedelta(hours=2),
-            used_at=None,
-            grant_admin=False,
-        )
-        db.add(invite)
-        await db.commit()
+    raw = InviteToken.new_raw_token()
+    token_hash = InviteToken.hash_token(raw)
+    now = datetime.now(timezone.utc)
+    invite = InviteToken(
+        email=email_n,
+        token_hash=token_hash,
+        created_at=now,
+        expires_at=now + timedelta(hours=2),
+        used_at=None,
+        grant_admin=False,
+    )
+    db.add(invite)
+    await db.commit()
 
-        setup_url = external_url(
-            request,
-            f"/invites/accept?token={raw}",
-            public_base_url=settings.public_base_url,
-        )
-        send_self_registration_email(to_email=email_n, setup_url=setup_url)
-    except Exception:
-        # Email should not block successful registration.
-        pass
-    return {"ok": True}
+    setup_url = external_accept_invite_url(request, token=raw)
+    email_sent = False
+    if settings.smtp_host and settings.smtp_from_email:
+        try:
+            send_self_registration_email(to_email=email_n, setup_url=setup_url)
+            email_sent = True
+        except Exception:
+            pass
+
+    return {"ok": True, "setup_url": setup_url, "email_sent": email_sent}
 
 
 @router.post("/auth/token")

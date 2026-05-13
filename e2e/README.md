@@ -2,6 +2,8 @@
 
 These tests run the **real apps** (FastAPI backend + Streamlit user demo) and drive a **real browser** via Playwright.
 
+**Install the applications first:** follow the repository root [`README.md`](../README.md#setup-from-scratch) (Option A), then use the root virtualenv and commands below.
+
 ## Prereqs
 
 - Python 3.10+

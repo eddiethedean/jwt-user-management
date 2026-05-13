@@ -1,6 +1,7 @@
 import html
 import os
 import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Dict, Optional, Literal
 from urllib.parse import urlparse
@@ -26,6 +27,12 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 if _streamlit_dir not in sys.path:
     sys.path.insert(0, _streamlit_dir)
+
+_cfg_path = _here.parent / "config.py"
+_spec = spec_from_file_location("user_management_ui_pkg_config", _cfg_path)
+assert _spec and _spec.loader
+ui_config = module_from_spec(_spec)
+_spec.loader.exec_module(ui_config)
 
 # With the paths above, `user_common` should always be importable.
 from user_common.auth_state import get_auth_state, login_success, logout  # type: ignore
@@ -53,10 +60,21 @@ if _test_mode:
 elif _env_backend:
     BACKEND_URL = _env_backend.rstrip("/")
 else:
-    _default_port = (os.getenv("PORT") or "8001").strip()
-    _default_base_path = (os.getenv("BASE_PATH") or "").rstrip("/")
+    _default_port = (os.getenv("PORT") or ui_config.DEFAULT_BACKEND_PORT).strip()
+    _default_base_path = (
+        os.getenv("BASE_PATH") or ui_config.DEFAULT_BACKEND_BASE_PATH
+    ).rstrip("/")
     BACKEND_URL = f"http://localhost:{_default_port}{_default_base_path}".rstrip("/")
-DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def _env_truthy(name: str, *, default: bool) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.lower() in ("1", "true", "yes")
+
+
+DEBUG = _env_truthy("DEBUG", default=ui_config.DEBUG_DEFAULT)
 
 if "_debug_logs" not in st.session_state:
     st.session_state["_debug_logs"] = []
@@ -425,7 +443,21 @@ def _render_register() -> None:
                 st.error("Backend request failed (is it running?)")
                 st.stop()
             if resp.is_success:
-                st.success("If allowed, a setup link was generated/sent.")
+                data = safe_json(resp)
+                setup_url = str(data.get("setup_url") or "").strip()
+                if setup_url:
+                    emailed = bool(data.get("email_sent"))
+                    st.success(
+                        "Setup link is ready."
+                        + (
+                            " Check your email."
+                            if emailed
+                            else " Email is not configured; copy the link below."
+                        )
+                    )
+                    st.code(_public_url(setup_url))
+                else:
+                    st.success("If allowed, a setup link was generated/sent.")
             else:
                 show_http_error("Registration failed", resp)
 

@@ -2,115 +2,260 @@
 
 This repo contains:
 
-- `user_management_api/`: **Bare-bones FastAPI + SQLModel + Alembic** backend with **JWT auth** (API-only).
-- `user_management_ui/`: Streamlit UI that logs in against the backend (**separate process**; set `BACKEND_URL` to the API).
-- `e2e/`: Browser E2E tests (Playwright).
-- `fastapi_workbench/`: Reusable helpers for Posit Workbench / RStudio Server proxy prefixes.
+- **`user_management_api/`** — FastAPI + SQLModel + Alembic backend with JWT auth (API-only).
+- **`user_management_ui/`** — Streamlit UI that talks to that API over HTTP (`BACKEND_URL`).
+- **`fluxlit_app/`** — Single-process [FluxLit](https://fluxlit.readthedocs.io/en/stable/) app: FastAPI mounted at **`/api`** plus Streamlit in one ASGI app.
+- **`e2e/`** — Playwright browser tests.
+- **`fastapi_workbench/`** — Helpers for Posit Workbench / RStudio Server path prefixes (used by the standalone API).
 
-App-specific READMEs:
-- `user_management_api/README.md`
-- `user_management_ui/README.md`
-- `e2e/README.md`
+Package READMEs for deeper topics: [`user_management_api/README.md`](user_management_api/README.md), [`user_management_ui/README.md`](user_management_ui/README.md), [`fluxlit_app/README.md`](fluxlit_app/README.md), [`e2e/README.md`](e2e/README.md).
 
-## Quickstart (local, SQLite)
+**First-time setup:** use [Setup from scratch](#setup-from-scratch) below for end-to-end local instructions. If you use a source ZIP instead of Git, unpack it and `cd` into the project folder; skip the `git clone` step.
 
-Prereqs: **Python 3.10+**. You need **two terminals** (or two tabs): one for the API, one for the Streamlit UI.
+---
 
-### Run `user_management_api` and `user_management_ui` together
+## Setup from scratch
 
-1. **Install and migrate the API once** (from the repo root or any path):
+Follow **either** [Option A](#option-a-standalone-api--streamlit-two-processes) (split backend + UI) **or** [Option B](#option-b-fluxlit-single-process). You do not need both for a working demo.
 
-   ```bash
-   cd user_management_api
-   python -m venv .venv
-   source .venv/bin/activate          # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Edit .env if needed: DATABASE_URL, JWT_SECRET, PUBLIC_BASE_URL, etc.
-   alembic upgrade head
-   ```
+### Prerequisites
 
-2. **Terminal A — start the FastAPI backend** (leave this running):
+| Requirement | Notes |
+|-------------|--------|
+| **Git** | To clone this repository. |
+| **Python 3.10+** | Required for `user_management_api` and `user_management_ui`. |
+| **Python 3.11+** | Required for `fluxlit_app` only (Option B). |
+| **Two terminal windows/tabs** | Option A runs the API and Streamlit separately. |
 
-   ```bash
-   cd user_management_api
-   source .venv/bin/activate
-   uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
-   ```
+On Windows, use `\.venv\Scripts\activate` instead of `source .venv/bin/activate`.
 
-   - OpenAPI: `http://127.0.0.1:8001/docs`
-   - The UI will call this base URL; default in the UI app is `http://localhost:8001` **only if** you do not set `BACKEND_URL`. To avoid ambiguity, set `BACKEND_URL` explicitly in step 3.
-
-3. **Terminal B — start the Streamlit UI** and point it at the API with **`BACKEND_URL`**:
-
-   ```bash
-   cd user_management_ui
-   python -m venv .venv
-   source .venv/bin/activate          # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   ```
-
-   Edit `user_management_ui/.env` and set (matching Terminal A):
-
-   ```env
-   BACKEND_URL=http://127.0.0.1:8001
-   ```
-
-   Then run:
-
-   ```bash
-   streamlit run user_app.py --server.port 8502 --server.address 127.0.0.1
-   ```
-
-   - App: `http://127.0.0.1:8502`
-
-4. **Sign in**: after `alembic upgrade head`, the migration seeds a default admin unless you override it with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` — default is `admin@example.com` / `admin123` (see `user_management_api/README.md`).
-
-**If login or API calls fail**, confirm `BACKEND_URL` is exactly the URL the Streamlit **server** can reach (same machine → `http://127.0.0.1:8001` or `http://localhost:8001` consistently). The UI never embeds the API; it always uses HTTP from the Streamlit process to the API.
-
-## Posit Connect note (HTML UI vs Streamlit)
-
-The backend originally shipped with a server-rendered HTML UI (cookie-based session via `Set-Cookie`).
-When deployed to **Posit Connect**, that HTML UI proved unreliable because browsers would not persist the app’s login cookie in the Connect embedded context. We attempted standard mitigations (e.g. `SameSite=None; Secure`, legacy cookies), but cookie persistence still failed.
-
-As a result, we recommend deploying the **Streamlit UI** (`user_management_ui/`) on Connect instead. Streamlit keeps the JWT in server-side session state and avoids browser cookie persistence issues.
-
-## Environment
-
-### Backend (`user_management_api/.env`)
-
-- `DATABASE_URL`: e.g. `sqlite:///./app.db`
-- `JWT_SECRET`: secret used to sign JWTs
-- `JWT_EXPIRES_MINUTES`: default `60`
-- `JWT_ALGORITHM`: default `HS256`
-
-### User management UI (`user_management_ui/.env`, optional)
-
-- `BACKEND_URL`: must match the API URL (e.g. `http://127.0.0.1:8001` when running locally as in the quickstart above)
-
-## Run tests
-
-Use a **repo root** virtualenv and install everything once:
+### 1. Get the code
 
 ```bash
+git clone <repository-url> jwt-user-management
+cd jwt-user-management
+```
+
+Use your real clone URL in place of `<repository-url>`.
+
+---
+
+### Option A: Standalone API + Streamlit (two processes)
+
+Use this path to run the same layout as production-style deployments: API on one host/port, Streamlit on another. Each component uses its **own** `.venv` inside its directory (so you activate the correct venv before each command).
+
+#### Step A1 — Create the API virtual environment and install dependencies
+
+```bash
+cd user_management_api
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+```
+
+#### Step A2 — Configure the API (`.env` and optional `config.py`)
+
+```bash
+cp .env.example .env
+```
+
+1. Edit **`user_management_api/.env`** and set **`JWT_SECRET`** (required in production; the example file includes a dev placeholder).
+2. Non-sensitive defaults (cookie flags, SMTP port/TLS defaults, directory-timeout flags, default `BASE_PATH` / `PUBLIC_BASE_URL`, etc.) live in **`user_management_api/config.py`**. Change that file if you want different defaults for all environments; use **`.env`** for **`DATABASE_URL`**, **`JWT_SECRET`**, **`JWT_ALGORITHM`**, **`JWT_EXPIRES_MINUTES`**, and other secrets or per-deployment overrides (SMTP, `DIRECTORY_LOOKUP_URL`, `SEED_*`, etc.).
+
+| Override (`.env`) | When you need it |
+|---------------------|------------------|
+| **`JWT_SECRET`** | Always set a strong value before production. |
+| **`DATABASE_URL`** | If not using the default SQLite URL from `.env.example`. |
+| **`JWT_ALGORITHM`** / **`JWT_EXPIRES_MINUTES`** | If you need non-default token settings (defaults are in `.env.example`). |
+| **`PUBLIC_BASE_URL`** | If public invite links must use another origin than the default in `config.py`. |
+
+Leave the rest of `.env` commented unless you need SMTP or directory lookup ([optional features](#optional-directory-lookup-and-smtp)).
+
+#### Step A3 — Create database tables and seed admin
+
+Still inside `user_management_api/` with the venv activated:
+
+```bash
+alembic upgrade head
+```
+
+This applies migrations and creates a default admin user unless you set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env`.
+
+**Default admin (if you did not override seed env vars):**
+
+- Email: **`admin@example.com`**
+- Password: **`admin123`**
+
+#### Step A4 — Start the API (keep this terminal open)
+
+```bash
+cd user_management_api
+source .venv/bin/activate
+uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
+```
+
+- **OpenAPI docs:** `http://127.0.0.1:8001/docs`
+- **Health check:** open `/docs` or call any documented route.
+
+#### Step A5 — Create the Streamlit UI virtual environment and install dependencies
+
+Open a **second** terminal:
+
+```bash
+cd user_management_ui
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+```
+
+#### Step A6 — Point the UI at the API
+
+```bash
+cp .env.example .env
+```
+
+Edit **`user_management_ui/.env`** and set:
+
+```env
+BACKEND_URL=http://127.0.0.1:8001
+```
+
+Use the same host and port as Step A4. The Streamlit **server** must be able to reach this URL (not only your browser). Fallback pieces for local dev when `BACKEND_URL` is unset (`PORT`, `BASE_PATH`) and the default for **`DEBUG`** are defined in **`user_management_ui/config.py`**.
+
+#### Step A7 — Start the Streamlit app
+
+```bash
+cd user_management_ui
+source .venv/bin/activate
+streamlit run user_app.py --server.port 8502 --server.address 127.0.0.1
+```
+
+- **App URL:** `http://127.0.0.1:8502`
+
+#### Step A8 — Sign in
+
+1. Open `http://127.0.0.1:8502`.
+2. Log in with the admin email and password from Step A3.
+
+If login fails, see [Troubleshooting](#troubleshooting).
+
+---
+
+### Option B: FluxLit single process
+
+One Python environment runs the gateway, Streamlit UI, and JSON API together (default bind **`127.0.0.1:8000`**).
+
+#### Step B1 — Create virtual environment and install
+
+```bash
+cd fluxlit_app
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+```
+
+Python **3.11+** is required for this package (see `fluxlit_app/README.md`).
+
+#### Step B2 — Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit **`fluxlit_app/.env`**: set **`DATABASE_URL`**, **`JWT_SECRET`**, **`JWT_ALGORITHM`**, and **`JWT_EXPIRES_MINUTES`** (see `.env.example`). Other non-sensitive defaults for the bundled FastAPI app (`PUBLIC_BASE_URL`, `BASE_PATH`, SMTP port/flags, directory timeouts, etc.) are in **`fluxlit_app/config.py`**; use `.env` to override any of those via the environment. FluxLit gateway variables remain the usual `FLUXLIT_*` names (see comments in `.env.example` and `fluxlit_app/README.md`).
+
+#### Step B3 — Migrate and run
+
+From **`fluxlit_app/`** with the venv activated:
+
+```bash
+cd fluxlit_app
+source .venv/bin/activate
+alembic upgrade head
+fluxlit dev
+```
+
+With default settings:
+
+| What | URL |
+|------|-----|
+| Streamlit UI | `http://127.0.0.1:8000/` |
+| OpenAPI | `http://127.0.0.1:8000/api/docs` |
+| API (relative to app) | under **`/api/...`** |
+
+Sign in with the same style of seeded admin as in the API package (see `fluxlit_app/README.md` seed section).
+
+Alternative: `uvicorn main:app --reload --host 127.0.0.1 --port 8000` from `fluxlit_app/` — see `fluxlit_app/README.md`.
+
+---
+
+### Optional: directory lookup and SMTP
+
+Both **`user_management_api`** and **`fluxlit_app`** can:
+
+- Call an HTTP **directory** service (`GET` base URL + `?query=<email>`) to validate emails for self-registration and admin invites, and to read **country** from LDAP-style JSON (`attributes.c` / `attributes.co`).
+- Send **email** for invites, registration setup, and password reset when **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** are set.
+
+**Setup outline:**
+
+1. Copy the relevant package `.env.example` to `.env` (you should already have `.env` from the steps above).
+2. Set **`DIRECTORY_LOOKUP_URL`** in `.env` to your lookup service base URL (not in `config.py` — deployment-specific).
+3. Optional tuning such as **`DIRECTORY_LOOKUP_TIMEOUT_S`** and **`DIRECTORY_LOOKUP_REQUIRED`** default from **`config.py`** in each backend package; override via `.env` if needed.
+4. Set SMTP variables in `.env` as needed.
+
+Full variable lists and behavior: [`user_management_api/README.md`](user_management_api/README.md) and [`fluxlit_app/README.md`](fluxlit_app/README.md).
+
+---
+
+### Run automated tests (repository root)
+
+Use one virtualenv at the **repo root** so pytest can see all packages:
+
+```bash
+cd jwt-user-management
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -r requirements-dev.txt
-python -m pytest
 ```
 
-If the venv already exists:
+Run the full suite:
 
 ```bash
-source .venv/bin/activate
 python -m pytest
 ```
 
-If you only want the backend + `fastapi_workbench` tests (no Streamlit deps), run:
+**Backend and `fastapi_workbench` only** (lighter, avoids loading all Streamlit plugins):
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q user_management_api/tests fastapi_workbench/tests
 ```
- 
+
+**End-to-end browser tests** need Playwright browsers installed once:
+
+```bash
+playwright install
+```
+
+Then see [`e2e/README.md`](e2e/README.md) for how to run `e2e/` tests (from the repo root, with the same venv activated).
+
+---
+
+### Posit Connect and Workbench
+
+- **Connect:** Prefer the **Streamlit** UI (`user_management_ui` or the FluxLit UI) over cookie-based HTML login; see the note in [`user_management_api/README.md`](user_management_api/README.md).
+- **Workbench / path prefixes:** Standalone API: `user_management_api/run_workbench.py`. FluxLit: `fluxlit_app/run_workbench.py` and `fluxlit_app/README.md`.
+
+---
+
+### Troubleshooting
+
+| Problem | What to check |
+|---------|----------------|
+| Streamlit cannot log in or “backend request failed” | **`BACKEND_URL`** must be exactly what the Streamlit **process** can call (e.g. `http://127.0.0.1:8001`). Mixing `localhost` vs `127.0.0.1` can matter in some setups; pick one and use it everywhere. |
+| API exits or 500 on startup | **`JWT_SECRET`** must be non-empty in `user_management_api/.env`. |
+| `alembic` errors | Run `alembic upgrade head` from **`user_management_api/`** or **`fluxlit_app/`** (respectively), with that package’s venv activated and `DATABASE_URL` pointing at a writable path. |
+| UI rejects `BACKEND_URL` | `user_management_ui` blocks obviously unsafe URLs; use a normal `http://127.0.0.1:PORT` style URL for local dev. See [`user_management_ui/README.md`](user_management_ui/README.md). |

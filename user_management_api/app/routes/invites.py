@@ -10,11 +10,11 @@ from jose import JWTError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_url
 from app.core.config import settings
 from app.core.security import decode_token, hash_password
 from app.db import get_db
 from app.models import InviteToken, User
+from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 
@@ -30,12 +30,7 @@ def _norm_email(v: str) -> str:
 
 
 def _invite_url(request: Request, token: str) -> str:
-    # Prefer an explicitly configured browser-routable host (PUBLIC_BASE_URL) if set.
-    return external_url(
-        request,
-        f"/invites/accept?token={token}",
-        public_base_url=settings.public_base_url,
-    )
+    return external_accept_invite_url(request, token=token)
 
 
 def _as_utc_aware(dt: datetime) -> datetime:

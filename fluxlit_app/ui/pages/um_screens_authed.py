@@ -128,6 +128,20 @@ def _render_admin(st: Any, auth: AuthState, *, public_api_base: str) -> None:
             if not response_ok(resp):
                 show_http_error("Could not verify email", resp)
                 st.stop()
+            lu = safe_json(resp)
+            if isinstance(lu, dict):
+                em = str(lu.get("email") or "").strip()
+                ctry = str(lu.get("country") or "").strip()
+                dn = str(lu.get("display_name") or "").strip()
+                if em or ctry or dn:
+                    parts: list[str] = []
+                    if dn:
+                        parts.append(f"Directory name: **{dn}**")
+                    if em:
+                        parts.append(f"Directory email: `{em}`")
+                    if ctry:
+                        parts.append(f"LDAP country: **{ctry}**")
+                    st.info(" · ".join(parts))
             with st.spinner("Sending email…"):
                 r2 = api.post(
                     "/invites",

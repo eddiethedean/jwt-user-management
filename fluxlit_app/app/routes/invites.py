@@ -13,7 +13,7 @@ from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import InviteToken, User
 from app.routes.deps import admin_from_bearer, bearer_scheme
-from app.routes.public_urls import page_url
+from app.routes.public_urls import email_browser_page_url
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 
@@ -26,7 +26,7 @@ def _norm_email(v: str) -> str:
 
 
 def _invite_url(request: Request, token: str) -> str:
-    return page_url(request, page="Accept invite", token=token)
+    return email_browser_page_url(request, page="Accept invite", token=token)
 
 
 def _as_utc_aware(dt: datetime) -> datetime:

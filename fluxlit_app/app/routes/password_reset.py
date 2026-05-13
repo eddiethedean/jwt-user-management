@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
-from app.routes.public_urls import page_url
+from app.routes.public_urls import email_browser_page_url
 from app.services.email import send_password_reset_email
 
 
@@ -50,7 +50,9 @@ async def forgot_password_api(
         )
         db.add(rec)
         await db.commit()
-        reset_url = page_url(request, page="Reset password", token=raw)
+        reset_url = email_browser_page_url(
+            request, page="Reset password", token=raw
+        )
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
         except Exception:

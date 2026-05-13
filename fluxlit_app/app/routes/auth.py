@@ -15,7 +15,7 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.models import InviteToken, User
-from app.routes.public_urls import page_url
+from app.routes.public_urls import email_browser_page_url
 from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
 
@@ -28,7 +28,7 @@ def _norm_email(v: str) -> str:
 
 
 def _setup_url(request: Request, token: str) -> str:
-    return page_url(request, page="Accept invite", token=token)
+    return email_browser_page_url(request, page="Accept invite", token=token)
 
 
 @router.post("/register")
