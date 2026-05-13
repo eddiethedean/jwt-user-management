@@ -16,5 +16,5 @@ jinja2
 python-multipart
 pytest
 httpx
-fastapi-workbench==0.3.1
+fastapi-workbench @ git+https://github.com/eddiethedean/jwt-user-management.git@main#subdirectory=fastapi_workbench
 streamlit[starlette]
