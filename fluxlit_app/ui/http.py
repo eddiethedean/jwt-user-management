@@ -44,9 +44,7 @@ def _humanize_detail(detail: str) -> str:
     """Match legacy HTML admin invite messaging for directory failures."""
     d = (detail or "").strip().lower()
     if "directory lookup failed" in d:
-        return (
-            "Could not verify email. Please try again, or contact your admin."
-        )
+        return "Could not verify email. Please try again, or contact your admin."
     return detail
 
 
@@ -59,9 +57,7 @@ def show_http_error(prefix: str, resp: httpx.Response) -> None:
     except Exception:
         detail = ""
     if detail:
-        st.error(
-            f"{prefix}: {resp.status_code} ({_humanize_detail(detail)})"
-        )
+        st.error(f"{prefix}: {resp.status_code} ({_humanize_detail(detail)})")
     else:
         st.error(f"{prefix}: {resp.status_code}")
 

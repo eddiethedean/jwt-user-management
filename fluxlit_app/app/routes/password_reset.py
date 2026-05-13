@@ -50,9 +50,7 @@ async def forgot_password_api(
         )
         db.add(rec)
         await db.commit()
-        reset_url = email_browser_page_url(
-            request, page="Reset password", token=raw
-        )
+        reset_url = email_browser_page_url(request, page="Reset password", token=raw)
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
         except Exception:

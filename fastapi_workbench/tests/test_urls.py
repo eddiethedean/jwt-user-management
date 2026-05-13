@@ -23,7 +23,11 @@ def test_workbench_browser_base_prefers_fluxlit_over_settings_env(
 ) -> None:
     @app.get("/b")
     def b(request: Request) -> dict:
-        return {"base": workbench_browser_base(request, public_base_url="http://127.0.0.1:1")}
+        return {
+            "base": workbench_browser_base(
+                request, public_base_url="http://127.0.0.1:1"
+            )
+        }
 
     monkeypatch.setenv("FLUXLIT_PUBLIC_BASE_URL", "https://workbench.example/app")
     monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
@@ -90,7 +94,9 @@ def test_external_workbench_url_skips_duplicate_root_path(
     )
 
 
-def test_merge_public_base_with_mount(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_merge_public_base_with_mount(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
     @app.get("/m")
     def m(request: Request) -> dict:
         return {

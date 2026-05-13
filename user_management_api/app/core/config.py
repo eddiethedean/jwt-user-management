@@ -43,9 +43,7 @@ class Settings(BaseSettings):
     directory_lookup_timeout_s: int = Field(
         default=_defaults.DIRECTORY_LOOKUP_TIMEOUT_S
     )
-    directory_lookup_required: bool = Field(
-        default=_defaults.DIRECTORY_LOOKUP_REQUIRED
-    )
+    directory_lookup_required: bool = Field(default=_defaults.DIRECTORY_LOOKUP_REQUIRED)
     directory_lookup_verify_ssl: bool = Field(
         default=_defaults.DIRECTORY_LOOKUP_VERIFY_SSL
     )

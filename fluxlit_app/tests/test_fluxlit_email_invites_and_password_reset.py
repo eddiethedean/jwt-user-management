@@ -105,7 +105,9 @@ def test_invite_api_sends_email_when_smtp_configured(tmp_path, monkeypatch) -> N
     assert "Accept invite:" in body
 
 
-def test_invite_email_uses_fluxlit_public_base_url_when_set(tmp_path, monkeypatch) -> None:
+def test_invite_email_uses_fluxlit_public_base_url_when_set(
+    tmp_path, monkeypatch
+) -> None:
     db_url = f"sqlite:///{tmp_path / 'fluxlit_public.db'}"
     app = load_fluxlit_app(
         db_url=db_url,
@@ -175,7 +177,9 @@ def test_invite_email_fluxlit_public_base_avoids_duplicate_mount(
     monkeypatch.setattr("app.services.email.smtplib.SMTP", _FakeSMTP)
     _FakeSMTP.sent.clear()
 
-    client = TestClient(app.api, base_url="http://internal.test", root_path="/prefix/app")
+    client = TestClient(
+        app.api, base_url="http://internal.test", root_path="/prefix/app"
+    )
     r = client.post(
         "/invites",
         headers={"Authorization": f"Bearer {token}"},
