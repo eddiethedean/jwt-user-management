@@ -258,6 +258,40 @@ def _post_json(
 auth = get_auth_state(session_key="user_auth")
 
 
+def _query_param_first(key: str) -> str:
+    try:
+        raw = st.query_params.get(key)
+    except Exception:
+        return ""
+    if raw is None:
+        return ""
+    if isinstance(raw, list):
+        return str(raw[0]) if raw else ""
+    return str(raw)
+
+
+def _apply_public_link_params() -> None:
+    """Deep-link from emailed ``?page=...&token=...`` URLs (matches FluxLit pattern)."""
+    page_raw = _query_param_first("page")
+    token = _query_param_first("token")
+    public_pages = {"Login", "Register", "Accept invite", "Reset password"}
+    if page_raw in public_pages:
+        st.session_state["public_go_to"] = page_raw
+    if not page_raw or not token:
+        return
+    marker = f"{page_raw}:{token}"
+    if st.session_state.get("_public_link_marker") == marker:
+        return
+    if page_raw == "Accept invite":
+        st.session_state["invite_token"] = token
+    elif page_raw == "Reset password":
+        st.session_state["reset_token"] = token
+    st.session_state["_public_link_marker"] = marker
+
+
+_apply_public_link_params()
+
+
 AuthedPage = Literal["Users", "Admin", "Account"]
 PublicPage = Literal["Login", "Register", "Accept invite", "Reset password"]
 

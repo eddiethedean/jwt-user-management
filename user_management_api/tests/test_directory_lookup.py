@@ -12,11 +12,44 @@ from sqlmodel import Session, SQLModel
 from starlette.types import ASGIApp
 
 
-def _load_wrapped_app(*, db_url: str) -> ASGIApp:
+_DEFAULT_TEST_INVITE_DOMAINS: tuple[str, ...] = (
+    "example.com",
+    "example.org",
+    "test.local",
+    "allowed.org",
+    "corp.com",
+    "socom.mil",
+    "soc.mil",
+    "b.c",
+)
+
+
+def _apply_test_invite_config(
+    config_mod,
+    *,
+    invite_allowed_email_domains: tuple[str, ...] | None,
+) -> None:
+    if invite_allowed_email_domains is not None:
+        config_mod._defaults.INVITE_ALLOWED_EMAIL_DOMAINS = invite_allowed_email_domains
+    else:
+        config_mod._defaults.INVITE_ALLOWED_EMAIL_DOMAINS = _DEFAULT_TEST_INVITE_DOMAINS
+    config_mod.refresh_settings()
+
+
+def _load_wrapped_app(
+    *,
+    db_url: str,
+    enable_directory: bool = True,
+    invite_allowed_email_domains: tuple[str, ...] | None = None,
+) -> ASGIApp:
     os.environ["DATABASE_URL"] = db_url
     os.environ["JWT_SECRET"] = "test-secret"
-    os.environ["DIRECTORY_LOOKUP_URL"] = "http://directory.test/ldapEmail"
-    os.environ["DIRECTORY_LOOKUP_REQUIRED"] = "true"
+    if enable_directory:
+        os.environ["DIRECTORY_LOOKUP_URL"] = "http://directory.test/ldapEmail"
+        os.environ["DIRECTORY_LOOKUP_REQUIRED"] = "true"
+    else:
+        os.environ.pop("DIRECTORY_LOOKUP_URL", None)
+        os.environ.pop("DIRECTORY_LOOKUP_REQUIRED", None)
 
     SQLModel.metadata.clear()
     import sqlmodel.main as sqlmodel_main
@@ -45,6 +78,13 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
     import app.core.config as config
 
     importlib.reload(config)
+    _apply_test_invite_config(
+        config, invite_allowed_email_domains=invite_allowed_email_domains
+    )
+
+    import app.invite_email_domains as invite_email_domains_mod
+
+    importlib.reload(invite_email_domains_mod)
 
     import app.db as db
 
@@ -57,6 +97,10 @@ def _load_wrapped_app(*, db_url: str) -> ASGIApp:
     import app.routes.auth as auth_routes
 
     importlib.reload(auth_routes)
+
+    import app.routes.invites as invites_routes
+
+    importlib.reload(invites_routes)
 
     import app.routes.admin as admin_routes
 
@@ -103,11 +147,11 @@ class _Resp:
         return self._json_data
 
 
-def test_register_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
+def test_register_succeeds_when_directory_returns_404(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
-    # Directory returns 404 (not found)
+    # Directory returns 404 (not found) — registration still creates a setup token.
     import app.services.directory as directory
 
     monkeypatch.setattr(directory.httpx, "get", lambda *a, **k: _Resp(status_code=404))
@@ -116,8 +160,10 @@ def test_register_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
     r = client.post(
         "/register", data={"email": "nobody@example.com"}, follow_redirects=False
     )
-    assert r.status_code == 400
-    assert "Email not found in directory" in r.text
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("ok") is True
+    assert data.get("setup_url")
 
 
 def test_lookup_parses_country_from_directory_response(tmp_path, monkeypatch) -> None:
@@ -187,7 +233,7 @@ def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
     assert rec.country == "US"
 
 
-def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
+def test_admin_invite_succeeds_when_directory_returns_404(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = _load_wrapped_app(db_url=db_url)
 
@@ -215,5 +261,55 @@ def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> N
         json={"email": "nobody@example.com", "grant_admin": False},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert r.status_code == 422
-    assert "email not found in directory" in r.text.lower()
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+
+
+def test_admin_invite_rejects_domain_not_in_allowlist(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    app = _load_wrapped_app(
+        db_url=db_url,
+        enable_directory=False,
+        invite_allowed_email_domains=("allowed.org",),
+    )
+
+    import app.db as db
+
+    _seed_admin(db_engine=db.engine)
+
+    client = TestClient(app, base_url="http://testserver")
+    r_token = client.post(
+        "/auth/token",
+        data={"username": "admin@example.com", "password": "admin123"},
+    )
+    assert r_token.status_code == 200
+    token = r_token.json().get("access_token")
+
+    r_bad = client.post(
+        "/invites",
+        json={"email": "u@example.com", "grant_admin": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_bad.status_code == 422
+
+    r_ok = client.post(
+        "/invites",
+        json={"email": "u@allowed.org", "grant_admin": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_ok.status_code == 200
+
+
+def test_register_rejects_domain_not_in_allowlist(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    app = _load_wrapped_app(
+        db_url=db_url,
+        enable_directory=False,
+        invite_allowed_email_domains=("corp.com",),
+    )
+    client = TestClient(app, base_url="http://testserver")
+    r = client.post(
+        "/register", data={"email": "x@example.com"}, follow_redirects=False
+    )
+    assert r.status_code == 400
+    assert "domain" in (r.json().get("detail") or "").lower()

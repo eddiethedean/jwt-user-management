@@ -1,26 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-import os
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import external_workbench_url
-from app.core.config import settings
-from app.core.security import hash_password
+from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
+from app.routes.email_links import external_password_reset_url
 from app.services.email import send_password_reset_email
 
 
 router = APIRouter(prefix="/password", tags=["password"])
 log = logging.getLogger("uvicorn.error")
-
-ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -56,15 +52,11 @@ async def forgot_password_api(
         )
         db.add(rec)
         await db.commit()
-        reset_url = external_workbench_url(
-            request,
-            f"/password/reset?token={raw}",
-            public_base_url=settings.public_base_url or None,
-        )
+        reset_url = external_password_reset_url(request, token=raw)
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
         except Exception:
-            pass
+            log.exception("password_reset_email_send_failed")
     return {"ok": True}
 
 
@@ -103,6 +95,10 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     password = str(payload.get("password") or "")
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
+    try:
+        validate_new_password(password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = (

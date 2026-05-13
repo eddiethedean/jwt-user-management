@@ -1,28 +1,27 @@
 from __future__ import annotations
 
-import os
+import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.security import decode_token, hash_password
+from app.core.security import hash_password, validate_new_password
 from app.db import get_db
+from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
+from app.routes.deps import admin_from_bearer, bearer_scheme
 from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
-
-bearer_scheme = HTTPBearer(auto_error=False)
-ADMIN_EMAIL = (os.getenv("SEED_ADMIN_EMAIL") or "admin@example.com").strip().lower()
+log = logging.getLogger("uvicorn.error")
 
 
 def _norm_email(v: str) -> str:
@@ -43,30 +42,6 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-async def _require_admin(
-    db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
-) -> User:
-    if not creds:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    try:
-        payload: dict[str, Any] = decode_token(creds.credentials)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    sub = payload.get("sub")
-    if not sub:
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    try:
-        user_id = int(sub)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    user = (await db.exec(select(User).where(User.id == user_id))).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
-
-
 @router.post("")
 async def create_invite(
     request: Request,
@@ -74,19 +49,17 @@ async def create_invite(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    await _require_admin(db, creds)
+    await admin_from_bearer(db=db, creds=creds)
     email = _norm_email(str(payload.get("email") or ""))
     grant_admin = bool(payload.get("grant_admin") or False)
     if not email:
         raise HTTPException(status_code=422, detail="email is required")
 
-    if settings.directory_lookup_url:
-        try:
-            rec = lookup_email(email)
-        except Exception:
-            rec = None
-        if settings.directory_lookup_required and not rec:
-            raise HTTPException(status_code=422, detail="email not found in directory")
+    if not invite_email_domain_allowed(email):
+        raise HTTPException(
+            status_code=422,
+            detail="email domain is not allowed for invites",
+        )
 
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
@@ -106,8 +79,7 @@ async def create_invite(
     try:
         send_invite_email(to_email=email, invite_url=invite_url)
     except Exception:
-        # Email should not break invite creation.
-        pass
+        log.exception("invite_email_send_failed")
 
     return {
         "ok": True,
@@ -122,18 +94,17 @@ async def lookup_invite_email(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    await _require_admin(db, creds)
+    await admin_from_bearer(db=db, creds=creds)
     email = _norm_email(str(payload.get("email") or ""))
     if not email:
         raise HTTPException(status_code=422, detail="email is required")
     if not settings.directory_lookup_url:
-        return {"ok": True}
+        return {"ok": True, "email": "", "country": "", "display_name": ""}
+    rec = None
     try:
         rec = lookup_email(email)
     except Exception:
-        raise HTTPException(status_code=400, detail="Directory lookup failed")
-    if settings.directory_lookup_required and not rec:
-        raise HTTPException(status_code=422, detail="email not found in directory")
+        log.warning("invite_directory_preview_lookup_failed", exc_info=True)
     return {
         "ok": True,
         "email": rec.email if rec else "",
@@ -232,5 +203,9 @@ async def accept_invite_api(
     full_name_s = None if full_name is None else str(full_name)
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
+    try:
+        validate_new_password(password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     await _accept(db=db, token=token, password=password, full_name=full_name_s)
     return {"ok": True}

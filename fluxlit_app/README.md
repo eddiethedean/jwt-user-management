@@ -22,7 +22,7 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env (at least DATABASE_URL, JWT_SECRET, PUBLIC_BASE_URL)
+# Edit .env (at least DATABASE_URL, JWT_SECRET); tune PUBLIC_BASE_URL in config.py
 alembic upgrade head
 fluxlit dev
 ```
@@ -139,10 +139,10 @@ curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/users/me
 |----------|---------|
 | `DATABASE_URL` | Set in `.env` (see `.env.example`). |
 | `JWT_SECRET` | Set in `.env`. |
-| `JWT_ALGORITHM` / `JWT_EXPIRES_MINUTES` | Set in `.env` (defaults in `.env.example`). |
-| `PUBLIC_BASE_URL` | Default from `config.py`; override in `.env` when needed. |
+| `JWT_ALGORITHM` / `JWT_EXPIRES_MINUTES` | Edit **`config.py`** (defaults: HS256, 60 minutes). |
+| `PUBLIC_BASE_URL` | Edit **`config.py`** (default matches local `fluxlit dev`). |
 
-Other non-sensitive FastAPI defaults (SMTP port/flags, directory timeouts, `BASE_PATH`, etc.) live in **[`config.py`](config.py)** beside `app/`.
+Tunables such as **`BASE_PATH`**, **`INVITE_ALLOWED_EMAIL_DOMAINS`**, SMTP port/TLS, and directory timeouts live only in **`config.py`** beside `app/`. **`.env`** must not duplicate those keys.
 
 ### Optional: directory (LDAP) lookup
 
@@ -154,9 +154,13 @@ This matches the standalone **`user_management_api`** behavior (see that package
 
 2. Expect JSON with **`attributes`**: **`mail`** or **`userPrincipalName`** for identity; optional **`displayName`** / **`cn`**; optional country from **`c`** or **`co`** (values like `C=US` are stored as `US`).
 
-3. Set **`DIRECTORY_LOOKUP_REQUIRED=true`** if invites and self-registration must only proceed for addresses the directory confirms. The Streamlit **Admin** flow calls **`POST /api/invites/lookup`** before **`POST /api/invites`** and shows returned directory email, name, and country when present.
+3. **`DIRECTORY_LOOKUP_REQUIRED`**: when `true`, directory transport/parse failures can cause **`lookup_email`** to raise at the HTTP client layer. **Invites and self-registration are not blocked** when the directory has no match; directory data is used to set **`user.country`** when a user **accepts** an invite when a record exists.
 
-4. Tune **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`**, and **`DIRECTORY_LOOKUP_CA_BUNDLE`** as in `.env.example`.
+4. Tune **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`** in **`config.py`**. Set **`DIRECTORY_LOOKUP_CA_BUNDLE`** in **`.env`** when you need a custom CA file path.
+
+5. **Invite / registration domains:** edit the **`INVITE_ALLOWED_EMAIL_DOMAINS`** tuple in **`config.py`** (defaults **`socom.mil`**, **`soc.mil`**).
+
+The Streamlit **Admin** flow calls **`POST /api/invites/lookup`** for a **preview** of directory email, name, and country when the service responds; failures return empty fields without blocking **`POST /api/invites`**.
 
 JSON routes live under **`/api`** (for example **`POST /api/invites/lookup`**).
 

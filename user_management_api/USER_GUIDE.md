@@ -34,16 +34,19 @@ uvicorn app.asgi:app --reload --port 8001
 
 Run the Streamlit UI from `../user_management_ui/` separately; set `BACKEND_URL` there to this API (see that folder’s README).
 
-## Configuration (`.env`)
+## Configuration (`.env` and `config.py`)
 
-Edit `user_management_api/.env` (copy from `.env.example`).
+Copy **`.env.example`** to **`.env`** for secrets and deployment endpoints (**`DATABASE_URL`**, **`JWT_SECRET`**, SMTP, **`DIRECTORY_LOOKUP_URL`**, etc.).
 
-### Core settings
+### Tunables in `config.py`
+
+- **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://127.0.0.1:8001`)
+- **`BASE_PATH`**: optional external path prefix when behind a reverse proxy (e.g. `/connect/app`)
+- **`UI_PUBLIC_BASE_URL`**: optional Streamlit origin for emailed deep links (see root README)
+
+### Core settings (`.env`)
 
 - **`DATABASE_URL`**: default `sqlite:///./app.db`
-- **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://localhost:8001`)
-- **`BASE_PATH`**: optional external path prefix when behind a reverse proxy (e.g. `/connect/app`)
-- **`ENVIRONMENT`**: `dev` or `prod`
 
 ### Secrets (required for real deployments)
 

@@ -47,7 +47,8 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
     Lookup an email address in the external directory service.
 
     Returns None on "not found" or when lookup is disabled.
-    Raises on unexpected/transport errors only when directory_lookup_required is True.
+    Raises on transport/parse errors only when ``directory_lookup_required`` is True
+    (HTTP client layer); application routes do not use this flag to block invites.
     """
     base = (settings.directory_lookup_url or "").strip()
     if not base:

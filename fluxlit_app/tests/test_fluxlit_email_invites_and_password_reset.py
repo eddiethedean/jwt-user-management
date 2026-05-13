@@ -309,9 +309,9 @@ def test_password_reset_rejects_short_password(tmp_path) -> None:
         s.commit()
 
     tc = FluxLitTestClient(app)
-    r = tc.api_post("/password/reset", json={"token": raw, "password": "short"})
+    r = tc.api_post("/password/reset", json={"token": raw, "password": "ab"})
     assert r.status_code == 400
-    assert "at least 8" in str(r.json().get("detail", ""))
+    assert "at least 3" in str(r.json().get("detail", ""))
 
 
 def test_invite_accept_rejects_short_password(tmp_path) -> None:
@@ -335,6 +335,6 @@ def test_invite_accept_rejects_short_password(tmp_path) -> None:
         s.commit()
 
     tc = FluxLitTestClient(app)
-    r = tc.api_post("/invites/accept", json={"token": raw, "password": "short"})
+    r = tc.api_post("/invites/accept", json={"token": raw, "password": "ab"})
     assert r.status_code == 400
-    assert "at least 8" in str(r.json().get("detail", ""))
+    assert "at least 3" in str(r.json().get("detail", ""))

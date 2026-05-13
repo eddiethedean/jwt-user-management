@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -11,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.security import hash_password, validate_new_password
 from app.db import get_db
+from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
 from app.routes.deps import admin_from_bearer, bearer_scheme
 from app.routes.public_urls import email_browser_page_url
@@ -19,6 +21,7 @@ from app.services.email import send_invite_email
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
+log = logging.getLogger("uvicorn.error")
 
 
 def _norm_email(v: str) -> str:
@@ -58,13 +61,11 @@ async def create_invite(
     if not email:
         raise HTTPException(status_code=422, detail="email is required")
 
-    if settings.directory_lookup_url:
-        try:
-            rec = lookup_email(email)
-        except Exception:
-            rec = None
-        if settings.directory_lookup_required and not rec:
-            raise HTTPException(status_code=422, detail="email not found in directory")
+    if not invite_email_domain_allowed(email):
+        raise HTTPException(
+            status_code=422,
+            detail="email domain is not allowed for invites",
+        )
 
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
@@ -84,8 +85,7 @@ async def create_invite(
     try:
         send_invite_email(to_email=email, invite_url=invite_url)
     except Exception:
-        # Email should not break invite creation.
-        pass
+        log.exception("invite_email_send_failed")
 
     return {
         "ok": True,
@@ -105,13 +105,12 @@ async def lookup_invite_email(
     if not email:
         raise HTTPException(status_code=422, detail="email is required")
     if not settings.directory_lookup_url:
-        return {"ok": True}
+        return {"ok": True, "email": "", "country": "", "display_name": ""}
+    rec = None
     try:
         rec = lookup_email(email)
     except Exception:
-        raise HTTPException(status_code=400, detail="Directory lookup failed")
-    if settings.directory_lookup_required and not rec:
-        raise HTTPException(status_code=422, detail="email not found in directory")
+        log.warning("invite_directory_preview_lookup_failed", exc_info=True)
     return {
         "ok": True,
         "email": rec.email if rec else "",

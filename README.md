@@ -61,14 +61,13 @@ cp .env.example .env
 ```
 
 1. Edit **`user_management_api/.env`** and set **`JWT_SECRET`** (required in production; the example file includes a dev placeholder).
-2. Non-sensitive defaults (cookie flags, SMTP port/TLS defaults, directory-timeout flags, default `BASE_PATH` / `PUBLIC_BASE_URL`, etc.) live in **`user_management_api/config.py`**. Change that file if you want different defaults for all environments; use **`.env`** for **`DATABASE_URL`**, **`JWT_SECRET`**, **`JWT_ALGORITHM`**, **`JWT_EXPIRES_MINUTES`**, and other secrets or per-deployment overrides (SMTP, `DIRECTORY_LOOKUP_URL`, `SEED_*`, etc.).
+2. Non-sensitive tunables (cookie flags, SMTP port/TLS, directory timeouts, `BASE_PATH`, `PUBLIC_BASE_URL`, `UI_PUBLIC_BASE_URL`, JWT algorithm/lifetime, invite email domains, etc.) live only in **`user_management_api/config.py`**. Use **`.env`** for secrets and deployment endpoints: **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials, **`DIRECTORY_LOOKUP_URL`**, optional **`DIRECTORY_LOOKUP_CA_BUNDLE`**, and **`SEED_*`** if you customize seeding.
 
 | Override (`.env`) | When you need it |
 |---------------------|------------------|
 | **`JWT_SECRET`** | Always set a strong value before production. |
 | **`DATABASE_URL`** | If not using the default SQLite URL from `.env.example`. |
-| **`JWT_ALGORITHM`** / **`JWT_EXPIRES_MINUTES`** | If you need non-default token settings (defaults are in `.env.example`). |
-| **`PUBLIC_BASE_URL`** | If public invite links must use another origin than the default in `config.py`. |
+| **`DIRECTORY_LOOKUP_URL`** | When you enable the optional directory HTTP client. |
 
 Leave the rest of `.env` commented unless you need SMTP or directory lookup ([optional features](#optional-directory-lookup-and-smtp)).
 
@@ -124,6 +123,8 @@ BACKEND_URL=http://127.0.0.1:8001
 
 Use the same host and port as Step A4. The Streamlit **server** must be able to reach this URL (not only your browser). Fallback pieces for local dev when `BACKEND_URL` is unset (`PORT`, `BASE_PATH`) and the default for **`DEBUG`** are defined in **`user_management_ui/config.py`**.
 
+For **invite and password-reset emails** to open the Streamlit app directly, set **`UI_PUBLIC_BASE_URL`** in **`user_management_api/config.py`** to the public Streamlit origin (for example `http://127.0.0.1:8502`). The API then emails links of the form `.../?page=Accept+invite&token=...` and `.../?page=Reset+password&token=...`, which the UI reads on load. If you leave it empty, links keep the older API-style paths (`/invites/accept?token=...`, `/password/reset?token=...`).
+
 #### Step A7 — Start the Streamlit app
 
 ```bash
@@ -165,7 +166,7 @@ Python **3.11+** is required for this package (see `fluxlit_app/README.md`).
 cp .env.example .env
 ```
 
-Edit **`fluxlit_app/.env`**: set **`DATABASE_URL`**, **`JWT_SECRET`**, **`JWT_ALGORITHM`**, and **`JWT_EXPIRES_MINUTES`** (see `.env.example`). Other non-sensitive defaults for the bundled FastAPI app (`PUBLIC_BASE_URL`, `BASE_PATH`, SMTP port/flags, directory timeouts, etc.) are in **`fluxlit_app/config.py`**; use `.env` to override any of those via the environment. FluxLit gateway variables remain the usual `FLUXLIT_*` names (see comments in `.env.example` and `fluxlit_app/README.md`).
+Edit **`fluxlit_app/.env`**: set **`DATABASE_URL`** and **`JWT_SECRET`** (see `.env.example`). Tunables for the bundled FastAPI app (`PUBLIC_BASE_URL`, `BASE_PATH`, JWT algorithm/lifetime, SMTP port/TLS, directory timeouts, invite domains) are only in **`fluxlit_app/config.py`**. FluxLit gateway variables remain the usual **`FLUXLIT_*`** names (see `.env.example` comments and `fluxlit_app/README.md`).
 
 #### Step B3 — Migrate and run
 
@@ -196,15 +197,17 @@ Alternative: `uvicorn main:app --reload --host 127.0.0.1 --port 8000` from `flux
 
 Both **`user_management_api`** and **`fluxlit_app`** can:
 
-- Call an HTTP **directory** service (`GET` base URL + `?query=<email>`) to validate emails for self-registration and admin invites, and to read **country** from LDAP-style JSON (`attributes.c` / `attributes.co`).
+- Call an HTTP **directory** service (`GET` base URL + `?query=<email>`) to read **country** (and display fields) from LDAP-style JSON (`attributes.c` / `attributes.co`) when **accepting** an invite or refreshing an existing user—**not** to block creating invites or self-registration when the directory has no match.
+- Restrict **invite and registration** addresses to specific **email domains** via **`INVITE_ALLOWED_EMAIL_DOMAINS`** in each package’s **`config.py`** (tuple of suffixes after `@`).
 - Send **email** for invites, registration setup, and password reset when **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** are set.
 
 **Setup outline:**
 
 1. Copy the relevant package `.env.example` to `.env` (you should already have `.env` from the steps above).
 2. Set **`DIRECTORY_LOOKUP_URL`** in `.env` to your lookup service base URL (not in `config.py` — deployment-specific).
-3. Optional tuning such as **`DIRECTORY_LOOKUP_TIMEOUT_S`** and **`DIRECTORY_LOOKUP_REQUIRED`** default from **`config.py`** in each backend package; override via `.env` if needed.
-4. Set SMTP variables in `.env` as needed.
+3. Optional tuning such as **`DIRECTORY_LOOKUP_TIMEOUT_S`** and **`DIRECTORY_LOOKUP_REQUIRED`** is defined in each package’s **`config.py`**. **`DIRECTORY_LOOKUP_REQUIRED`** only affects whether directory HTTP failures can raise inside the low-level client—not whether invites are allowed.
+4. Edit **`INVITE_ALLOWED_EMAIL_DOMAINS`** in **`config.py`** if you need domains beyond the defaults (**`socom.mil`** and **`soc.mil`**).
+5. Set SMTP variables in `.env` as needed.
 
 Full variable lists and behavior: [`user_management_api/README.md`](user_management_api/README.md) and [`fluxlit_app/README.md`](fluxlit_app/README.md).
 

@@ -22,6 +22,32 @@ from sqlmodel import SQLModel
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FLUX_ROOT = _REPO_ROOT / "fluxlit_app"
 
+_DEFAULT_TEST_INVITE_DOMAINS: tuple[str, ...] = (
+    "example.com",
+    "example.org",
+    "test.local",
+    "allowed.org",
+    "corp.com",
+    "socom.mil",
+    "soc.mil",
+    "b.c",
+)
+
+
+def _apply_pytest_backend_defaults(
+    config_mod: Any,
+    *,
+    invite_allowed_email_domains: tuple[str, ...] | None,
+    public_base_url: str | None = None,
+) -> None:
+    if invite_allowed_email_domains is not None:
+        config_mod._defaults.INVITE_ALLOWED_EMAIL_DOMAINS = invite_allowed_email_domains
+    else:
+        config_mod._defaults.INVITE_ALLOWED_EMAIL_DOMAINS = _DEFAULT_TEST_INVITE_DOMAINS
+    if public_base_url is not None:
+        config_mod._defaults.PUBLIC_BASE_URL = public_base_url
+    config_mod.refresh_settings()
+
 
 def purge_other_repo_app_packages(*, repo_root: Path, fluxlit_app_root: Path) -> None:
     """Remove sibling repo dirs that expose a top-level ``app`` (except ``fluxlit_app``)."""
@@ -83,7 +109,13 @@ def _load_app_package() -> None:
     spec.loader.exec_module(app_pkg)
 
 
-def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) -> Any:
+def load_fluxlit_app(
+    *,
+    db_url: str,
+    extra_env: dict[str, str] | None = None,
+    invite_allowed_email_domains: tuple[str, ...] | None = None,
+    public_base_url: str | None = None,
+) -> Any:
     """
     Return the :class:`fluxlit.app.FluxLit` instance with DB at ``db_url``.
     Use :class:`fluxlit.testing.FluxLitTestClient` and ``/api/...`` paths in tests.
@@ -91,7 +123,6 @@ def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) ->
     for k in (
         "DIRECTORY_LOOKUP_URL",
         "DIRECTORY_LOOKUP_REQUIRED",
-        "DIRECTORY_LOOKUP_TIMEOUT_S",
         "DIRECTORY_LOOKUP_VERIFY_SSL",
     ):
         os.environ.pop(k, None)
@@ -116,6 +147,15 @@ def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) ->
     import app.core.config as config
 
     importlib.reload(config)
+    _apply_pytest_backend_defaults(
+        config,
+        invite_allowed_email_domains=invite_allowed_email_domains,
+        public_base_url=public_base_url,
+    )
+
+    import app.invite_email_domains as invite_email_domains_mod
+
+    importlib.reload(invite_email_domains_mod)
 
     import app.db as db
 
@@ -156,6 +196,10 @@ def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) ->
     import app.models  # noqa: F401 — register models on metadata
 
     flux = importlib.import_module("main")
+
+    if public_base_url is not None:
+        os.environ.pop("FLUXLIT_PUBLIC_BASE_URL", None)
+        os.environ.pop("PUBLIC_BASE_URL", None)
 
     SQLModel.metadata.create_all(db.engine)
     return flux.app

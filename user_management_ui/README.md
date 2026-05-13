@@ -41,6 +41,10 @@ Open `http://localhost:8502`.
 
 - **`DEBUG`**: set to `true` / `1` for sidebar diagnostics. If unset, the default comes from **`config.py`** (`DEBUG_DEFAULT`).
 
+### Emailed deep links (Option A)
+
+When the API’s **`UI_PUBLIC_BASE_URL`** (set in **`user_management_api/config.py`**) points at this Streamlit app (same origin users open in the browser), opening a URL with **`?page=Accept+invite&token=...`** or **`?page=Reset+password&token=...`** pre-fills the invite or reset flow.
+
 ### Backend URL safety checks
 
 The user app validates its backend base URL:

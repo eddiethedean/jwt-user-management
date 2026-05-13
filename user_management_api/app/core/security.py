@@ -9,6 +9,12 @@ from app.core.config import settings
 
 # Use PBKDF2 to avoid platform-specific bcrypt backend issues.
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+MIN_PASSWORD_LENGTH = 3
+
+
+def validate_new_password(password: str) -> None:
+    if len(password or "") < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
 
 
 def hash_password(password: str) -> str:

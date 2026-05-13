@@ -1,48 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import decode_token, hash_password, verify_password
+from app.core.security import hash_password, validate_new_password, verify_password
 from app.db import get_db
 from app.models import User
+from app.routes.deps import bearer_scheme, get_current_user, user_from_bearer
 
 
 router = APIRouter(tags=["users"])
-
-bearer_scheme = HTTPBearer(auto_error=False)
-
-
-async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-) -> User:
-    if not creds:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    try:
-        payload: dict[str, Any] = decode_token(creds.credentials)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    sub = payload.get("sub")
-    if not sub:
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    try:
-        user_id = int(sub)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.id == user_id))
-    ).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
 
 
 @router.get("/users/me")
@@ -84,14 +57,14 @@ async def change_my_password(
     confirm = str(payload.get("confirm_password") or "")
     if not verify_password(cur, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    if len(new) < 8:
-        raise HTTPException(
-            status_code=400, detail="New password must be at least 8 characters"
-        )
     if new != confirm:
         raise HTTPException(
             status_code=400, detail="New password and confirmation do not match"
         )
+    try:
+        validate_new_password(new)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     current_user.hashed_password = hash_password(new)
     db.add(current_user)
     await db.commit()
@@ -105,7 +78,7 @@ async def users(
 ) -> JSONResponse:
     if not creds:
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    _ = await get_current_user(db=db, creds=creds)
+    _ = await user_from_bearer(db=db, creds=creds)
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(
         content=[

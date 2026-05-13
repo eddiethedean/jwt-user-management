@@ -38,7 +38,7 @@ class _Resp:
         return self._json_data
 
 
-def test_register_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
+def test_register_succeeds_when_directory_returns_404(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = load_fluxlit_app(
         db_url=db_url,
@@ -58,8 +58,10 @@ def test_register_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
         data={"email": "nobody@example.com"},
         follow_redirects=False,
     )
-    assert r.status_code == 400
-    assert "Email not found in directory" in r.text
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("ok") is True
+    assert data.get("setup_url")
 
 
 def test_lookup_parses_country_from_directory_response(tmp_path, monkeypatch) -> None:
@@ -146,7 +148,7 @@ def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
     assert rec.country == "US"
 
 
-def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> None:
+def test_admin_invite_succeeds_when_directory_returns_404(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = load_fluxlit_app(
         db_url=db_url,
@@ -179,5 +181,53 @@ def test_admin_invite_rejects_email_not_in_directory(tmp_path, monkeypatch) -> N
         json={"email": "nobody@example.com", "grant_admin": False},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert r.status_code == 422
-    assert "email not found in directory" in r.text.lower()
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+
+
+def test_invite_rejects_domain_not_in_allowlist(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    app = load_fluxlit_app(
+        db_url=db_url,
+        invite_allowed_email_domains=("allowed.org",),
+    )
+
+    import app.db as db
+
+    _seed_admin(db_engine=db.engine)
+
+    tc = FluxLitTestClient(app)
+    r_token = tc.api_post(
+        "/auth/token",
+        data={"username": "admin@example.com", "password": "admin123"},
+    )
+    assert r_token.status_code == 200
+    token = r_token.json().get("access_token")
+
+    r_bad = tc.api_post(
+        "/invites",
+        json={"email": "u@example.com", "grant_admin": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_bad.status_code == 422
+
+    r_ok = tc.api_post(
+        "/invites",
+        json={"email": "u@allowed.org", "grant_admin": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_ok.status_code == 200
+
+
+def test_register_rejects_domain_not_in_allowlist(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'test.db'}"
+    app = load_fluxlit_app(
+        db_url=db_url,
+        invite_allowed_email_domains=("corp.com",),
+    )
+    tc = FluxLitTestClient(app)
+    r = tc.api_post(
+        "/register", data={"email": "x@example.com"}, follow_redirects=False
+    )
+    assert r.status_code == 400
+    assert "domain" in (r.json().get("detail") or "").lower()

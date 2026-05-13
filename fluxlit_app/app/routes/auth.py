@@ -14,9 +14,9 @@ from app.core.security import (
     verify_password,
 )
 from app.db import get_db
+from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
 from app.routes.public_urls import email_browser_page_url
-from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
 
 
@@ -47,15 +47,11 @@ async def register_submit(
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
 
-    # Optional directory-backed validation for self-registration email.
-    if settings.directory_lookup_url:
-        rec = None
-        try:
-            rec = lookup_email(email_n)
-        except Exception:
-            rec = None
-        if settings.directory_lookup_required and not rec:
-            raise HTTPException(status_code=400, detail="Email not found in directory")
+    if not invite_email_domain_allowed(email_n):
+        raise HTTPException(
+            status_code=400,
+            detail="Email domain is not allowed for registration",
+        )
 
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)

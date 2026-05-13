@@ -727,7 +727,9 @@ def test_admin_create_invite_success(monkeypatch):
     assert any("invite created" in s.value.lower() for s in at.success)
 
 
-def test_admin_invite_lookup_failure_stops(monkeypatch):
+def test_admin_invite_lookup_soft_failure_still_creates_invite(monkeypatch):
+    """Directory preview may be empty; admin invite should still be attempted."""
+
     def fake_request(self, method: str, path: str, **kwargs):
         p = path if path.startswith("/") else f"/{path}"
         if method == "GET" and "/__meta" in p:
@@ -747,7 +749,20 @@ def test_admin_invite_lookup_failure_stops(monkeypatch):
                 },
             )
         if method == "POST" and "/invites/lookup" in p:
-            return httpx.Response(404, json={"detail": "unknown email"})
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "email": "",
+                    "country": "",
+                    "display_name": "",
+                },
+            )
+        if method == "POST" and p.rstrip("/").endswith("/invites"):
+            return httpx.Response(
+                200,
+                json={"ok": True, "invite_url": "https://example.com/invite"},
+            )
         if method == "GET" and "/users" in p and "/users/me" not in p:
             return httpx.Response(200, json=[])
         return httpx.Response(404, json={"detail": "unexpected"})
@@ -763,4 +778,4 @@ def test_admin_invite_lookup_failure_stops(monkeypatch):
     _click_button(at, "Create invite")
     at = at.run()
     assert not at.exception
-    assert len(at.error) >= 1
+    assert any("invite created" in s.value.lower() for s in at.success)

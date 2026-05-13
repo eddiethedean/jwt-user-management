@@ -47,7 +47,7 @@ Notes:
 - If Workbench sets `RS_SERVER_URL`, the runner calls `rserver-url` to infer the prefix automatically.
 - You can also set `BASE_PATH=/s/<service>/p/<project>` explicitly.
 - You can override the port with `PORT=8001` (otherwise a free port is chosen).
-- For browser-routable invite links, set `PUBLIC_BASE_URL=https://<your-workbench-host>` (the runner sets this automatically when `rserver-url` returns a full external URL).
+- For browser-routable invite links, set `PUBLIC_BASE_URL=https://<your-workbench-host>` in **`config.py`** (the runner may still set the process **`PUBLIC_BASE_URL`** environment variable when `rserver-url` returns a full external URL for workbench URL helpers).
 
 ## HTML pages
 
@@ -73,9 +73,9 @@ curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
 
 ## Environment
 
-- **Non-sensitive defaults** (`PUBLIC_BASE_URL`, `BASE_PATH`, cookie flags, SMTP port/TLS defaults, directory timeout/required/verify flags): edit **`config.py`** in this directory (`user_management_api/config.py`). These are the values used unless overridden by the environment.
+- **Tunables (no secrets):** `PUBLIC_BASE_URL`, `UI_PUBLIC_BASE_URL`, `INVITE_ALLOWED_EMAIL_DOMAINS`, `BASE_PATH`, cookie flags, `JWT_ALGORITHM`, `JWT_EXPIRES_MINUTES`, SMTP port/TLS defaults, directory timeout/required/verify flags — edit **`config.py`** in this directory (`user_management_api/config.py`) only. Do not duplicate these keys in **`.env`**.
 
-- **Database, JWT, secrets, and per-deployment overrides**: copy **`.env.example`** to **`.env`** and set **`DATABASE_URL`**, **`JWT_SECRET`**, **`JWT_ALGORITHM`**, **`JWT_EXPIRES_MINUTES`**, and other variables there (credentials, **`DIRECTORY_LOOKUP_URL`**, `SEED_*`, etc.).
+- **Secrets and deployment endpoints:** copy **`.env.example`** to **`.env`** and set **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials if you send mail, **`DIRECTORY_LOOKUP_URL`** / **`DIRECTORY_LOOKUP_CA_BUNDLE`** when you use directory lookup, and **`SEED_*`** if you customize seeding.
 
 ### Optional: directory (LDAP) lookup
 
@@ -91,15 +91,17 @@ Use this when an external HTTP service can confirm that an email exists in your 
    - **Display name:** optional `displayName` or `cn`.
    - **Country:** optional `c` or `co`. Values like `C=US` are normalized to `US` for storage and JWT claims.
 
-3. **`DIRECTORY_LOOKUP_REQUIRED`**: when `true`, **self-registration** (`POST /register`) and **admin invites** (`POST /invites`, after the optional `POST /invites/lookup` pre-check used by the Streamlit UI) reject emails that are not found (`404` from the directory) or that return unusable JSON. When `false`, a failed or missing lookup does not by itself block an invite, but transport or parsing errors during `POST /invites/lookup` still surface as errors to the client.
+3. **`DIRECTORY_LOOKUP_REQUIRED`**: when `true`, failed directory HTTP responses or invalid JSON from the directory service can cause **`lookup_email`** to raise (used only for optional enrichment). **Invites and self-registration are not blocked** when the directory returns “not found”; directory data is used to set **`user.country`** (and related fields) when a user **accepts** an invite if a record is available.
 
-4. Other knobs: **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`**, **`DIRECTORY_LOOKUP_CA_BUNDLE`** — defaults for the first two booleans and the timeout are defined in **`config.py`**; override in `.env` when needed.
+4. Other knobs: **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`** — booleans and timeout are defined in **`config.py`**. **`DIRECTORY_LOOKUP_CA_BUNDLE`** is a filesystem path and belongs in **`.env`** only.
 
-After a user accepts an invite, if **`DIRECTORY_LOOKUP_URL`** is set the API may set **`user.country`** from the directory record when it was empty.
+5. **Invite / registration domains:** edit the **`INVITE_ALLOWED_EMAIL_DOMAINS`** tuple in **`config.py`** (defaults **`socom.mil`**, **`soc.mil`**). Add suffixes such as **`example.com`** for local demos.
+
+The admin **`POST /invites/lookup`** preview returns directory **country** (and display fields) when the service responds; if the service errors or is disabled, the response still succeeds with empty strings.
 
 ### Optional: SMTP (invites, self-registration, password reset)
 
-Set **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** (and port, TLS, credentials as needed) so the API can send **invite**, **self-registration setup**, and **password reset** emails. If SMTP is not configured, invite and reset flows still create tokens and return URLs in API responses; email calls are skipped where implemented as no-ops.
+Set **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** (and port, TLS, credentials as needed) so the API can send **invite**, **self-registration setup**, and **password reset** emails. If SMTP is not configured, invite and reset flows still create tokens and return URLs in API responses; email calls are skipped where implemented as no-ops. When SMTP is configured but sending fails, the server logs an error (without changing the non-enumerating JSON responses for forgot-password).
 
 ### Seed an initial admin user (optional)
 

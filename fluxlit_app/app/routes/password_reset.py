@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -15,6 +16,7 @@ from app.services.email import send_password_reset_email
 
 
 router = APIRouter(prefix="/password", tags=["password"])
+log = logging.getLogger("uvicorn.error")
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -54,7 +56,7 @@ async def forgot_password_api(
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
         except Exception:
-            pass
+            log.exception("password_reset_email_send_failed")
     return {"ok": True}
 
 
