@@ -134,3 +134,9 @@ def test_external_ui_url_no_duplicate_mount(
         "https://workbench.example/prefix/app/?page=Accept+invite&token=x"
     )
     assert "/prefix/app/prefix/app" not in r.json()["url"]
+
+
+def test_package_version_matches_release() -> None:
+    import fastapi_workbench as fb
+
+    assert fb.__version__ == "0.3.1"

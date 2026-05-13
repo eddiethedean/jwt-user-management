@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,14 +8,14 @@ version = "0.3.1"
 description = "FastAPI helpers for Posit Workbench / RStudio Server proxy prefixes"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "jwt-user-management contributors" }]
 keywords = ["fastapi", "starlette", "posit", "workbench", "rstudio-server", "proxy", "root_path"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Framework :: FastAPI",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
@@ -32,19 +32,20 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "build",
   "fastapi[standard]",
   "httpx",
   "pytest",
   "ruff",
+  "twine",
   "ty",
 ]
 
 [project.urls]
 Repository = "https://github.com/eddiethedean/jwt-user-management"
 Issues = "https://github.com/eddiethedean/jwt-user-management/issues"
+Changelog = "https://github.com/eddiethedean/jwt-user-management/blob/main/fastapi_workbench/CHANGELOG.md"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["fastapi_workbench"]
-license-files = ["LICENSE"]
-
