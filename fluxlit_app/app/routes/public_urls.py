@@ -4,7 +4,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import Request
-from fastapi_workbench import external_url
+from fastapi_workbench import external_ui_url
 
 from app.core.config import settings
 
@@ -75,11 +75,12 @@ def email_browser_page_url(request: Request, *, page: str, token: str) -> str:
     """
     Public URL for emailed links (invites, self-registration, password reset).
 
-    Uses :func:`fastapi_workbench.external_url` so ``PUBLIC_BASE_URL`` and Workbench
-    ``root_path`` / Connect base headers match the standalone API behaviour.
+    Uses :func:`fastapi_workbench.external_ui_url` so ``FLUXLIT_PUBLIC_BASE_URL``,
+    ``PUBLIC_BASE_URL``, and Workbench ``root_path`` / Connect headers align with
+    the browser app root (not the gateway ``/api`` subtree).
     """
     query = urlencode({"page": page, "token": token})
-    return external_url(
+    return external_ui_url(
         request,
         f"/?{query}",
         public_base_url=settings.public_base_url,

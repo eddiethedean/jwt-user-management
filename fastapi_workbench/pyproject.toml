@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fastapi-workbench"
-version = "0.2.0"
+version = "0.3.0"
 description = "FastAPI helpers for Posit Workbench / RStudio Server proxy prefixes"
 readme = "README.md"
 requires-python = ">=3.10"

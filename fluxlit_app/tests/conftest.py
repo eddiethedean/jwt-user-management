@@ -129,6 +129,10 @@ def load_fluxlit_app(*, db_url: str, extra_env: dict[str, str] | None = None) ->
 
     importlib.reload(admin_routes)
 
+    import app.routes.public_urls as public_urls_routes
+
+    importlib.reload(public_urls_routes)
+
     import app.routes.invites as invites_routes
 
     importlib.reload(invites_routes)
