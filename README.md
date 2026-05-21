@@ -3,12 +3,12 @@
 This repo contains:
 
 - **`user_management_api/`** — FastAPI + SQLModel + Alembic backend with JWT auth (API-only).
-- **`user_management_ui/`** — Streamlit UI that talks to that API over HTTP (`BACKEND_URL`).
+- **`user_management_streamlit/`** — Streamlit UI (`BACKEND_URL`) plus optional legacy HTML UI (`html_app.py`, cookie auth).
 - **`fluxlit_app/`** — Single-process [FluxLit](https://fluxlit.readthedocs.io/en/stable/) app: FastAPI mounted at **`/api`** plus Streamlit in one ASGI app.
 - **`e2e/`** — Playwright browser tests.
 - **`fastapi_workbench/`** — Helpers for Posit Workbench / RStudio Server path prefixes (used by the standalone API).
 
-Package READMEs for deeper topics: [`user_management_api/README.md`](user_management_api/README.md), [`user_management_ui/README.md`](user_management_ui/README.md), [`fluxlit_app/README.md`](fluxlit_app/README.md), [`e2e/README.md`](e2e/README.md).
+Package READMEs for deeper topics: [`user_management_api/README.md`](user_management_api/README.md), [`user_management_streamlit/README.md`](user_management_streamlit/README.md), [`fluxlit_app/README.md`](fluxlit_app/README.md), [`e2e/README.md`](e2e/README.md).
 
 **First-time setup:** use [Setup from scratch](#setup-from-scratch) below for end-to-end local instructions. If you use a source ZIP instead of Git, unpack it and `cd` into the project folder; skip the `git clone` step.
 
@@ -23,7 +23,7 @@ Follow **either** [Option A](#option-a-standalone-api--streamlit-two-processes) 
 | Requirement | Notes |
 |-------------|--------|
 | **Git** | To clone this repository. |
-| **Python 3.10+** | Required for `user_management_api` and `user_management_ui`. |
+| **Python 3.10+** | Required for `user_management_api` and `user_management_streamlit`. |
 | **Python 3.11+** | Required for `fluxlit_app` only (Option B). |
 | **Two terminal windows/tabs** | Option A runs the API and Streamlit separately. |
 
@@ -102,7 +102,7 @@ uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
 Open a **second** terminal:
 
 ```bash
-cd user_management_ui
+cd user_management_streamlit
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
@@ -115,20 +115,20 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit **`user_management_ui/.env`** and set:
+Edit **`user_management_streamlit/.env`** and set:
 
 ```env
 BACKEND_URL=http://127.0.0.1:8001
 ```
 
-Use the same host and port as Step A4. The Streamlit **server** must be able to reach this URL (not only your browser). Fallback pieces for local dev when `BACKEND_URL` is unset (`PORT`, `BASE_PATH`) and the default for **`DEBUG`** are defined in **`user_management_ui/config.py`**.
+Use the same host and port as Step A4. The Streamlit **server** must be able to reach this URL (not only your browser). Fallback pieces for local dev when `BACKEND_URL` is unset (`PORT`, `BASE_PATH`) and the default for **`DEBUG`** are defined in **`user_management_streamlit/config.py`**.
 
 For **invite and password-reset emails** to open the Streamlit app directly, set **`UI_PUBLIC_BASE_URL`** in **`user_management_api/config.py`** to the public Streamlit origin (for example `http://127.0.0.1:8502`). The API then emails links of the form `.../?page=Accept+invite&token=...` and `.../?page=Reset+password&token=...`, which the UI reads on load. If you leave it empty, links keep the older API-style paths (`/invites/accept?token=...`, `/password/reset?token=...`).
 
 #### Step A7 — Start the Streamlit app
 
 ```bash
-cd user_management_ui
+cd user_management_streamlit
 source .venv/bin/activate
 streamlit run user_app.py --server.port 8502 --server.address 127.0.0.1
 ```
@@ -249,7 +249,7 @@ Then see [`e2e/README.md`](e2e/README.md) for how to run `e2e/` tests (from the 
 
 ### Posit Connect and Workbench
 
-- **Connect:** Prefer the **Streamlit** UI (`user_management_ui` or the FluxLit UI) over cookie-based HTML login; see the note in [`user_management_api/README.md`](user_management_api/README.md).
+- **Connect:** Prefer the **Streamlit** UI (`user_management_streamlit` or the FluxLit UI) over cookie-based HTML login; see the note in [`user_management_api/README.md`](user_management_api/README.md).
 - **Workbench / path prefixes:** Standalone API: `user_management_api/run_workbench.py`. FluxLit: `fluxlit_app/run_workbench.py` and `fluxlit_app/README.md`.
 
 ---
@@ -261,4 +261,4 @@ Then see [`e2e/README.md`](e2e/README.md) for how to run `e2e/` tests (from the 
 | Streamlit cannot log in or “backend request failed” | **`BACKEND_URL`** must be exactly what the Streamlit **process** can call (e.g. `http://127.0.0.1:8001`). Mixing `localhost` vs `127.0.0.1` can matter in some setups; pick one and use it everywhere. |
 | API exits or 500 on startup | **`JWT_SECRET`** must be non-empty in `user_management_api/.env`. |
 | `alembic` errors | Run `alembic upgrade head` from **`user_management_api/`** or **`fluxlit_app/`** (respectively), with that package’s venv activated and `DATABASE_URL` pointing at a writable path. |
-| UI rejects `BACKEND_URL` | `user_management_ui` blocks obviously unsafe URLs; use a normal `http://127.0.0.1:PORT` style URL for local dev. See [`user_management_ui/README.md`](user_management_ui/README.md). |
+| UI rejects `BACKEND_URL` | `user_management_streamlit` blocks obviously unsafe URLs; use a normal `http://127.0.0.1:PORT` style URL for local dev. See [`user_management_streamlit/README.md`](user_management_streamlit/README.md). |

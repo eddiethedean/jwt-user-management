@@ -222,7 +222,7 @@ def run_apps(ports, admin_credentials):
                     "-m",
                     "streamlit",
                     "run",
-                    str(REPO_ROOT / "user_management_ui" / "user_app.py"),
+                    str(REPO_ROOT / "user_management_streamlit" / "user_app.py"),
                     "--server.port",
                     port,
                     "--server.headless",

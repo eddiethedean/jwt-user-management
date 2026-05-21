@@ -1,5 +1,5 @@
 """
-Playwright coverage for ``user_management_ui`` surfaces not fully asserted elsewhere.
+Playwright coverage for ``user_management_streamlit`` surfaces not fully asserted elsewhere.
 
 Complements ``test_streamlit_admin_full_journey_browser`` and ``test_user_browser`` with
 focused checks: public tabs, inline forgot-password on Login, register, accept-invite

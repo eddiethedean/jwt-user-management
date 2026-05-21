@@ -1,30 +1,71 @@
+"""
+Standalone FastAPI app for the legacy cookie-auth HTML UI.
+
+Uses ``user_management_api`` for DB/models/config and serves templates/static from
+``user_management_streamlit/web/``.
+
+Run (from repo root or this directory, with API deps installed)::
+
+    cd user_management_streamlit
+    cp .env.example .env   # or symlink user_management_api/.env
+    uvicorn html_app:app --reload --host 127.0.0.1 --port 8503
+
+Requires the same ``DATABASE_URL`` / ``JWT_SECRET`` as ``user_management_api`` and
+``alembic upgrade head`` applied there.
+"""
+
+from __future__ import annotations
+
+import sys
 from pathlib import Path
-
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
-from fastapi_workbench import (
-    base_path as wb_base_path,
-    merge_public_base_with_mount,
-    workbench_browser_base,
-)
-from app.routes.admin import router as admin_router
-from app.routes.auth import router as auth_router
-from app.routes.password_reset import router as password_reset_router
-from app.routes.invites import router as invites_router
-from app.routes.users import router as users_router
-
 from typing import Literal, cast
 
-from app.web.debug_panel import (
+_ROOT = Path(__file__).resolve().parent
+_REPO = _ROOT.parent
+_API_PKG = _REPO / "user_management_api"
+_WORKBENCH_SRC = _REPO / "fastapi_workbench" / "src"
+
+for p in (str(_WORKBENCH_SRC), str(_API_PKG), str(_REPO)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+
+    def load_dotenv(*_a, **_k):  # type: ignore
+        return False
+
+
+load_dotenv(_API_PKG / ".env")
+load_dotenv(_ROOT / ".env")
+
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.responses import Response  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+from fastapi_workbench import safe_redirect  # noqa: E402
+
+from user_management_streamlit.html_routes.account import router as account_router  # noqa: E402
+from user_management_streamlit.html_routes.admin import router as admin_router  # noqa: E402
+from user_management_streamlit.html_routes.auth import router as auth_router  # noqa: E402
+from user_management_streamlit.html_routes.invites import router as invites_router  # noqa: E402
+from user_management_streamlit.html_routes.password_reset import (  # noqa: E402
+    router as password_reset_router,
+)
+from user_management_streamlit.html_routes.users import router as users_router  # noqa: E402
+from user_management_streamlit.web.debug_panel import (  # noqa: E402
     COOKIE_DEBUG_LOG_COOKIE,
     cookie_debug_payload,
     init_cookie_debug,
 )
 
-app = FastAPI(title="User Management API")
+app = FastAPI(title="User Management HTML UI")
 
-_APP_ROOT = Path(__file__).resolve().parent
-## Legacy HTML UI assets were archived; no static mount needed.
+app.mount(
+    "/static",
+    StaticFiles(directory=str(_ROOT / "web" / "static")),
+    name="static",
+)
 
 
 @app.middleware("http")
@@ -34,7 +75,7 @@ async def cookie_debug_middleware(request: Request, call_next):
     enabled = bool(getattr(settings, "cookie_debug", False))
     init_cookie_debug(request, enabled=enabled)
     if enabled:
-        from app.web.debug_panel import add_cookie_debug
+        from user_management_streamlit.web.debug_panel import add_cookie_debug
 
         cookie_header = request.headers.get("cookie") or ""
         cookie_names: list[str] = []
@@ -59,7 +100,7 @@ async def cookie_debug_middleware(request: Request, call_next):
         )
     resp = await call_next(request)
     if enabled:
-        from app.web.debug_panel import add_cookie_debug
+        from user_management_streamlit.web.debug_panel import add_cookie_debug
 
         add_cookie_debug(
             request,
@@ -67,10 +108,9 @@ async def cookie_debug_middleware(request: Request, call_next):
             status_code=getattr(resp, "status_code", None),
             set_cookie_header=resp.headers.get("set-cookie"),
         )
-        # Persist per-request debug logs through redirects by storing them in a cookie.
         payload = cookie_debug_payload(request)
         if payload:
-            from app.web.session import _is_https, cookie_path
+            from user_management_streamlit.web.session import _is_https, cookie_path
 
             secure = (
                 _is_https(request)
@@ -98,37 +138,12 @@ async def cookie_debug_middleware(request: Request, call_next):
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(account_router)
 app.include_router(invites_router)
 app.include_router(password_reset_router)
 app.include_router(users_router)
 
 
-@app.get("/__meta", include_in_schema=False)
-async def meta(request: Request) -> JSONResponse:
-    """
-    Metadata for HTTP clients (e.g. the Streamlit app in ``user_management_streamlit/``).
-
-    Returns the externally-visible base URL (via fastapi_workbench proxy
-    detection) and the normalized base path so UIs can build correct URLs.
-    """
-    from app.core.config import settings
-
-    bp = wb_base_path(request)
-    pub = workbench_browser_base(
-        request, public_base_url=settings.public_base_url or None
-    )
-    return JSONResponse(
-        {
-            "ok": True,
-            "base_path": bp,
-            "external_base": pub,
-            "external_api_base": merge_public_base_with_mount(
-                request, public_base_url=settings.public_base_url or None
-            ),
-        }
-    )
-
-
 @app.get("/", include_in_schema=False)
 async def root(request: Request) -> Response:
-    return JSONResponse({"ok": True, "service": "user_management_api", "docs": "/docs"})
+    return safe_redirect(request, "/register", status_code=302)

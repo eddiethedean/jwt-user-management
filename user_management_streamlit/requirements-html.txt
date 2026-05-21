@@ -1,0 +1,4 @@
+# Legacy HTML UI (``html_app.py`` / ``run_html.py``). Install API deps too.
+-r ../user_management_api/requirements.txt
+python-dotenv
+uvicorn

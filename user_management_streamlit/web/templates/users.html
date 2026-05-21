@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block body %}
+  <div class="card">
+    <style>
+      .usersHeader {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 8px;
+      }
+      .usersHeader h2 { margin-bottom: 6px; }
+
+      .panel {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        border-radius: var(--radius);
+        padding: 14px;
+        margin-top: 12px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 70%, transparent);
+      }
+      .dot--good { background: color-mix(in srgb, var(--accent-2) 85%, transparent); }
+      .dot--bad { background: color-mix(in srgb, var(--danger) 85%, transparent); }
+      .dot--accent { background: color-mix(in srgb, var(--accent) 85%, transparent); }
+
+      @media (max-width: 900px) {
+        .usersHeader { flex-direction: column; }
+        .usersHeaderActions { width: 100%; }
+      }
+    </style>
+
+    <div class="usersHeader">
+      <div>
+        <h2>Users</h2>
+      </div>
+    </div>
+
+    {% if admin_error %}
+      <div class="err">{{ admin_error }}</div>
+    {% endif %}
+
+    <section class="panel">
+      <div class="row" style="justify-content: space-between; align-items: baseline;">
+        <h3 style="margin: 0;">All users</h3>
+        <span class="muted">{{ users|length }} total</span>
+      </div>
+
+      <div class="tableWrap" style="margin-top: 10px;">
+        <table class="dataTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Country</th>
+            <th class="colCenter">Status</th>
+            <th class="colCenter">Role</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td>{{ u.id }}</td>
+              <td><code>{{ u.email }}</code></td>
+              <td>{{ u.full_name or '' }}</td>
+              <td>{{ u.country or '' }}</td>
+              <td class="colCenter">
+                {% if u.is_active %}
+                  <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>
+                {% else %}
+                  <span class="badge"><span class="dot dot--bad" aria-hidden="true"></span>Inactive</span>
+                {% endif %}
+              </td>
+              <td class="colCenter">
+                {% if u.is_admin %}
+                  <span class="badge"><span class="dot dot--accent" aria-hidden="true"></span>Admin</span>
+                {% else %}
+                  <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
+                {% endif %}
+              </td>
+              <td>{{ u.created_at|fmt_date }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+{% endblock %}
+

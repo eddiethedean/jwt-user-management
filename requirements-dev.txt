@@ -7,7 +7,7 @@
 #   playwright install          # once, for e2e browsers
 #
 -r user_management_api/requirements.txt
--r user_management_ui/requirements.txt
+-r user_management_streamlit/requirements.txt
 -r e2e/requirements.txt
 -r fluxlit_app/requirements.txt
 pytest-xdist

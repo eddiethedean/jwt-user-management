@@ -29,7 +29,7 @@ if _streamlit_dir not in sys.path:
     sys.path.insert(0, _streamlit_dir)
 
 _cfg_path = _here.parent / "config.py"
-_spec = spec_from_file_location("user_management_ui_pkg_config", _cfg_path)
+_spec = spec_from_file_location("user_management_streamlit_pkg_config", _cfg_path)
 assert _spec and _spec.loader
 ui_config = module_from_spec(_spec)
 _spec.loader.exec_module(ui_config)

@@ -1,4 +1,4 @@
-"""Helpers for driving the Streamlit ``user_management_ui`` app in Playwright."""
+"""Helpers for driving the Streamlit ``user_management_streamlit`` app in Playwright."""
 
 from __future__ import annotations
 

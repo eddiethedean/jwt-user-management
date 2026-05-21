@@ -26,7 +26,7 @@ def _ensure_this_package_app_first() -> None:
 
 
 def test_asgi_is_api_only_no_streamlit_mount() -> None:
-    """The backend ASGI app must not embed Streamlit; UI runs as ``user_management_ui``."""
+    """The backend ASGI app must not embed Streamlit; UI runs as ``user_management_streamlit``."""
     _ensure_this_package_app_first()
     from app.asgi import app as asgi_app
 

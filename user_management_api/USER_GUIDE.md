@@ -9,7 +9,7 @@ This guide explains how to **run**, **use**, and **deploy** the FastAPI backend 
 - **Invites** (admin generates invite links; users accept invites)
 - **Password resets** (request reset link; set a new password)
 
-The browser UI is the **Streamlit** app in `../user_management_ui/`, run as a **separate process** with `BACKEND_URL` pointing at this API.
+The browser UI is the **Streamlit** app in `../user_management_streamlit/`, run as a **separate process** with `BACKEND_URL` pointing at this API.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ uvicorn app.asgi:app --reload --port 8001
 
 - **API docs**: `http://127.0.0.1:8001/docs`
 
-Run the Streamlit UI from `../user_management_ui/` separately; set `BACKEND_URL` there to this API (see that folder’s README).
+Run the Streamlit UI from `../user_management_streamlit/` separately; set `BACKEND_URL` there to this API (see that folder’s README).
 
 ## Configuration (`.env` and `config.py`)
 
@@ -120,7 +120,7 @@ This service is API-first. The legacy HTML UI (including `/admin/`, `/login`, et
 was archived because cookie-based sessions proved unreliable in embedded Posit
 Connect contexts.
 
-The supported UI is the Streamlit app in `../user_management_ui/`. Run it as its own Streamlit process and set **`BACKEND_URL`** to the URL of this API (include any path prefix the API is served under).
+The supported UI is the Streamlit app in `../user_management_streamlit/`. Run it as its own Streamlit process and set **`BACKEND_URL`** to the URL of this API (include any path prefix the API is served under).
 
 ### Seeding an initial admin user (optional)
 
@@ -189,7 +189,7 @@ Then access the API, for example:
 
 - `http://127.0.0.1:8080/connect/app/docs`
 
-Run the Streamlit app in `../user_management_ui/` as a separate process. Set `BACKEND_URL` to the browser-visible API base URL (for the example above, `http://127.0.0.1:8080/connect/app`).
+Run the Streamlit app in `../user_management_streamlit/` as a separate process. Set `BACKEND_URL` to the browser-visible API base URL (for the example above, `http://127.0.0.1:8080/connect/app`).
 
 If your proxy strips the prefix before proxying:
 

@@ -32,7 +32,7 @@ def test_meta_endpoint_includes_external_base_and_prefix(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """
-    /__meta is used by the Streamlit UI (``user_management_ui``) to learn the externally-visible
+    /__meta is used by the Streamlit UI (``user_management_streamlit``) to learn the externally-visible
     base URL and prefix behind proxies.
     """
 

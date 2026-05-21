@@ -1,5 +1,5 @@
 """
-Playwright: ``user_management_api`` + ``user_management_ui`` together.
+Playwright: ``user_management_api`` + ``user_management_streamlit`` together.
 
 Admin signs in via Streamlit and exercises the main authenticated areas (Users,
 Account, Admin) plus logged-out public flows (Register, Accept invite, Reset password).

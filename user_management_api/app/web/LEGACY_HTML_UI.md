@@ -4,9 +4,9 @@ This backend originally shipped with a server-rendered HTML UI under:
 - `app/web/templates/`
 - `app/web/static/`
 
-We are migrating the interactive UI to the Streamlit app in `user_management_ui/`.
-The backend HTML routes/templates are kept **for reference and compatibility**
-but should be considered **legacy** and may be removed in a future cleanup.
+The interactive UI lives in `user_management_streamlit/` (Streamlit and a restored
+HTML app under `user_management_streamlit/web/`). This API copy under
+`app/web/archive/` is kept for reference only.
 
 ### What’s here
 - **Auth pages**: `login.html`, `register.html`
@@ -16,5 +16,6 @@ but should be considered **legacy** and may be removed in a future cleanup.
 - **Invite/reset pages**: `accept_invite.html`, `reset_password.html`
 
 ### Preferred UI going forward
-Use the Streamlit UI (`user_management_ui/user_app.py`) as the primary browser UI.
+Use Streamlit (`user_management_streamlit/user_app.py`) or the HTML UI
+(`user_management_streamlit/html_app.py`) as browser UIs; both are separate from this API process.
 

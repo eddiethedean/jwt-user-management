@@ -9,8 +9,8 @@ which can conflict with the backend's `user_management_api/app` package during
 """
 
 try:
-    # When running from repo root, `user_management_ui` is importable as a package.
-    from user_management_ui.user_app import *  # type: ignore # noqa: F403
+    # When running from repo root, `user_management_streamlit` is importable as a package.
+    from user_management_streamlit.user_app import *  # type: ignore # noqa: F403
 except ModuleNotFoundError:
     # When running from inside this directory, Streamlit sets sys.path such
     # that the folder itself is importable, not the package name.
