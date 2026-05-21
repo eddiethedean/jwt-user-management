@@ -79,6 +79,8 @@ Still inside `user_management_api/` with the venv activated:
 alembic upgrade head
 ```
 
+To migrate **both** the API and FluxLit databases in one step (from repo root): `./scripts/migrate_databases.sh`.
+
 This applies migrations and creates a default admin user unless you set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env`.
 
 **Default admin (if you did not override seed env vars):**

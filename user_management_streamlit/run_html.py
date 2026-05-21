@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
 import uvicorn
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 def main() -> None:
+    repo = str(_REPO_ROOT)
+    if repo not in sys.path:
+        sys.path.insert(0, repo)
     host = os.getenv("HTML_HOST", "127.0.0.1")
     port = int(os.getenv("HTML_PORT", "8503"))
     uvicorn.run(

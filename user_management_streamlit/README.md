@@ -35,7 +35,15 @@ Open `http://localhost:8502`.
 
 ## Legacy HTML UI (cookie auth)
 
-Uses the same database and settings as `user_management_api` (run migrations there first).
+Uses the same database and settings as `user_management_api` (same `DATABASE_URL`, resolved to
+`../user_management_api/app.db` when using the default `sqlite:///./app.db`).
+
+**Migrate first** (from repo root or API directory):
+
+```bash
+cd user_management_api && alembic upgrade head
+# or: ./scripts/migrate_databases.sh
+```
 
 ```bash
 cd user_management_streamlit

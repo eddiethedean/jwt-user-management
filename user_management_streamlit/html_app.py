@@ -16,6 +16,7 @@ Requires the same ``DATABASE_URL`` / ``JWT_SECRET`` as ``user_management_api`` a
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Literal, cast
@@ -24,6 +25,16 @@ _ROOT = Path(__file__).resolve().parent
 _REPO = _ROOT.parent
 _API_PKG = _REPO / "user_management_api"
 _WORKBENCH_SRC = _REPO / "fastapi_workbench" / "src"
+
+
+def _anchor_sqlite_url(url: str, *, base_dir: Path) -> str:
+    """Resolve ``sqlite:///./…`` relative to the API package (not process cwd)."""
+    prefix = "sqlite:///./"
+    if url.startswith(prefix):
+        db_file = (base_dir / url[len(prefix) :]).resolve()
+        return f"sqlite:///{db_file}"
+    return url
+
 
 for p in (str(_WORKBENCH_SRC), str(_API_PKG), str(_REPO)):
     if p not in sys.path:
@@ -39,6 +50,8 @@ except ImportError:  # pragma: no cover
 
 load_dotenv(_API_PKG / ".env")
 load_dotenv(_ROOT / ".env")
+_db_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+os.environ["DATABASE_URL"] = _anchor_sqlite_url(_db_url, base_dir=_API_PKG)
 
 from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.responses import Response  # noqa: E402
