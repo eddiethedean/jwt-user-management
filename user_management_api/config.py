@@ -22,8 +22,12 @@ JWT_EXPIRES_MINUTES: int = 60
 
 # --- Legacy HTML cookie helpers ---
 COOKIE_DEBUG: bool = False
+# Auth cookie path/secure behavior for archived HTML UI and debug cookies.
+#   "local"   — secure from request HTTPS (or AUTH_COOKIE_SECURE); path from Workbench base_path.
+#   "connect" — secure=True and path="/" (Posit Connect embedded HTML; fixes dropped cookies).
+AUTH_COOKIE_DEPLOYMENT: str = "local"
 AUTH_COOKIE_SAMESITE: str = "lax"
-# None => infer secure flag from request scheme in cookie middleware.
+# None => infer secure flag from request scheme (local mode only).
 AUTH_COOKIE_SECURE: bool | None = None
 AUTH_COOKIE_DOMAIN: str = ""
 AUTH_COOKIE_PARTITIONED: bool = False

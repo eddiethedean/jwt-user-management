@@ -69,6 +69,7 @@ class Settings:
         "jwt_algorithm",
         "jwt_expires_minutes",
         "cookie_debug",
+        "auth_cookie_deployment",
         "auth_cookie_samesite",
         "auth_cookie_secure",
         "auth_cookie_domain",
@@ -104,6 +105,10 @@ class Settings:
         self.jwt_expires_minutes = int(getattr(d, "JWT_EXPIRES_MINUTES", 60))
 
         self.cookie_debug = bool(getattr(d, "COOKIE_DEBUG", False))
+        dep = (str(getattr(d, "AUTH_COOKIE_DEPLOYMENT", "local") or "local")).strip().lower()
+        if dep not in {"local", "connect"}:
+            raise ValueError("AUTH_COOKIE_DEPLOYMENT must be 'local' or 'connect'")
+        self.auth_cookie_deployment = dep
         ss = (str(getattr(d, "AUTH_COOKIE_SAMESITE", "lax") or "lax")).strip().lower()
         if ss not in {"lax", "strict", "none"}:
             raise ValueError("AUTH_COOKIE_SAMESITE must be one of: lax, strict, none")

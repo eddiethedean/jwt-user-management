@@ -70,13 +70,9 @@ async def cookie_debug_middleware(request: Request, call_next):
         # Persist per-request debug logs through redirects by storing them in a cookie.
         payload = cookie_debug_payload(request)
         if payload:
-            from app.web.session import _is_https, cookie_path
+            from app.web.session import auth_cookie_path, auth_cookie_secure
 
-            secure = (
-                _is_https(request)
-                if settings.auth_cookie_secure is None
-                else settings.auth_cookie_secure
-            )
+            secure = auth_cookie_secure(request)
             samesite = cast(
                 Literal["lax", "strict", "none"],
                 (settings.auth_cookie_samesite or "lax").lower(),
@@ -90,7 +86,7 @@ async def cookie_debug_middleware(request: Request, call_next):
                 httponly=True,
                 secure=secure,
                 samesite=samesite,
-                path=cookie_path(request),
+                path=auth_cookie_path(request),
                 domain=settings.auth_cookie_domain or None,
             )
     return resp

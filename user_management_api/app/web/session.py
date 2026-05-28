@@ -14,6 +14,26 @@ AUTH_COOKIE_NAME = "um_access_token"
 AUTH_COOKIE_LEGACY_NAME = "um_access_token-legacy"
 
 
+def auth_cookie_connect_mode() -> bool:
+    return getattr(settings, "auth_cookie_deployment", "local") == "connect"
+
+
+def auth_cookie_secure(request: Request) -> bool:
+    """Resolve Secure flag: fixed True in Connect mode, else config or HTTPS."""
+    if auth_cookie_connect_mode():
+        return True
+    if settings.auth_cookie_secure is not None:
+        return bool(settings.auth_cookie_secure)
+    return _is_https(request)
+
+
+def auth_cookie_path(request: Request) -> str:
+    """Resolve cookie Path: ``/`` in Connect mode, else Workbench base_path."""
+    if auth_cookie_connect_mode():
+        return "/"
+    return cookie_path(request)
+
+
 def _try_add_partitioned_set_cookie_header(
     response: Response, *, request: Request, cookie_name: str
 ) -> None:
@@ -110,17 +130,37 @@ def get_auth_token(request: Request) -> str | None:
 
 
 def set_auth_cookie(response: Response, *, request: Request, token: str) -> None:
-    secure = (
-        _is_https(request)
-        if settings.auth_cookie_secure is None
-        else settings.auth_cookie_secure
-    )
     samesite = cast(
         Literal["lax", "strict", "none"],
         (settings.auth_cookie_samesite or "lax").lower(),
     )
     domain = settings.auth_cookie_domain or None
-    path = cookie_path(request)
+
+    if auth_cookie_connect_mode():
+        add_cookie_debug(
+            request,
+            "cookie:set",
+            name=AUTH_COOKIE_NAME,
+            deployment="connect",
+            secure=True,
+            samesite=samesite,
+            path="/",
+            domain=domain,
+            url=str(request.url),
+        )
+        response.set_cookie(
+            key=AUTH_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=True,
+            path="/",
+            samesite=samesite,
+            domain=domain,
+        )
+        return
+
+    secure = auth_cookie_secure(request)
+    path = auth_cookie_path(request)
     wants_partitioned = bool(getattr(settings, "auth_cookie_partitioned", False))
     partitioned_supported = sys.version_info >= (3, 14)
     wants_legacy = bool(getattr(settings, "auth_cookie_legacy", True))
@@ -216,7 +256,7 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
 
 
 def clear_auth_cookie(response: Response, *, request: Request) -> None:
-    path = cookie_path(request)
+    path = auth_cookie_path(request)
     add_cookie_debug(
         request,
         "cookie:clear",
