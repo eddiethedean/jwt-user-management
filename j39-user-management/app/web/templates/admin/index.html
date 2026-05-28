@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Admin{% endblock %}
+
+{% block topbar %}
+  <a class="linkButton" href="{{ base_path|default('') }}/admin/logout">Sign out</a>
+{% endblock %}
+
+{% block content %}
+  <div class="grid">
+    <section class="card">
+      <div class="row row--space">
+        <h2>Users</h2>
+        <button id="refreshUsersBtn" type="button">Refresh</button>
+      </div>
+      <div id="usersError" class="error hidden"></div>
+      <div class="tableWrap">
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Full name</th>
+              <th>Active</th>
+              <th>Admin</th>
+              <th>Verified</th>
+              <th>Permissions</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users|default([]) %}
+              <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.full_name }}</td>
+                <td>{{ u.is_active }}</td>
+                <td>{{ u.is_admin }}</td>
+                <td>{{ u.email_verified }}</td>
+                <td>{{ u.permissions|join(",") }}</td>
+                <td>{{ u.created_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Send invite</h2>
+      <div id="inviteMsg" class="hidden"></div>
+      <form id="inviteForm">
+        <label>
+          Email
+          <input name="email" type="email" required />
+        </label>
+        <label>
+          Full name
+          <input name="full_name" type="text" />
+        </label>
+        <label>
+          Admin
+          <input name="is_admin" type="checkbox" />
+        </label>
+        <label>
+          Permissions (comma-separated)
+          <input name="permissions" type="text" />
+        </label>
+        <button type="submit">Send invite</button>
+      </form>
+    </section>
+  </div>
+{% endblock %}
+

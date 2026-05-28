@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Accept invite{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2>Accept invite</h2>
+    <p class="muted">Set a password to activate your account.</p>
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="{{ base_path }}/invites/accept-form">
+      <input type="hidden" name="token" value="{{ token }}" />
+      
+      <label for="email">Email</label>
+      <input
+        id="email"
+        type="email"
+        value="{{ invite_email or '' }}"
+        readonly
+        aria-readonly="true"
+        style="opacity: 0.6; cursor: not-allowed;"
+      />
+      <div class="muted" style="margin-top: 6px;">This invite is tied to this email address.</div>
+      
+      <label for="full_name">Full name</label>
+      <input id="full_name" name="full_name" type="text" autocomplete="name" value="{{ display_name or '' }}" 
+        {% if display_name %}
+          readonly
+          aria-readonly="true"
+          style="opacity: 0.6; cursor: not-allowed;"
+          title="Populated from SOCOM Directory"
+        {% endif %}
+      />
+      
+      <label for="country">Country</label>
+      <input id="country" name="country" type="text" placeholder="US or Other" value="{{ country or '' }}" 
+        {% if country %}
+          readonly 
+          aria-readonly="true" 
+          style="opacity: 0.6; cursor: not-allowed;"
+          title="Populated from SOCOM Directory"
+        {% endif %}
+      />
+      
+      <label for="command">Command</label>
+      <input id="command" name="command" type="text" 
+        placeholder="HQ / JSOC / SOCAF / SOCCENT / SOCEUR / SOCKOR / SOCNORTH / SOCPAC / SOCSOUTH"
+        value="{{ command or '' }}"
+        {% if command %}
+          readonly 
+          aria-readonly="true" 
+          style="opacity: 0.6; cursor: not-allowed;"
+          title="Populated from SOCOM Directory"
+        {% endif %}
+      />
+      
+      <label for="password">Password (Minimum 8 characters)</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required />
+      
+      <button type="submit">Set password</button>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+    "https://connect.socom.mil/": {
+        "server_url": "https://connect.socom.mil/",
+        "filename": "/home/chad.f.lutz.ctr/j39-user-management",
+        "app_url": "https://connect.socom.mil/content/a1231d1f-ee06-4671-a056-553723a2e03c/",
+        "app_id": "1683",
+        "app_guid": "a1231d1f-ee06-4671-a056-553723a2e03c",
+        "title": "J39 Forms user_management_api",
+        "app_mode": "python-fastapi",
+        "app_store_version": 1
+    }
+}

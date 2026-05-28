@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2>Login</h2>
+    <p class="muted">Sign in to access your account and manage users.</p>
+
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+    {% if info %}
+      <div class="err">{{ info }}</div>
+    {% endif %}
+    {% if success %}
+      <div class="ok">{{ success }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ base_path }}/login">
+      <label for="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autocomplete="email"
+        placeholder="name@socom.mil"
+        value="{{ email or '' }}"
+        required
+      />
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+      <button type="submit">Sign in</button>
+    </form>
+    <div style="margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 14px;">
+      <details {% if reset_url or reset_error or reset_email %}open{% endif %}>
+        
+        <summary style="cursor: pointer; font-size: 14px; font-weight: bold; color: #0072B2; outline: none; user-select: none;">
+          Forgot your password?
+        </summary>
+        
+        <div style="margin-top: 12px; padding: 12px; background-color: rgba(0,0,0,0.02); border-radius: 6px;">
+          <form method="post" action="{{ base_path }}/password/forgot-form">
+            <label for="reset_email" style="margin-top: 0;">Email</label>
+            <input
+              id="reset_email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              placeholder="name@socom.mil"
+              value="{{ reset_email or '' }}"
+              required
+            />
+            <button type="submit">Send reset link</button>
+          </form>
+          
+          {% if reset_url %}
+            <div class="ok" style="margin-top: 10px;">
+              Reset link created for <code>{{ reset_email }}</code>
+            </div>
+            <label>Reset link</label>
+            <pre style="margin: 6px 0 0; white-space: pre-wrap; word-break: break-all;">{{ reset_url }}</pre>
+          {% endif %}
+        </div>
+
+      </details>
+    </div>
+  </div>
+{% endblock %}

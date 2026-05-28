@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2>Register for a new account</h2>
+    <p class="muted">Enter your email and we’ll send you a link to set your password.</p>
+
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ base_path }}/register" id="registerForm">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="name@socom.mil" required />
+
+      <div class="row" style="justify-content: flex-start; align-items: center; margin-top: 12px;">
+        <button type="submit" id="registerBtn" style="margin-top: 0;">Send setup link</button>
+        <div class="muted" id="registerStatus" aria-live="polite"></div>
+      </div>
+    </form>
+
+    <script>
+      (function () {
+        var form = document.getElementById("registerForm");
+        var btn = document.getElementById("registerBtn");
+        var status = document.getElementById("registerStatus");
+        if (!form || !btn || !status) return;
+
+        function setStatus(html) { status.innerHTML = html || ""; }
+        function setBusy(isBusy) { btn.disabled = !!isBusy; }
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          setBusy(true);
+          setStatus('<span class="spinner" aria-hidden="true"></span> Sending email…');
+
+          var fd = new FormData(form);
+          fetch(form.action, {
+            method: "POST",
+            headers: { "Accept": "application/json" },
+            body: fd
+          })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.j || res.j.ok !== true) {
+              throw new Error((res.j && res.j.error) || "Failed to send email");
+            }
+            setStatus("Email sent");
+          })
+          .catch(function (err) {
+            setStatus('<span style="color: var(--danger); font-weight: 750;">' + (err.message || "Error") + "</span>");
+          })
+          .finally(function () {
+            setBusy(false);
+          });
+        });
+      })();
+    </script>
+  </div>
+{% endblock %}
+

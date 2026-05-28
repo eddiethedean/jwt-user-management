@@ -1,0 +1,56 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+backend/.venv/
+streamlit_admin/.venv/
+streamlit_user/.venv/
+
+# Env files / secrets
+.env
+backend/.env
+streamlit_admin/.env
+streamlit_user/.env
+streamlit_admin/config.yaml
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+backend/app.db
+
+# IDE/editor
+.idea/
+.vscode/
+
+# Streamlit
+.streamlit/
+
+# Local process logs
+*.nohup.log
+
+# PID files (local process artifacts)
+*.pid
+
+# E2E local artifacts / DB
+e2e/__pycache__/
+e2e/artifacts/
+e2e/e2e.db
+
+# More private key/cert containers (keep scoped to infra cert dirs)
+infra/**/certs/*.key
+infra/**/certs/*.p12
+infra/**/certs/*.pfx
+
+# Deleted CAC nginx stack left local tmp artifacts
+infra/cac-nginx/certs/tmp/

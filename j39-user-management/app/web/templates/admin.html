@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block body %}
+  <div class="card">
+    <style>
+      .adminHeader {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 8px;
+      }
+      .adminHeader h2 { margin-bottom: 6px; }
+      .adminHeaderActions { display:flex; gap:10px; align-items:center; }
+      .adminHeaderActions form { margin: 0; }
+
+      .adminGrid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-top: 12px;
+        width: 100%;
+        align-items: stretch;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        border-radius: var(--radius);
+        padding: 14px;
+        width: 100%;
+        min-width: 0;
+      }
+
+      .panel h3 { margin-top: 0; }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 70%, transparent);
+      }
+      .dot--good { background: color-mix(in srgb, var(--accent-2) 85%, transparent); }
+      .dot--bad { background: color-mix(in srgb, var(--danger) 85%, transparent); }
+      .dot--accent { background: color-mix(in srgb, var(--accent) 85%, transparent); }
+
+      .inviteCard { margin-top: 10px; }
+      .inviteLinkBox { min-width: 0; }
+      .inviteLinkBox pre {
+        margin: 6px 0 0;
+        width: 100%;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      .inviteLinkBox .row { justify-content: space-between; }
+
+      .actions a {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .actions a:hover { text-decoration: none; border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+
+      @media (max-width: 900px) {
+        .adminHeader { flex-direction: column; }
+      }
+    </style>
+
+    <div class="adminHeader">
+      <div>
+        <h2>Admin</h2>
+      </div>
+    </div>
+
+    {% if invite_error %}
+      <div class="err">{{ invite_error }}</div>
+    {% endif %}
+
+    <div class="adminGrid">
+      <details class="panel" open>
+        <summary style="list-style: none; cursor: pointer;">
+          <div class="row" style="justify-content: space-between; align-items: baseline;">
+            <h3 style="margin: 0;">Invite user</h3>
+            <span class="muted" id="inviteCollapseHint">Click to collapse</span>
+          </div>
+          <p class="muted" style="margin: 6px 0 0;">Generate a one-time link to set a password.</p>
+        </summary>
+
+        <script>
+          (function () {
+            var details = document.currentScript && document.currentScript.parentElement;
+            var hint = document.getElementById("inviteCollapseHint");
+            if (!details || !hint || details.tagName !== "DETAILS") return;
+
+            function sync() {
+              hint.textContent = details.open ? "Click to collapse" : "Click to expand";
+            }
+
+            details.addEventListener("toggle", sync);
+            sync();
+          })();
+        </script>
+
+        {% if invite_url %}
+          <div class="ok inviteCard">
+            Invite created for <code>{{ invite_email }}</code>
+          </div>
+          <div class="inviteLinkBox">
+            <label>Invite link</label>
+            <pre id="inviteLink">{{ invite_url }}</pre>
+            <div class="row" style="margin-top: 8px;">
+              <button type="button" id="copyInviteBtn" style="margin-top: 0;">Copy invite link</button>
+              <span class="muted" id="copyInviteStatus" style="display:none;"></span>
+            </div>
+          </div>
+          <script>
+            (function () {
+              var btn = document.getElementById("copyInviteBtn");
+              var pre = document.getElementById("inviteLink");
+              var status = document.getElementById("copyInviteStatus");
+              if (!btn || !pre) return;
+
+              function setStatus(text) {
+                if (!status) return;
+                status.textContent = text;
+                status.style.display = "inline";
+                window.clearTimeout(status._t);
+                status._t = window.setTimeout(function () {
+                  status.style.display = "none";
+                }, 2500);
+              }
+
+              function fallbackCopy(text) {
+                var ta = document.createElement("textarea");
+                ta.value = text;
+                ta.setAttribute("readonly", "");
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                  document.execCommand("copy");
+                  setStatus("Copied");
+                } catch (e) {
+                  setStatus("Copy failed");
+                } finally {
+                  document.body.removeChild(ta);
+                }
+              }
+
+              btn.addEventListener("click", function () {
+                var text = (pre.textContent || "").trim();
+                if (!text) return;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard
+                    .writeText(text)
+                    .then(function () { setStatus("Copied"); })
+                    .catch(function () { fallbackCopy(text); });
+                } else {
+                  fallbackCopy(text);
+                }
+              });
+            })();
+          </script>
+        {% endif %}
+
+        <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;" id="inviteForm">
+          <label for="invite_email" style="margin-top: 0;">Email</label>
+          <input
+            id="invite_email"
+            name="email"
+            type="email"
+            value="{{ invite_email or '' }}"
+            placeholder="name@socom.mil"
+            autocomplete="email"
+            required
+          />
+
+          <div class="row" style="justify-content: space-between; align-items: flex-end; margin-top: 12px;">
+            <label style="display:flex; gap:10px; align-items:flex-start; margin: 0; font-weight: 650; flex: 1;">
+              <input
+                type="checkbox"
+                name="grant_admin"
+                value="1"
+                style="width:auto; margin-top: 3px;"
+                {% if invite_grant_admin %}checked{% endif %}
+              />
+              <span>
+                Grant admin privileges
+                <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
+              </span>
+            </label>
+
+            <div class="row" style="justify-content: flex-end; align-items: center; gap: 10px;">
+              <span class="muted" id="inviteStatus" aria-live="polite"></span>
+              <button type="submit" style="margin-top: 0;" id="inviteBtn">Create invite</button>
+            </div>
+          </div>
+        </form>
+
+        <script>
+          (function () {
+            var form = document.getElementById("inviteForm");
+            var btn = document.getElementById("inviteBtn");
+            var status = document.getElementById("inviteStatus");
+            if (!form || !btn || !status) return;
+
+            function setStatus(html) { status.innerHTML = html || ""; }
+            function setBusy(isBusy) { btn.disabled = !!isBusy; }
+
+            form.addEventListener("submit", function (e) {
+              e.preventDefault();
+              setBusy(true);
+              setStatus('<span class="spinner" aria-hidden="true"></span> Looking up email…');
+
+              var fd = new FormData(form);
+              fetch("{{ base_path }}/admin/invite/lookup", {
+                method: "POST",
+                headers: { "Accept": "application/json" },
+                body: fd
+              })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                if (!res.ok || !res.j || res.j.ok !== true) {
+                  var msg = (res.j && res.j.error) || "";
+                  if (!msg && res.j && res.j.detail) {
+                    if (typeof res.j.detail === "string") msg = res.j.detail;
+                    else if (Array.isArray(res.j.detail) && res.j.detail.length) {
+                      msg = res.j.detail.map(function (d) { return d && (d.msg || d.message || JSON.stringify(d)); }).join("; ");
+                    } else {
+                      msg = JSON.stringify(res.j.detail);
+                    }
+                  }
+                  throw new Error(msg || "Failed to send email");
+                }
+                setStatus('<span class="spinner" aria-hidden="true"></span> Sending email…');
+                return fetch(form.action, {
+                  method: "POST",
+                  headers: { "Accept": "application/json" },
+                  body: fd
+                })
+                  .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+              })
+              .then(function (res) {
+                if (!res || !res.ok || !res.j || res.j.ok !== true) {
+                  var msg = (res && res.j && (res.j.error || res.j.detail)) || "";
+                  throw new Error(msg || "Failed to send email");
+                }
+                setStatus("Email sent");
+              })
+              .catch(function (err) {
+                var msg = (err && err.message) ? String(err.message) : "Error";
+                if (msg.toLowerCase().indexOf("directory lookup failed") !== -1) {
+                  msg = "Could not verify email. Please try again, or contact your admin.";
+                }
+                setStatus('<span style="color: var(--danger); font-weight: 750;">' + msg + "</span>");
+              })
+              .finally(function () {
+                setBusy(false);
+              });
+            });
+          })();
+        </script>
+      </details>
+
+      <section class="panel">
+        <div class="row" style="justify-content: space-between; align-items: baseline;">
+          <h3>All users</h3>
+          <span class="muted">{{ users|length }} total</span>
+        </div>
+
+        <div class="muted" style="margin-top: 10px;">Select a user to edit.</div>
+
+        <div class="tableWrap" style="margin-top: 10px;">
+          <table class="dataTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Country</th>
+              <th>Command</th>
+              <th class="colCenter">Status</th>
+              <th class="colCenter">Role</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+              <tr
+                tabindex="0"
+                role="link"
+                style="cursor: pointer;"
+                onclick="window.location.assign('{{ base_path }}/admin/users/{{ u.id }}')"
+                onkeydown="if (event && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); window.location.assign('{{ base_path }}/admin/users/{{ u.id }}'); }"
+                aria-label="Edit {{ u.email }}"
+              >
+                <td>{{ u.id }}</td>
+                <td><code>{{ u.email }}</code></td>
+                <td>{{ u.full_name or '' }}</td>
+                <td>{{ u.country or '' }}</td>
+                <td>{{ u.command or '' }}</td>
+                <td class="colCenter">
+                  {% if u.is_active %}
+                    <span class="badge"><span class="dot dot--good" aria-hidden="true"></span>Active</span>
+                  {% else %}
+                    <span class="badge"><span class="dot dot--bad" aria-hidden="true"></span>Inactive</span>
+                  {% endif %}
+                </td>
+                <td class="colCenter">
+                  {% if u.is_admin %}
+                    <span class="badge"><span class="dot dot--accent" aria-hidden="true"></span>Admin</span>
+                  {% else %}
+                    <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
+                  {% endif %}
+                </td>
+                <td>{{ u.created_at|fmt_date }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+{% endblock %}
+
