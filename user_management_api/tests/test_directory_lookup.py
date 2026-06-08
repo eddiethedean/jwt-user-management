@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,24 @@ from api_test_helpers import (
     seed_admin,
     seed_unused_invite,
 )
+
+
+def _fake_directory_response(*args, **kwargs):
+    return FakeHttpxResponse(
+        status_code=200,
+        json_data={"attributes": {"mail": ["user@example.com"], "co": ["US"]}},
+    )
+
+
+class _FakeSyncClient:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get(self, *args, **kwargs):
+        return _fake_directory_response()
 
 
 def test_register_creates_setup_token(tmp_path, monkeypatch) -> None:
@@ -28,14 +47,20 @@ def test_register_creates_setup_token(tmp_path, monkeypatch) -> None:
         lambda **kwargs: None,
     )
 
+    login = client.get("/login")
+    m = re.search(r'name="csrf_token" value="([^"]+)"', login.text)
+    assert m
     r = client.post(
-        "/register", data={"email": "nobody@example.com"}, follow_redirects=False
+        "/register",
+        data={"email": "nobody@example.com", "csrf_token": m.group(1)},
+        headers={"Accept": "application/json"},
+        follow_redirects=False,
     )
     assert r.status_code == 200
     data = r.json()
     assert data.get("ok") is True
     assert "setup_url" not in data
-    assert data.get("email_sent") is True
+    assert "email_sent" not in data
 
 
 def test_lookup_parses_country_from_directory_response(
@@ -46,14 +71,7 @@ def test_lookup_parses_country_from_directory_response(
 
     import app.services.directory as directory
 
-    monkeypatch.setattr(
-        directory.httpx,
-        "get",
-        lambda *a, **k: FakeHttpxResponse(
-            status_code=200,
-            json_data={"attributes": {"mail": ["user@example.com"], "co": ["US"]}},
-        ),
-    )
+    monkeypatch.setattr(directory.httpx, "Client", _FakeSyncClient)
 
     rec = directory.lookup_email("user@example.com")
     assert rec
@@ -66,14 +84,22 @@ def test_lookup_strips_c_prefix_from_country(tmp_path, monkeypatch) -> None:
 
     import app.services.directory as directory
 
-    monkeypatch.setattr(
-        directory.httpx,
-        "get",
-        lambda *a, **k: FakeHttpxResponse(
-            status_code=200,
-            json_data={"attributes": {"mail": ["user@example.com"], "c": ["C=US"]}},
-        ),
-    )
+    class _Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, *args, **kwargs):
+            return FakeHttpxResponse(
+                status_code=200,
+                json_data={
+                    "attributes": {"mail": ["user@example.com"], "c": ["C=US"]}
+                },
+            )
+
+    monkeypatch.setattr(directory.httpx, "Client", _Client)
 
     rec = directory.lookup_email("user@example.com")
     assert rec
@@ -94,13 +120,18 @@ def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
         },
         "dn": "CN=X",
     }
-    monkeypatch.setattr(
-        directory.httpx,
-        "get",
-        lambda *a, **k: FakeHttpxResponse(
-            status_code=200, json_data=json.dumps(payload)
-        ),
-    )
+
+    class _Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, *args, **kwargs):
+            return FakeHttpxResponse(status_code=200, json_data=json.dumps(payload))
+
+    monkeypatch.setattr(directory.httpx, "Client", _Client)
 
     rec = directory.lookup_email("user@example.com")
     assert rec
@@ -119,9 +150,18 @@ def test_invites_accept_succeeds_when_directory_returns_404(
     import app.services.directory as directory
 
     raw = seed_unused_invite(db_engine=db.engine, email="nobody@example.com")
-    monkeypatch.setattr(
-        directory.httpx, "get", lambda *a, **k: FakeHttpxResponse(status_code=404)
-    )
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, *args, **kwargs):
+            return FakeHttpxResponse(status_code=404)
+
+    monkeypatch.setattr(directory.httpx, "AsyncClient", _Client)
 
     client = TestClient(app, base_url="http://testserver")
     r = client.post(
@@ -194,8 +234,14 @@ def test_register_rejects_domain_not_in_allowlist(tmp_path) -> None:
         invite_allowed_email_domains=("corp.com",),
     )
     client = TestClient(app, base_url="http://testserver")
+    login = client.get("/login")
+    m = re.search(r'name="csrf_token" value="([^"]+)"', login.text)
+    assert m
     r = client.post(
-        "/register", data={"email": "x@example.com"}, follow_redirects=False
+        "/register",
+        data={"email": "x@example.com", "csrf_token": m.group(1)},
+        headers={"Accept": "application/json"},
+        follow_redirects=False,
     )
     assert r.status_code == 400
     assert "domain" in (r.json().get("detail") or "").lower()

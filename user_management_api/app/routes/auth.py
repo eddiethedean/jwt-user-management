@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -16,6 +15,8 @@ from fastapi_workbench import (
     safe_redirect,
 )
 from app.core.config import settings
+from app.core.email_validation import validate_email_format
+from app.core.rate_limit import check_rate_limit
 from app.core.security import (
     create_access_token,
     decode_token,
@@ -24,21 +25,18 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
-from app.models import InviteToken, User
+from app.models import User
 from app.routes.email_links import external_accept_invite_url
-from app.services.directory import lookup_email
+from app.services.directory import lookup_email_async
 from app.services.email import send_self_registration_email
-from app.services.tokens import invalidate_unused_invite_tokens
+from app.services.tokens import create_invite_token_atomic
+from app.web.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from app.web.session import clear_auth_cookie, get_auth_token, set_auth_cookie
 from app.web.templates import templates
 
 
 router = APIRouter(tags=["auth"])
 log = logging.getLogger("uvicorn.error")
-
-
-def _norm_email(v: str) -> str:
-    return (v or "").strip().lower()
 
 
 def _wants_html(request: Request) -> bool:
@@ -71,7 +69,7 @@ async def _register_user(
     if settings.directory_lookup_url:
         rec = None
         try:
-            rec = lookup_email(email_n)
+            rec = await lookup_email_async(email_n)
         except Exception:
             rec = None
         if settings.directory_lookup_required and not rec:
@@ -80,20 +78,9 @@ async def _register_user(
     if not (settings.smtp_host and settings.smtp_from_email):
         return False, False, "Self-registration email is not configured"
 
-    raw = InviteToken.new_raw_token()
-    token_hash = InviteToken.hash_token(raw)
-    now = datetime.now(timezone.utc)
-    await invalidate_unused_invite_tokens(db, email=email_n, now=now)
-    invite = InviteToken(
-        email=email_n,
-        token_hash=token_hash,
-        created_at=now,
-        expires_at=now + timedelta(hours=2),
-        used_at=None,
-        grant_admin=False,
+    raw = await create_invite_token_atomic(
+        db, email=email_n, grant_admin=False, expires_hours=2
     )
-    db.add(invite)
-    await db.commit()
 
     setup_url = external_accept_invite_url(request, token=raw)
     email_sent = False
@@ -112,6 +99,7 @@ async def register_page(
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     bp = base_path(request)
+    csrf = issue_csrf_token(request)
     session_email = None
     cookie_token = get_auth_token(request)
     if cookie_token:
@@ -122,49 +110,91 @@ async def register_page(
             session_email = user.email if user else None
         except Exception:
             session_email = None
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "register.html",
-        {"request": request, "base_path": bp, "session_email": session_email},
+        {
+            "request": request,
+            "base_path": bp,
+            "session_email": session_email,
+            "csrf_token": csrf,
+        },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/register")
 async def register_submit(
     request: Request,
     email: str = Form(...),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
-    email_n = _norm_email(email)
+    try:
+        email_n = validate_email_format(email)
+    except ValueError as e:
+        wants_html = _wants_html(request)
+        if wants_html:
+            csrf = issue_csrf_token(request)
+            resp = templates.TemplateResponse(
+                request,
+                "register.html",
+                {
+                    "request": request,
+                    "error": str(e),
+                    "base_path": bp,
+                    "csrf_token": csrf,
+                },
+                status_code=400,
+            )
+            set_csrf_cookie(resp, request=request)
+            return resp
+        raise HTTPException(status_code=400, detail=str(e))
+
+    check_rate_limit(request, scope="register", email=email_n)
     wants_html = _wants_html(request)
 
-    ok, email_sent, err = await _register_user(
+    ok, _email_sent, err = await _register_user(
         request=request, email_n=email_n, db=db
     )
 
     if err:
         status = 503 if "not configured" in err.lower() else 400
         if wants_html:
-            return templates.TemplateResponse(
+            csrf = issue_csrf_token(request)
+            resp = templates.TemplateResponse(
                 request,
                 "register.html",
-                {"request": request, "error": err, "base_path": bp},
+                {
+                    "request": request,
+                    "error": err,
+                    "base_path": bp,
+                    "csrf_token": csrf,
+                },
                 status_code=status,
             )
+            set_csrf_cookie(resp, request=request)
+            return resp
         raise HTTPException(status_code=status, detail=err)
 
     if wants_html:
-        return templates.TemplateResponse(
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
             request,
             "login.html",
             {
                 "request": request,
                 "success": "Check your email for a link to set your password.",
                 "base_path": bp,
+                "csrf_token": csrf,
             },
         )
-    return JSONResponse({"ok": ok, "email_sent": email_sent})
+        set_csrf_cookie(resp, request=request)
+        return resp
+    return JSONResponse({"ok": ok})
 
 
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
@@ -173,6 +203,7 @@ async def login_page(
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     bp = base_path(request)
+    csrf = issue_csrf_token(request)
     info = (request.query_params.get("msg") or "").strip()
     next_path = (request.query_params.get("next") or "").strip()
     session_email = None
@@ -185,7 +216,7 @@ async def login_page(
             session_email = user.email if user else None
         except Exception:
             session_email = None
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "login.html",
         {
@@ -194,8 +225,11 @@ async def login_page(
             "info": info or None,
             "next": next_path or None,
             "session_email": session_email,
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/login", response_class=HTMLResponse, include_in_schema=False)
@@ -203,15 +237,22 @@ async def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
-    email_n = _norm_email(email)
+    try:
+        email_n = validate_email_format(email)
+    except ValueError:
+        email_n = (email or "").strip().lower()
+    check_rate_limit(request, scope="auth_login", email=email_n)
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == email_n))
     ).first()
+    csrf = issue_csrf_token(request)
     if not user or not verify_password(password, user.hashed_password):
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "login.html",
             {
@@ -219,11 +260,14 @@ async def login_submit(
                 "error": "Invalid email or password",
                 "base_path": bp,
                 "email": email_n,
+                "csrf_token": csrf,
             },
             status_code=400,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
     if not getattr(user, "is_active", True):
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "login.html",
             {
@@ -231,9 +275,12 @@ async def login_submit(
                 "error": "Your account has been disabled. Contact your admin.",
                 "base_path": bp,
                 "email": email_n,
+                "csrf_token": csrf,
             },
             status_code=403,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
     token = create_access_token(
         subject=str(user.id),
         extra_claims=token_extra_claims(user),
@@ -264,7 +311,11 @@ async def login_submit(
 
 
 @router.post("/logout", include_in_schema=False)
-async def logout(request: Request) -> Response:
+async def logout(
+    request: Request,
+    csrf_token: Optional[str] = Form(default=None),
+) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     resp = safe_external_redirect(request, "/login", status_code=303)
     clear_auth_cookie(resp, request=request)
     return resp
@@ -272,10 +323,15 @@ async def logout(request: Request) -> Response:
 
 @router.post("/auth/token")
 async def token(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    username = _norm_email(form.username)
+    try:
+        username = validate_email_format(form.username)
+    except ValueError:
+        username = (form.username or "").strip().lower()
+    check_rate_limit(request, scope="auth_token", email=username)
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == username))
     ).first()

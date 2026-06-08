@@ -115,6 +115,10 @@ You can override these with:
 - `SEED_ADMIN_EMAIL`
 - `SEED_ADMIN_PASSWORD`
 
+For production, set strong `SEED_ADMIN_*` values before running migrations.
+Revision `0002_seed_admin` seeds the default admin unless `SEED_ADMIN_ENABLED=0`
+(or `false` / `no` / `off`) is set in the environment at migrate time.
+
 ## Run tests
 
 In some environments, globally installed pytest plugins can break test runs. Use:

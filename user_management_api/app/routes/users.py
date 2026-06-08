@@ -19,6 +19,7 @@ from app.core.security import (
 from app.db import get_db
 from app.models import User
 from app.routes.deps import bearer_scheme, get_current_user, user_from_token
+from app.web.csrf import issue_csrf_token, set_csrf_cookie
 from app.web.session import get_auth_token
 from app.web.templates import templates
 
@@ -93,7 +94,8 @@ async def users(
     if cookie_token:
         user = await user_from_token(db=db, token=cookie_token, require_admin=True)
         all_users = (await db.exec(select(User).order_by(text("id")))).all()
-        return templates.TemplateResponse(
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
             request,
             "users.html",
             {
@@ -103,8 +105,11 @@ async def users(
                 "session_email": user.email,
                 "is_admin": True,
                 "base_path": bp,
+                "csrf_token": csrf,
             },
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
 
     if not creds:
         accept = (request.headers.get("accept") or "").lower()

@@ -127,14 +127,15 @@ def test_invites_accept_sets_country_from_directory(
     import app.services.directory as directory
 
     raw = seed_unused_invite(db_engine=db.engine, email="user@example.com")
-    monkeypatch.setattr(
-        directory.httpx,
-        "get",
-        lambda *a, **k: FakeHttpxResponse(
-            status_code=200,
-            json_data={"attributes": {"mail": ["user@example.com"], "co": ["US"]}},
-        ),
-    )
+
+    async def _fake_lookup(email: str):
+        return directory.DirectoryEmailRecord(
+            email="user@example.com", country="US"
+        )
+
+    import app.routes.invites as invites_routes
+
+    monkeypatch.setattr(invites_routes, "lookup_email_async", _fake_lookup)
 
     client = TestClient(app, base_url="http://testserver")
     r = client.post(

@@ -8,6 +8,7 @@ from typing import Any, Optional
 import httpx
 
 from app.core.config import settings
+from app.core.email_validation import normalize_email
 
 log = logging.getLogger("uvicorn.error")
 
@@ -36,47 +37,66 @@ def _norm_country(v: str | None) -> str | None:
     s = v.strip()
     if not s:
         return None
-    # Be tolerant of directory values like "C=US".
     if s.lower().startswith("c="):
         s = s[2:].strip()
     return s or None
 
 
-def lookup_email(email: str) -> DirectoryEmailRecord | None:
-    """
-    Lookup an email address in the external directory service.
+def _parse_directory_response(data: Any, *, query_email: str) -> DirectoryEmailRecord | None:
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            log.warning(
+                "Directory lookup: unexpected json string email=%s len=%s",
+                query_email,
+                len(data),
+            )
+            return None
 
-    Returns None on "not found" or when lookup is disabled.
-    Raises on transport/parse errors only when ``directory_lookup_required`` is True
-    (HTTP client layer); application routes do not use this flag to block invites.
-    """
-    base = (settings.directory_lookup_url or "").strip()
-    if not base:
+    if not isinstance(data, dict):
+        log.warning(
+            "Directory lookup: unexpected json type email=%s type=%s",
+            query_email,
+            type(data).__name__,
+        )
+        return None
+    attrs = data.get("attributes")
+    if not isinstance(attrs, dict):
+        log.warning("Directory lookup: missing attributes email=%s", query_email)
         return None
 
-    verify: bool | str = bool(settings.directory_lookup_verify_ssl)
-    if verify and (settings.directory_lookup_ca_bundle or "").strip():
-        verify = settings.directory_lookup_ca_bundle.strip()
-
-    try:
-        log.info(
-            "Directory lookup: start email=%s required=%s url=%s",
-            email,
-            bool(settings.directory_lookup_required),
-            base,
-        )
-        resp = httpx.get(
-            base,
-            params={"query": email},
-            timeout=httpx.Timeout(float(settings.directory_lookup_timeout_s or 5)),
-            verify=verify,
-        )
-    except Exception:
-        log.exception("Directory lookup: request failed email=%s url=%s", email, base)
-        if settings.directory_lookup_required:
-            raise
+    mail = _first_str(attrs.get("mail")) or _first_str(attrs.get("userPrincipalName"))
+    if not mail:
+        log.warning("Directory lookup: missing mail field email=%s", query_email)
         return None
 
+    display = _first_str(attrs.get("displayName")) or _first_str(attrs.get("cn"))
+    country = _norm_country(_first_str(attrs.get("c")) or _first_str(attrs.get("co")))
+    rec = DirectoryEmailRecord(
+        email=mail.strip().lower(),
+        display_name=display,
+        country=country,
+    )
+    if rec.email != normalize_email(query_email):
+        log.warning(
+            "Directory lookup: email mismatch query=%s mail=%s",
+            query_email,
+            rec.email,
+        )
+        return None
+    log.info(
+        "Directory lookup: ok query=%s mail=%s country=%s",
+        query_email,
+        rec.email,
+        rec.country or "",
+    )
+    return rec
+
+
+def _handle_directory_response(
+    resp: httpx.Response, *, email: str
+) -> DirectoryEmailRecord | None:
     if resp.status_code == 404:
         log.info("Directory lookup: not found email=%s status=404", email)
         return None
@@ -107,47 +127,71 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
             raise
         return None
 
-    # Some deployments return a JSON string that itself contains JSON. Be tolerant.
-    if isinstance(data, str):
-        try:
-            data2 = json.loads(data)
-        except Exception:
-            log.warning(
-                "Directory lookup: unexpected json string email=%s len=%s",
-                email,
-                len(data),
-            )
-            return None
-        data = data2
+    return _parse_directory_response(data, query_email=email)
 
-    if not isinstance(data, dict):
-        log.warning(
-            "Directory lookup: unexpected json type email=%s type=%s",
+
+def _directory_verify() -> bool | str:
+    verify: bool | str = bool(settings.directory_lookup_verify_ssl)
+    if verify and (settings.directory_lookup_ca_bundle or "").strip():
+        verify = settings.directory_lookup_ca_bundle.strip()
+    return verify
+
+
+def lookup_email(email: str) -> DirectoryEmailRecord | None:
+    """Synchronous directory lookup (tests and legacy callers)."""
+    base = (settings.directory_lookup_url or "").strip()
+    if not base:
+        return None
+
+    timeout = httpx.Timeout(float(settings.directory_lookup_timeout_s or 5))
+    try:
+        log.info(
+            "Directory lookup: start email=%s required=%s url=%s",
             email,
-            type(data).__name__,
+            bool(settings.directory_lookup_required),
+            base,
         )
-        return None
-    attrs = data.get("attributes")
-    if not isinstance(attrs, dict):
-        log.warning("Directory lookup: missing attributes email=%s", email)
+        with httpx.Client() as client:
+            resp = client.get(
+                base,
+                params={"query": email},
+                timeout=timeout,
+                verify=_directory_verify(),
+            )
+    except Exception:
+        log.exception("Directory lookup: request failed email=%s url=%s", email, base)
+        if settings.directory_lookup_required:
+            raise
         return None
 
-    mail = _first_str(attrs.get("mail")) or _first_str(attrs.get("userPrincipalName"))
-    if not mail:
-        log.warning("Directory lookup: missing mail field email=%s", email)
+    return _handle_directory_response(resp, email=email)
+
+
+async def lookup_email_async(email: str) -> DirectoryEmailRecord | None:
+    """Async directory lookup for route handlers."""
+    base = (settings.directory_lookup_url or "").strip()
+    if not base:
         return None
 
-    display = _first_str(attrs.get("displayName")) or _first_str(attrs.get("cn"))
-    country = _norm_country(_first_str(attrs.get("c")) or _first_str(attrs.get("co")))
-    rec = DirectoryEmailRecord(
-        email=mail.strip().lower(),
-        display_name=display,
-        country=country,
-    )
-    log.info(
-        "Directory lookup: ok query=%s mail=%s country=%s",
-        email,
-        rec.email,
-        rec.country or "",
-    )
-    return rec
+    timeout = httpx.Timeout(float(settings.directory_lookup_timeout_s or 5))
+    try:
+        log.info(
+            "Directory lookup: start email=%s required=%s url=%s",
+            email,
+            bool(settings.directory_lookup_required),
+            base,
+        )
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                base,
+                params={"query": email},
+                timeout=timeout,
+                verify=_directory_verify(),
+            )
+    except Exception:
+        log.exception("Directory lookup: request failed email=%s url=%s", email, base)
+        if settings.directory_lookup_required:
+            raise
+        return None
+
+    return _handle_directory_response(resp, email=email)

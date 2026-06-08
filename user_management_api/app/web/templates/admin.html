@@ -183,6 +183,9 @@
         {% endif %}
 
         <form method="post" action="{{ base_path }}/admin/invite" style="margin-top: 12px;" id="inviteForm">
+          {% if csrf_token %}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          {% endif %}
           <label for="invite_email" style="margin-top: 0;">Email</label>
           <input
             id="invite_email"

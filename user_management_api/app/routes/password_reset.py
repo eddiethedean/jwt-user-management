@@ -1,21 +1,31 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, safe_external_redirect
+from app.core.email_validation import validate_email_format
+from app.core.rate_limit import check_rate_limit
 from app.core.security import bump_token_version, hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
+from app.routes.deps import admin_from_bearer, bearer_scheme
 from app.routes.email_links import external_password_reset_url
+from app.schemas.password import (
+    ForgotPasswordRequest,
+    InspectResetRequest,
+    ResetPasswordRequest,
+)
 from app.services.email import send_password_reset_email
-from app.services.tokens import invalidate_unused_reset_tokens, try_consume_reset_token
+from app.services.tokens import create_reset_token_atomic, try_consume_reset_token
+from app.web.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from app.web.templates import templates
 
 
@@ -29,98 +39,76 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+async def _issue_reset_token(
+    request: Request, *, db: AsyncSession, email_n: str
+) -> None:
+    user = (await db.exec(select(User).where(User.email == email_n))).first()
+    if not user:
+        return
+    raw = await create_reset_token_atomic(db, email=email_n)
+    reset_url = external_password_reset_url(request, token=raw)
+    try:
+        send_password_reset_email(to_email=email_n, reset_url=reset_url)
+    except Exception:
+        log.exception("password_reset_email_send_failed")
+
+
 @router.post("/forgot-form", response_class=HTMLResponse, include_in_schema=False)
 async def forgot_password_form(
     request: Request,
     email: str = Form(...),
     return_to: str = Form(default="login"),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
-    email_n = (email or "").strip().lower()
-    reset_url: Optional[str] = None
-
-    user: Optional[User] = None
+    try:
+        email_n = validate_email_format(email)
+    except ValueError:
+        email_n = ""
+    check_rate_limit(request, scope="password_forgot", email=email_n or None)
     if email_n:
-        user = (await db.exec(select(User).where(User.email == email_n))).first()
+        await _issue_reset_token(request, db=db, email_n=email_n)
 
-    if user:
-        raw = PasswordResetToken.new_raw_token()
-        token_hash = PasswordResetToken.hash_token(raw)
-        now = datetime.now(timezone.utc)
-        await invalidate_unused_reset_tokens(db, email=email_n, now=now)
-        rec = PasswordResetToken(
-            email=email_n,
-            token_hash=token_hash,
-            created_at=now,
-            expires_at=now + timedelta(hours=2),
-            used_at=None,
-        )
-        db.add(rec)
-        await db.commit()
-        reset_url = external_password_reset_url(request, token=raw)
-        try:
-            send_password_reset_email(to_email=email_n, reset_url=reset_url)
-            from app.core.config import settings
-
-            if settings.smtp_host and settings.smtp_from_email:
-                reset_url = None
-        except Exception:
-            log.exception("password_reset_email_send_failed")
-
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "login.html",
         {
             "request": request,
             "base_path": bp,
-            "success": "If the account exists, a reset link has been created.",
-            "reset_email": email_n,
-            "reset_url": reset_url,
+            "success": "If the account exists, a reset link has been sent.",
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/forgot")
 async def forgot_password_api(
     request: Request,
-    payload: dict,
+    payload: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    email_n = (str(payload.get("email") or "")).strip().lower()
-    user: Optional[User] = None
-    if email_n:
-        user = (await db.exec(select(User).where(User.email == email_n))).first()
-    if user:
-        raw = PasswordResetToken.new_raw_token()
-        token_hash = PasswordResetToken.hash_token(raw)
-        now = datetime.now(timezone.utc)
-        await invalidate_unused_reset_tokens(db, email=email_n, now=now)
-        rec = PasswordResetToken(
-            email=email_n,
-            token_hash=token_hash,
-            created_at=now,
-            expires_at=now + timedelta(hours=2),
-            used_at=None,
-        )
-        db.add(rec)
-        await db.commit()
-        reset_url = external_password_reset_url(request, token=raw)
-        try:
-            send_password_reset_email(to_email=email_n, reset_url=reset_url)
-        except Exception:
-            log.exception("password_reset_email_send_failed")
+    try:
+        email_n = validate_email_format(payload.email)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    check_rate_limit(request, scope="password_forgot", email=email_n)
+    await _issue_reset_token(request, db=db, email_n=email_n)
     return {"ok": True}
 
 
 @router.post("/inspect")
 async def inspect_reset_token(
-    payload: dict, db: AsyncSession = Depends(get_db)
+    payload: InspectResetRequest,
+    db: AsyncSession = Depends(get_db),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    token = str(payload.get("token") or "")
-    if not token:
-        raise HTTPException(status_code=422, detail="token is required")
-    token_hash = PasswordResetToken.hash_token(token)
+    await admin_from_bearer(db=db, creds=creds)
+    token_hash = PasswordResetToken.hash_token(payload.token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
             select(PasswordResetToken).where(
@@ -139,17 +127,20 @@ async def inspect_reset_token(
 
 
 @router.post("/reset")
-async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
-    token = str(payload.get("token") or "")
-    password = str(payload.get("password") or "")
-    if not token or not password:
+async def reset_api(
+    request: Request,
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    if not (payload.token or "").strip() or not (payload.password or "").strip():
         raise HTTPException(status_code=422, detail="token and password are required")
+    check_rate_limit(request, scope="password_reset")
     try:
-        validate_new_password(password)
+        validate_new_password(payload.password)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    token_hash = PasswordResetToken.hash_token(token)
+    token_hash = PasswordResetToken.hash_token(payload.token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
             select(PasswordResetToken).where(
@@ -173,7 +164,7 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
         await db.exec(select(User).where(User.email == rec.email))
     ).first()
     if user:
-        user.hashed_password = hash_password(password)
+        user.hashed_password = hash_password(payload.password)
         bump_token_version(user)
         db.add(user)
     await db.commit()
@@ -187,6 +178,7 @@ async def reset_page(
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     bp = base_path(request)
+    csrf = issue_csrf_token(request)
     token_hash = PasswordResetToken.hash_token(token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
@@ -196,7 +188,7 @@ async def reset_page(
         )
     ).first()
     if not rec:
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "reset_password.html",
             {
@@ -204,10 +196,13 @@ async def reset_page(
                 "base_path": bp,
                 "token": token,
                 "error": "Reset link not found",
+                "csrf_token": csrf,
             },
             status_code=404,
         )
-    return templates.TemplateResponse(
+        set_csrf_cookie(resp, request=request)
+        return resp
+    resp = templates.TemplateResponse(
         request,
         "reset_password.html",
         {
@@ -215,8 +210,11 @@ async def reset_page(
             "base_path": bp,
             "token": token,
             "reset_email": rec.email,
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/reset-form", response_class=HTMLResponse, include_in_schema=False)
@@ -224,13 +222,17 @@ async def reset_form(
     request: Request,
     token: str = Form(...),
     password: str = Form(...),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
+    check_rate_limit(request, scope="password_reset")
     try:
         validate_new_password(password)
     except ValueError as e:
-        return templates.TemplateResponse(
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
             request,
             "reset_password.html",
             {
@@ -239,13 +241,21 @@ async def reset_form(
                 "token": token,
                 "reset_email": "",
                 "error": str(e),
+                "csrf_token": csrf,
             },
             status_code=400,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
     try:
-        await reset_api({"token": token, "password": password}, db)
+        await reset_api(
+            request,
+            ResetPasswordRequest(token=token, password=password),
+            db,
+        )
     except HTTPException as e:
-        return templates.TemplateResponse(
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
             request,
             "reset_password.html",
             {
@@ -254,8 +264,11 @@ async def reset_form(
                 "token": token,
                 "reset_email": "",
                 "error": str(e.detail),
+                "csrf_token": csrf,
             },
             status_code=e.status_code,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
 
     return safe_external_redirect(request, "/login", status_code=303)

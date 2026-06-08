@@ -11,6 +11,7 @@ from app.core.security import hash_password, validate_new_password, verify_passw
 from app.db import get_db
 from app.models import User
 from app.routes.deps import user_from_token
+from app.web.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from app.web.session import get_auth_token
 from app.web.templates import templates
 
@@ -39,7 +40,8 @@ async def account_page(
             "/login?msg=Please%20log%20in%20to%20view%20your%20Account.&next=/account",
             status_code=303,
         )
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "account.html",
         {
@@ -47,16 +49,21 @@ async def account_page(
             "base_path": bp,
             "session_email": user.email,
             "user": user,
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/account", response_class=HTMLResponse, include_in_schema=False)
 async def account_update(
     request: Request,
     full_name: Optional[str] = Form(default=None),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
     try:
         user = await _require_cookie_user(request=request, db=db)
@@ -72,7 +79,8 @@ async def account_update(
     await db.commit()
     await db.refresh(user)
 
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "account.html",
         {
@@ -81,8 +89,11 @@ async def account_update(
             "session_email": user.email,
             "user": user,
             "success": "Saved.",
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/account/password", response_class=HTMLResponse, include_in_schema=False)
@@ -91,8 +102,10 @@ async def account_change_password(
     current_password: str = Form(...),
     new_password: str = Form(...),
     confirm_password: str = Form(...),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
     try:
         user = await _require_cookie_user(request=request, db=db)
@@ -103,49 +116,46 @@ async def account_change_password(
             status_code=303,
         )
 
+    csrf = issue_csrf_token(request)
+    ctx = {
+        "request": request,
+        "base_path": bp,
+        "session_email": user.email,
+        "user": user,
+        "csrf_token": csrf,
+    }
+
     if not verify_password(current_password, user.hashed_password):
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "account.html",
-            {
-                "request": request,
-                "base_path": bp,
-                "session_email": user.email,
-                "user": user,
-                "error": "Current password is incorrect.",
-            },
+            {**ctx, "error": "Current password is incorrect."},
             status_code=400,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
 
     try:
         validate_new_password(new_password)
     except ValueError as e:
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "account.html",
-            {
-                "request": request,
-                "base_path": bp,
-                "session_email": user.email,
-                "user": user,
-                "error": str(e),
-            },
+            {**ctx, "error": str(e)},
             status_code=400,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
 
     if new_password != confirm_password:
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "account.html",
-            {
-                "request": request,
-                "base_path": bp,
-                "session_email": user.email,
-                "user": user,
-                "error": "New password and confirmation do not match.",
-            },
+            {**ctx, "error": "New password and confirmation do not match."},
             status_code=400,
         )
+        set_csrf_cookie(resp, request=request)
+        return resp
 
     from app.core.security import bump_token_version
 
@@ -155,7 +165,7 @@ async def account_change_password(
     await db.commit()
     await db.refresh(user)
 
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "account.html",
         {
@@ -164,5 +174,8 @@ async def account_change_password(
             "session_email": user.email,
             "user": user,
             "success": "Password updated.",
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp

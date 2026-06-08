@@ -1,9 +1,10 @@
+import logging
 import smtplib
 from email.message import EmailMessage
 from smtplib import SMTPConnectError
-import logging
 
 from app.core.config import settings
+from app.core.email_validation import validate_email_format
 
 
 def _brand_name() -> str:
@@ -87,10 +88,9 @@ def _send_via_smtp(msg: EmailMessage) -> None:
             server.starttls()
         return server
 
-    # Primary: use configured host/port, with optional STARTTLS.
-    # Fallback: legacy behavior (default port 25, no TLS).
     log = logging.getLogger("uvicorn.error")
     primary_port: int | None = settings.smtp_port
+    has_creds = bool(settings.smtp_username and settings.smtp_password)
     try:
         server = _connect(
             host=settings.smtp_host,
@@ -100,6 +100,8 @@ def _send_via_smtp(msg: EmailMessage) -> None:
         selected_port = primary_port
         used_legacy_fallback = False
     except (ConnectionRefusedError, SMTPConnectError):
+        if has_creds or not settings.smtp_allow_legacy_port25_fallback:
+            raise
         server = _connect(host=settings.smtp_host, port=None, use_tls=False)
         selected_port = 25
         used_legacy_fallback = True
@@ -120,15 +122,19 @@ def _send_via_smtp(msg: EmailMessage) -> None:
         server.quit()
 
 
+def _validated_to(to_email: str) -> str:
+    return validate_email_format(to_email)
+
+
 def send_invite_email(*, to_email: str, invite_url: str) -> None:
     if not settings.smtp_host or not settings.smtp_from_email:
-        # Email sending disabled; treat as no-op.
         return
 
+    to = _validated_to(to_email)
     msg = EmailMessage()
     msg["Subject"] = "You’re invited to User Management"
     msg["From"] = _from_header()
-    msg["To"] = to_email
+    msg["To"] = to
     text = (
         "You’ve been invited to User Management.\n\n"
         f"Accept invite:\n{invite_url}\n\n"
@@ -165,10 +171,11 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
     if not settings.smtp_host or not settings.smtp_from_email:
         return
 
+    to = _validated_to(to_email)
     msg = EmailMessage()
     msg["Subject"] = "Password reset"
     msg["From"] = _from_header()
-    msg["To"] = to_email
+    msg["To"] = to
     text = (
         "We received a request to reset your password.\n\n"
         f"Reset your password:\n{reset_url}\n\n"
@@ -208,10 +215,11 @@ def send_self_registration_email(*, to_email: str, setup_url: str) -> None:
     if not settings.smtp_host or not settings.smtp_from_email:
         return
 
+    to = _validated_to(to_email)
     msg = EmailMessage()
     msg["Subject"] = "Set up your account"
     msg["From"] = _from_header()
-    msg["To"] = to_email
+    msg["To"] = to
 
     text = (
         "Finish setting up your account by choosing a password.\n\n"

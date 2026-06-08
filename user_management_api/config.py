@@ -31,11 +31,20 @@ AUTH_COOKIE_SAMESITE: str = "lax"
 AUTH_COOKIE_SECURE: bool | None = None
 AUTH_COOKIE_DOMAIN: str = ""
 AUTH_COOKIE_PARTITIONED: bool = False
-AUTH_COOKIE_LEGACY: bool = True
+AUTH_COOKIE_LEGACY: bool = False
 
 # --- SMTP non-credentials (host / user / password / from → ``.env`` only) ---
 SMTP_PORT: int = 25
 SMTP_USE_TLS: bool = False
+# When False (default), do not fall back to port 25 without TLS on connection errors.
+SMTP_ALLOW_LEGACY_PORT25_FALLBACK: bool = False
+
+# --- Rate limiting (in-process; use proxy limits for multi-worker) ---
+RATE_LIMIT_ENABLED: bool = True
+RATE_LIMIT_AUTH_PER_MINUTE: int = 20
+
+# --- Alembic seed admin (set SEED_ADMIN_ENABLED=1 in env at migrate time to seed) ---
+SEED_ADMIN_ENABLED: bool = True
 
 # --- Directory client (service URL → ``.env`` only) ---
 DIRECTORY_LOOKUP_TIMEOUT_S: int = 5

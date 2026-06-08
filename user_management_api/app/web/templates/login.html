@@ -16,6 +16,9 @@
     {% endif %}
 
     <form method="post" action="{{ base_path }}/login">
+      {% if csrf_token %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      {% endif %}
       <label for="email">Email</label>
       <input
         id="email"
@@ -34,13 +37,16 @@
     </form>
 
     <div style="margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 14px;">
-      <details {% if reset_url or reset_error or reset_email %}open{% endif %}>
+      <details>
         <summary style="cursor: pointer; font-size: 14px; font-weight: bold; color: #0072B2; outline: none; user-select: none;">
           Forgot your password?
         </summary>
 
         <div style="margin-top: 12px; padding: 12px; background-color: rgba(0,0,0,0.02); border-radius: 6px;">
           <form method="post" action="{{ base_path }}/password/forgot-form">
+            {% if csrf_token %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            {% endif %}
             <label for="reset_email" style="margin-top: 0;">Email</label>
             <input
               id="reset_email"
@@ -54,13 +60,6 @@
             <button type="submit">Send reset link</button>
           </form>
 
-          {% if reset_url %}
-            <div class="ok" style="margin-top: 10px;">
-              Reset link created for <code>{{ reset_email }}</code>
-            </div>
-            <label>Reset link</label>
-            <pre style="margin: 6px 0 0; white-space: pre-wrap; word-break: break-all;">{{ reset_url }}</pre>
-          {% endif %}
         </div>
       </details>
     </div>

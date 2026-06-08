@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -12,8 +12,16 @@ class ForgotPasswordResponse(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     token: str
     password: str
+
+
+class InspectResetRequest(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    token: str
 
 
 class ResetPasswordResponse(BaseModel):

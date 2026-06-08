@@ -58,6 +58,9 @@
 
     <h3 style="margin-top: 18px;">Edit</h3>
     <form class="acctForm" method="post" action="{{ base_path }}/account">
+      {% if csrf_token %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      {% endif %}
       <div class="acctRow">
         <div>
           <label for="full_name">Full name (optional)</label>
@@ -69,6 +72,9 @@
 
     <h3 style="margin-top: 18px;">Change password</h3>
     <form class="acctForm" method="post" action="{{ base_path }}/account/password" autocomplete="off">
+      {% if csrf_token %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      {% endif %}
       <div class="acctRow">
         <div>
           <label for="current_password">Current password</label>

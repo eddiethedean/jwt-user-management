@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}User Management{% endblock %}</title>
+    {% block head_extra %}{% endblock %}
     <style>
       :root {
         --bg: #0b1020;
@@ -429,6 +430,9 @@
             </div>
             <a class="sessionPill__link" href="{{ base_path }}/account" title="Account">Account</a>
             <form method="post" action="{{ base_path }}/logout" style="margin: 0;">
+              {% if csrf_token %}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              {% endif %}
               <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
             </form>
           </div>

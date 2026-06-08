@@ -127,6 +127,11 @@ def load_wrapped_app(
         "app.routes.admin",
         "app.routes.users",
         "app.routes.password_reset",
+        "app.routes.account",
+        "app.core.email_validation",
+        "app.core.rate_limit",
+        "app.web.csrf",
+        "app.schemas.admin",
         "app.main",
         "app.asgi",
     ):

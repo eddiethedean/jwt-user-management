@@ -10,6 +10,9 @@
     {% endif %}
 
     <form method="post" action="{{ base_path }}/register" id="registerForm">
+      {% if csrf_token %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      {% endif %}
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
 
@@ -45,7 +48,7 @@
             if (!res.ok || !res.j || res.j.ok !== true) {
               throw new Error((res.j && res.j.error) || "Failed to send email");
             }
-            setStatus("Email sent");
+            setStatus("If registration is available for this email, you will receive a setup link shortly.");
           })
           .catch(function (err) {
             setStatus('<span style="color: var(--danger); font-weight: 750;">' + (err.message || "Error") + "</span>");

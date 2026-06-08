@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import text
@@ -17,14 +16,17 @@ from fastapi_workbench import (
     safe_redirect,
 )
 from app.core.config import settings
+from app.core.email_validation import validate_email_format
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
-from app.models import InviteToken, User
+from app.models import User
 from app.routes.deps import admin_from_bearer, bearer_scheme, user_from_token
 from app.routes.email_links import external_accept_invite_url
-from app.services.directory import lookup_email
+from app.schemas.admin import AdminUpdateUserRequest
+from app.services.directory import lookup_email_async
 from app.services.email import send_invite_email
-from app.services.tokens import invalidate_unused_invite_tokens
+from app.services.tokens import create_invite_token_atomic
+from app.web.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from app.web.session import get_auth_token
 from app.web.templates import templates
 
@@ -67,7 +69,7 @@ async def admin_invite_lookup(
         return JSONResponse({"ok": True})
 
     try:
-        rec = lookup_email(email_n)
+        rec = await lookup_email_async(email_n)
     except Exception:
         return JSONResponse(
             {"ok": False, "error": "Directory lookup failed"},
@@ -92,7 +94,7 @@ async def admin_invite_lookup(
 @router.patch("/admin/users/{user_id}")
 async def admin_api_update_user(
     user_id: int,
-    payload: dict = Body(...),
+    payload: AdminUpdateUserRequest,
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
@@ -101,29 +103,27 @@ async def admin_api_update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    fields_set = payload.model_fields_set
+
     if user.id == admin.id:
-        if "is_active" in payload and bool(payload.get("is_active")) != bool(
-            user.is_active
-        ):
+        if "is_active" in fields_set and payload.is_active != bool(user.is_active):
             raise HTTPException(
                 status_code=400,
                 detail="You can’t modify your own role/status here",
             )
-        if "is_admin" in payload and bool(payload.get("is_admin")) != bool(
-            user.is_admin
-        ):
+        if "is_admin" in fields_set and payload.is_admin != bool(user.is_admin):
             raise HTTPException(
                 status_code=400,
                 detail="You can’t modify your own role/status here",
             )
 
-    if "full_name" in payload:
-        fn = str(payload.get("full_name") or "").strip() or None
+    if "full_name" in fields_set:
+        fn = str(payload.full_name or "").strip() or None
         user.full_name = fn
-    if "is_active" in payload:
-        user.is_active = bool(payload.get("is_active"))
-    if "is_admin" in payload:
-        user.is_admin = bool(payload.get("is_admin"))
+    if "is_active" in fields_set and payload.is_active is not None:
+        user.is_active = payload.is_active
+    if "is_admin" in fields_set and payload.is_admin is not None:
+        user.is_admin = payload.is_admin
 
     db.add(user)
     await db.commit()
@@ -191,7 +191,8 @@ async def admin_page(
         )
 
     users = (await db.exec(select(User).order_by(text("id")))).all()
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "admin.html",
         {
@@ -205,8 +206,11 @@ async def admin_page(
             "invite_error": None,
             "invite_email": "",
             "invite_grant_admin": False,
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post("/admin/open", response_class=HTMLResponse, include_in_schema=False)
@@ -282,7 +286,35 @@ async def admin_invite_submit(
         )
     admin_user = await user_from_token(db=db, token=active_token, require_admin=True)
 
-    email_n = _norm_email(email)
+    try:
+        email_n = validate_email_format(email)
+    except ValueError as e:
+        err = str(e)
+        if wants_json:
+            return JSONResponse({"ok": False, "error": err}, status_code=400)
+        users = (await db.exec(select(User).order_by(text("id")))).all()
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
+            request,
+            "admin.html",
+            {
+                "request": request,
+                "users": users,
+                "email": admin_user.email,
+                "session_email": admin_user.email,
+                "token": active_token,
+                "base_path": bp,
+                "invite_url": None,
+                "invite_error": err,
+                "invite_email": "",
+                "invite_grant_admin": bool(grant_admin),
+                "csrf_token": csrf,
+            },
+            status_code=400,
+        )
+        set_csrf_cookie(resp, request=request)
+        return resp
+
     if not email_n:
         err = "Email is required."
         if wants_json:
@@ -329,10 +361,36 @@ async def admin_invite_submit(
             status_code=422,
         )
 
+    existing_user = (
+        await db.exec(select(User).where(User.email == email_n))
+    ).first()
+    if existing_user:
+        err = "User already has an account."
+        if wants_json:
+            return JSONResponse({"ok": False, "error": err}, status_code=409)
+        users = (await db.exec(select(User).order_by(text("id")))).all()
+        return templates.TemplateResponse(
+            request,
+            "admin.html",
+            {
+                "request": request,
+                "users": users,
+                "email": admin_user.email,
+                "session_email": admin_user.email,
+                "token": active_token,
+                "base_path": bp,
+                "invite_url": None,
+                "invite_error": err,
+                "invite_email": email_n,
+                "invite_grant_admin": bool(grant_admin),
+            },
+            status_code=409,
+        )
+
     if settings.directory_lookup_url:
         rec = None
         try:
-            rec = lookup_email(email_n)
+            rec = await lookup_email_async(email_n)
         except Exception:
             rec = None
         if settings.directory_lookup_required and not rec:
@@ -359,20 +417,9 @@ async def admin_invite_submit(
             )
 
     make_admin = bool(grant_admin)
-    raw = InviteToken.new_raw_token()
-    token_hash = InviteToken.hash_token(raw)
-    now = datetime.now(timezone.utc)
-    await invalidate_unused_invite_tokens(db, email=email_n, now=now)
-    invite = InviteToken(
-        email=email_n,
-        token_hash=token_hash,
-        created_at=now,
-        expires_at=now + timedelta(days=7),
-        used_at=None,
-        grant_admin=make_admin,
+    raw = await create_invite_token_atomic(
+        db, email=email_n, grant_admin=make_admin
     )
-    db.add(invite)
-    await db.commit()
 
     invite_url = external_accept_invite_url(request, token=raw)
     try:
@@ -384,7 +431,8 @@ async def admin_invite_submit(
         return JSONResponse({"ok": True, "invite_url": invite_url})
 
     users = (await db.exec(select(User).order_by(text("id")))).all()
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "admin.html",
         {
@@ -397,8 +445,11 @@ async def admin_invite_submit(
             "invite_error": None,
             "invite_email": email_n,
             "invite_grant_admin": make_admin,
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.get(
@@ -440,7 +491,8 @@ async def admin_user_edit_page(
             status_code=404,
         )
 
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "admin_user_edit.html",
         {
@@ -450,8 +502,11 @@ async def admin_user_edit_page(
             "session_email": admin_user.email,
             "is_self": bool(admin_user.id == user_id),
             "user": user,
+            "csrf_token": csrf,
         },
     )
+    set_csrf_cookie(resp, request=request)
+    return resp
 
 
 @router.post(
@@ -465,8 +520,10 @@ async def admin_user_update(
     full_name: Optional[str] = Form(default=None),
     is_admin: Optional[str] = Form(default=None),
     is_active: Optional[str] = Form(default=None),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     token = get_auth_token(request)
     if not token:
         return safe_redirect(request, "/login", status_code=303)
@@ -503,8 +560,10 @@ async def admin_user_delete(
     request: Request,
     user_id: int = Path(..., ge=1),
     confirm: Optional[str] = Form(default=None),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:

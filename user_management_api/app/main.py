@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
+from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.staticfiles import StaticFiles
 from fastapi_workbench import (
     base_path as wb_base_path,
@@ -15,6 +16,9 @@ from app.routes.auth import router as auth_router
 from app.routes.password_reset import router as password_reset_router
 from app.routes.invites import router as invites_router
 from app.routes.users import router as users_router
+from app.db import get_db
+from app.routes.deps import user_from_token
+from app.web.session import get_auth_token
 
 from typing import Literal, cast
 
@@ -135,8 +139,17 @@ async def meta(request: Request) -> JSONResponse:
 
 
 @app.get("/", include_in_schema=False)
-async def root(request: Request) -> Response:
+async def root(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> Response:
     accept = (request.headers.get("accept") or "").lower()
     if "text/html" in accept or "*/*" in accept:
-        return safe_redirect(request, "/register", status_code=302)
+        token = get_auth_token(request)
+        if token:
+            try:
+                await user_from_token(db=db, token=token)
+                return safe_redirect(request, "/users", status_code=302)
+            except HTTPException:
+                pass
+        return safe_redirect(request, "/login", status_code=302)
     return JSONResponse({"ok": True, "service": "user_management_api", "docs": "/docs"})

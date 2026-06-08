@@ -93,6 +93,9 @@ class Settings:
         "auth_cookie_legacy",
         "smtp_port",
         "smtp_use_tls",
+        "smtp_allow_legacy_port25_fallback",
+        "rate_limit_enabled",
+        "rate_limit_auth_per_minute",
         "directory_lookup_timeout_s",
         "directory_lookup_required",
         "directory_lookup_verify_ssl",
@@ -137,6 +140,14 @@ class Settings:
 
         self.smtp_port = int(getattr(d, "SMTP_PORT", 25))
         self.smtp_use_tls = bool(getattr(d, "SMTP_USE_TLS", False))
+        self.smtp_allow_legacy_port25_fallback = bool(
+            getattr(d, "SMTP_ALLOW_LEGACY_PORT25_FALLBACK", False)
+        )
+
+        self.rate_limit_enabled = bool(getattr(d, "RATE_LIMIT_ENABLED", True))
+        self.rate_limit_auth_per_minute = int(
+            getattr(d, "RATE_LIMIT_AUTH_PER_MINUTE", 20)
+        )
 
         self.directory_lookup_timeout_s = int(getattr(d, "DIRECTORY_LOOKUP_TIMEOUT_S", 5))
         self.directory_lookup_required = bool(

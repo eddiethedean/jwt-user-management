@@ -497,28 +497,6 @@ def _render_accept_invite() -> None:
         unsafe_allow_html=True,
     )
     invite_token = st.text_input("Invite token", key="invite_token")
-    if st.button("Lookup invite", key="invite_lookup"):
-        resp = _post_json("/invites/inspect", json={"token": invite_token})
-        if resp is None:
-            st.stop()
-        if resp.is_success:
-            st.session_state["_invite_info"] = safe_json(resp)
-        else:
-            show_http_error("Invite not found", resp)
-            st.session_state.pop("_invite_info", None)
-
-    inv = st.session_state.get("_invite_info", {})
-    if isinstance(inv, dict) and inv.get("email"):
-        st.text_input(
-            "Email",
-            value=str(inv.get("email", "")),
-            disabled=True,
-            key=f"invite_email_ro_{inv.get('email')}",
-        )
-        st.markdown(
-            '<p class="um-cardHint">This invite is tied to this email address.</p>',
-            unsafe_allow_html=True,
-        )
 
     invite_name = st.text_input(
         "Full name (optional)", key="invite_full_name", placeholder="Jane Doe"
@@ -566,28 +544,6 @@ def _render_reset_password() -> None:
         unsafe_allow_html=True,
     )
     token = st.text_input("Reset token", key="reset_token")
-    if st.button("Lookup reset link", key="reset_lookup"):
-        resp = _post_json("/password/inspect", json={"token": token})
-        if resp is None:
-            st.stop()
-        if resp.is_success:
-            st.session_state["_reset_info"] = safe_json(resp)
-        else:
-            show_http_error("Reset link not found", resp)
-            st.session_state.pop("_reset_info", None)
-
-    ri = st.session_state.get("_reset_info", {})
-    if isinstance(ri, dict) and ri.get("email"):
-        st.text_input(
-            "Email",
-            value=str(ri.get("email", "")),
-            disabled=True,
-            key=f"reset_email_ro_{ri.get('email')}",
-        )
-        st.markdown(
-            '<p class="um-cardHint">This reset link is tied to this email address.</p>',
-            unsafe_allow_html=True,
-        )
 
     new_password = st.text_input(
         "New password", type="password", key="reset_new_password"
