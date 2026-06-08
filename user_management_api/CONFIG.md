@@ -135,11 +135,23 @@ In-process limits apply per worker; use proxy-level limits for multi-worker depl
 | `DIRECTORY_LOOKUP_REQUIRED` | `False` | Reject invites when directory has no match |
 | `DIRECTORY_LOOKUP_VERIFY_SSL` | `True` | Verify TLS certificates |
 
-### Invites / registration
+### Self-registration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INVITE_ALLOWED_EMAIL_DOMAINS` | `("socom.mil", "soc.mil")` | Allowed email domain suffixes (after `@`) |
+| `SELF_REGISTRATION_ENABLED` | `True` | When `False`, hides the Register nav link, removes login-page register link, and returns 403 / redirects away from `/register` |
+
+Invite-only deployments should set:
+
+```python
+SELF_REGISTRATION_ENABLED: bool = False
+```
+
+### Invites / registration domains
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INVITE_ALLOWED_EMAIL_DOMAINS` | `("socom.mil", "soc.mil")` | Allowed email domain suffixes (after `@`) for invites and self-registration |
 
 ### User roles
 

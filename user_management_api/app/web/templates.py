@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Any, cast
 
 from fastapi.templating import Jinja2Templates
+
+from app.models import User
 
 _ROOT = Path(__file__).resolve().parent
 
@@ -73,16 +76,24 @@ def _configured_user_roles() -> tuple[str, ...]:
     return settings.user_roles
 
 
-def _user_role_list(user: object) -> list[str]:
+def _self_registration_enabled() -> bool:
+    from app.core.config import settings
+
+    return settings.self_registration_enabled
+
+
+def _user_role_list(user: User) -> list[str]:
     from app.core.config import settings
     from app.core.roles import display_user_roles
 
-    return display_user_roles(user, settings.user_roles)  # type: ignore[arg-type]
+    return display_user_roles(user, settings.user_roles)
 
 
-templates.env.globals["app_title"] = _app_title
-templates.env.globals["brand_tag"] = _brand_tag
-templates.env.globals["brand_tag_title"] = _brand_tag_title
-templates.env.globals["brand_stack"] = _brand_stack
-templates.env.globals["configured_user_roles"] = _configured_user_roles
-templates.env.globals["user_role_list"] = _user_role_list
+_jinja_globals = cast(dict[str, Any], templates.env.globals)
+_jinja_globals["app_title"] = _app_title
+_jinja_globals["brand_tag"] = _brand_tag
+_jinja_globals["brand_tag_title"] = _brand_tag_title
+_jinja_globals["brand_stack"] = _brand_stack
+_jinja_globals["configured_user_roles"] = _configured_user_roles
+_jinja_globals["self_registration_enabled"] = _self_registration_enabled
+_jinja_globals["user_role_list"] = _user_role_list

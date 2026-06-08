@@ -149,9 +149,7 @@ async def meta(request: Request) -> JSONResponse:
 
 
 @app.get("/", include_in_schema=False)
-async def root(
-    request: Request, db: AsyncSession = Depends(get_db)
-) -> Response:
+async def root(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
     accept = (request.headers.get("accept") or "").lower()
     if "text/html" in accept or "*/*" in accept:
         token = get_auth_token(request)

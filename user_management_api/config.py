@@ -54,6 +54,10 @@ DIRECTORY_LOOKUP_TIMEOUT_S: int = 5
 DIRECTORY_LOOKUP_REQUIRED: bool = False
 DIRECTORY_LOOKUP_VERIFY_SSL: bool = True
 
+# --- Self-registration ---
+# When False, hide the Register nav link and disable GET/POST /register.
+SELF_REGISTRATION_ENABLED: bool = True
+
 # --- Invite / self-registration email domains (suffix after ``@``) ---
 INVITE_ALLOWED_EMAIL_DOMAINS: tuple[str, ...] = ("socom.mil", "soc.mil")
 

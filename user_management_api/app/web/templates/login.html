@@ -3,7 +3,13 @@
 {% block body %}
   <div class="card">
     <h2>Sign in</h2>
-    <p class="muted">Use the email and password from your invite or registration.</p>
+    <p class="muted">
+      {% if self_registration_enabled() %}
+      Use the email and password from your invite or registration.
+      {% else %}
+      Use the email and password from your invite.
+      {% endif %}
+    </p>
 
     {% if error %}
       <div class="err">{{ error }}</div>
@@ -35,6 +41,13 @@
 
       <button type="submit">Sign in</button>
     </form>
+
+    {% if self_registration_enabled() %}
+    <p class="muted" style="margin-top: 14px;">
+      Need an account?
+      <a href="{{ base_path }}/register">Register</a>
+    </p>
+    {% endif %}
 
     <div style="margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 14px;">
       <details>

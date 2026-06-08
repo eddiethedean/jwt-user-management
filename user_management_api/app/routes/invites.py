@@ -77,9 +77,7 @@ async def create_invite(
         except Exception:
             raise HTTPException(status_code=422, detail="directory lookup failed")
         if not rec:
-            raise HTTPException(
-                status_code=422, detail="email not found in directory"
-            )
+            raise HTTPException(status_code=422, detail="email not found in directory")
 
     raw = await create_invite_token_atomic(
         db, email=email, grant_admin=payload.grant_admin
@@ -93,7 +91,9 @@ async def create_invite(
 
     invite_row = (
         await db.exec(
-            select(InviteToken).where(InviteToken.token_hash == InviteToken.hash_token(raw))
+            select(InviteToken).where(
+                InviteToken.token_hash == InviteToken.hash_token(raw)
+            )
         )
     ).first()
     expires_at = invite_row.expires_at if invite_row else datetime.now(timezone.utc)
@@ -212,9 +212,7 @@ async def _accept(
     if not invite_email_domain_allowed(invite.email):
         raise HTTPException(status_code=400, detail="Email domain is not allowed")
 
-    existing = (
-        await db.exec(select(User).where(User.email == invite.email))
-    ).first()
+    existing = (await db.exec(select(User).where(User.email == invite.email))).first()
     if existing:
         raise HTTPException(
             status_code=400,
@@ -225,9 +223,7 @@ async def _accept(
     if consumed != 1:
         raise HTTPException(status_code=400, detail="Invite already used")
 
-    dup = (
-        await db.exec(select(User).where(User.email == invite.email))
-    ).first()
+    dup = (await db.exec(select(User).where(User.email == invite.email))).first()
     if dup:
         raise HTTPException(
             status_code=400,

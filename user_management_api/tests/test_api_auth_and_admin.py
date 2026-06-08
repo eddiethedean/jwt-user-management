@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
 from api_test_helpers import (
-    FakeHttpxResponse,
     bearer_for,
     load_wrapped_app,
     seed_admin,
@@ -115,9 +113,7 @@ def test_invites_accept_creates_user_and_marks_token_used(
         assert verify_password("longpassword1", u.hashed_password)
 
 
-def test_invites_accept_sets_country_from_directory(
-    tmp_path, monkeypatch
-) -> None:
+def test_invites_accept_sets_country_from_directory(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'accept.db'}"
     from fastapi.testclient import TestClient
 
@@ -129,18 +125,14 @@ def test_invites_accept_sets_country_from_directory(
     raw = seed_unused_invite(db_engine=db.engine, email="user@example.com")
 
     async def _fake_lookup(email: str):
-        return directory.DirectoryEmailRecord(
-            email="user@example.com", country="US"
-        )
+        return directory.DirectoryEmailRecord(email="user@example.com", country="US")
 
     import app.routes.invites as invites_routes
 
     monkeypatch.setattr(invites_routes, "lookup_email_async", _fake_lookup)
 
     client = TestClient(app, base_url="http://testserver")
-    r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longpassword1"}
-    )
+    r = client.post("/invites/accept", json={"token": raw, "password": "longpassword1"})
     assert r.status_code == 200
 
     h = bearer_for(client, email="user@example.com", password="longpassword1")
@@ -162,9 +154,7 @@ def test_invites_accept_grant_admin(tmp_path) -> None:
         db_engine=db.engine, email="admin2@example.com", grant_admin=True
     )
     client = TestClient(app, base_url="http://testserver")
-    r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longpassword1"}
-    )
+    r = client.post("/invites/accept", json={"token": raw, "password": "longpassword1"})
     assert r.status_code == 200
 
     with Session(db.engine) as s:

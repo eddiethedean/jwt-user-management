@@ -379,9 +379,7 @@ async def admin_invite_submit(
             status_code=422,
         )
 
-    existing_user = (
-        await db.exec(select(User).where(User.email == email_n))
-    ).first()
+    existing_user = (await db.exec(select(User).where(User.email == email_n))).first()
     if existing_user:
         err = "User already has an account."
         if wants_json:
@@ -434,9 +432,7 @@ async def admin_invite_submit(
                 status_code=400,
             )
 
-    raw = await create_invite_token_atomic(
-        db, email=email_n, grant_admin=make_admin
-    )
+    raw = await create_invite_token_atomic(db, email=email_n, grant_admin=make_admin)
 
     invite_url = external_accept_invite_url(request, token=raw)
     try:

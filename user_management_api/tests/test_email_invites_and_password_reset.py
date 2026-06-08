@@ -48,9 +48,7 @@ def _extract_first_text_part(msg) -> str:
     return ""
 
 
-def test_invite_api_sends_email_when_smtp_configured(
-    tmp_path, monkeypatch
-) -> None:
+def test_invite_api_sends_email_when_smtp_configured(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = load_wrapped_app(db_url=db_url)
 

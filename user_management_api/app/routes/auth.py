@@ -52,6 +52,26 @@ def _post_login_dest(user: User) -> str:
     return "/account"
 
 
+def _self_registration_enabled() -> bool:
+    from app.core.config import settings as live_settings
+
+    return live_settings.self_registration_enabled
+
+
+def _self_registration_disabled_redirect(request: Request) -> Response:
+    return safe_redirect(
+        request,
+        "/login?msg=Self-registration%20is%20not%20available.",
+        status_code=303,
+    )
+
+
+def _self_registration_disabled_response(request: Request) -> Response:
+    if _wants_html(request):
+        return _self_registration_disabled_redirect(request)
+    raise HTTPException(status_code=403, detail="Self-registration is disabled")
+
+
 async def _register_user(
     *,
     request: Request,
@@ -105,7 +125,9 @@ async def _register_user(
 async def register_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> HTMLResponse:
+) -> Response:
+    if not _self_registration_enabled():
+        return _self_registration_disabled_redirect(request)
     bp = base_path(request)
     csrf = issue_csrf_token(request)
     session_email = None
@@ -139,6 +161,8 @@ async def register_submit(
     csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    if not _self_registration_enabled():
+        return _self_registration_disabled_response(request)
     validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
     try:
@@ -165,9 +189,7 @@ async def register_submit(
     check_rate_limit(request, scope="register", email=email_n)
     wants_html = _wants_html(request)
 
-    ok, _email_sent, err = await _register_user(
-        request=request, email_n=email_n, db=db
-    )
+    ok, _email_sent, err = await _register_user(request=request, email_n=email_n, db=db)
 
     if err:
         status = 503 if "not configured" in err.lower() else 400

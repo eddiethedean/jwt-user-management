@@ -53,9 +53,7 @@ def _validate_seed_password(password: str) -> None:
             f"SEED_USER_PASSWORD must be at least {_MIN_PASSWORD_LEN} characters"
         )
     if password.lower() in _WEAK_PASSWORDS:
-        raise RuntimeError(
-            "SEED_USER_PASSWORD is too weak; choose a stronger password"
-        )
+        raise RuntimeError("SEED_USER_PASSWORD is too weak; choose a stronger password")
 
 
 def upgrade() -> None:
@@ -101,8 +99,6 @@ def downgrade() -> None:
         return
     conn = op.get_bind()
     conn.execute(
-        sa.text(
-            "DELETE FROM users WHERE email = :email AND is_admin = 0"
-        ),
+        sa.text("DELETE FROM users WHERE email = :email AND is_admin = 0"),
         {"email": email},
     )

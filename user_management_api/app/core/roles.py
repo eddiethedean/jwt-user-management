@@ -10,11 +10,7 @@ from app.models import User
 def parse_user_roles(raw: str | None) -> frozenset[str]:
     if not raw:
         return frozenset()
-    return frozenset(
-        part.strip()
-        for part in str(raw).split(",")
-        if part.strip()
-    )
+    return frozenset(part.strip() for part in str(raw).split(",") if part.strip())
 
 
 def serialize_user_roles(roles: Iterable[str]) -> str | None:
@@ -29,9 +25,7 @@ def normalize_selected_roles(
     return frozenset(r for r in selected if r in allowed)
 
 
-def effective_user_roles(
-    user: User, allowed_roles: tuple[str, ...]
-) -> frozenset[str]:
+def effective_user_roles(user: User, allowed_roles: tuple[str, ...]) -> frozenset[str]:
     stored = parse_user_roles(getattr(user, "roles", None))
     if stored:
         return stored

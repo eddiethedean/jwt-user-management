@@ -12,9 +12,7 @@ from starlette.requests import Request
 @pytest.fixture(autouse=True)
 def _isolated_app_config(monkeypatch, tmp_path):
     """Reload ``app.core.config`` and ``app.web.session`` without pollution from other API tests."""
-    api_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..")
-    )
+    api_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     if api_root not in sys.path:
         sys.path.insert(0, api_root)
 

@@ -64,9 +64,7 @@ async def change_my_password(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    check_rate_limit(
-        request, scope="password_change", email=current_user.email
-    )
+    check_rate_limit(request, scope="password_change", email=current_user.email)
     cur = str(payload.get("current_password") or "")
     new = str(payload.get("new_password") or "")
     confirm = str(payload.get("confirm_password") or "")

@@ -374,8 +374,10 @@
               Manage users, invites, and organization settings.
             {% elif _nav_email %}
               View and update your profile and password.
-            {% else %}
+            {% elif self_registration_enabled() %}
               Sign in or register to access your account.
+            {% else %}
+              Sign in to access your account.
             {% endif %}
           </div>
           <div class="brandStack" aria-label="Stack">
@@ -411,10 +413,12 @@
                 Account
               </a>
             {% else %}
+              {% if self_registration_enabled() %}
               <a class="navLink {% if _rel == '/register' %}navLink--active{% endif %}" href="{{ base_path }}/register">
                 <span class="navDot" aria-hidden="true"></span>
                 Register
               </a>
+              {% endif %}
               <a class="navLink {% if _rel == '/login' or _rel.startswith('/password/') or _rel.startswith('/invites/') %}navLink--active{% endif %}" href="{{ base_path }}/login">
                 <span class="navDot" aria-hidden="true"></span>
                 Sign in

@@ -22,6 +22,9 @@ def _fake_directory_response(*args, **kwargs):
 
 
 class _FakeSyncClient:
+    def __init__(self, *args, **kwargs):
+        pass
+
     def __enter__(self):
         return self
 
@@ -63,9 +66,7 @@ def test_register_creates_setup_token(tmp_path, monkeypatch) -> None:
     assert "email_sent" not in data
 
 
-def test_lookup_parses_country_from_directory_response(
-    tmp_path, monkeypatch
-) -> None:
+def test_lookup_parses_country_from_directory_response(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     load_wrapped_app(db_url=db_url, enable_directory=True)
 
@@ -85,6 +86,9 @@ def test_lookup_strips_c_prefix_from_country(tmp_path, monkeypatch) -> None:
     import app.services.directory as directory
 
     class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
         def __enter__(self):
             return self
 
@@ -94,9 +98,7 @@ def test_lookup_strips_c_prefix_from_country(tmp_path, monkeypatch) -> None:
         def get(self, *args, **kwargs):
             return FakeHttpxResponse(
                 status_code=200,
-                json_data={
-                    "attributes": {"mail": ["user@example.com"], "c": ["C=US"]}
-                },
+                json_data={"attributes": {"mail": ["user@example.com"], "c": ["C=US"]}},
             )
 
     monkeypatch.setattr(directory.httpx, "Client", _Client)
@@ -122,6 +124,9 @@ def test_lookup_accepts_json_string_payload(tmp_path, monkeypatch) -> None:
     }
 
     class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
         def __enter__(self):
             return self
 
@@ -152,6 +157,9 @@ def test_invites_accept_succeeds_when_directory_returns_404(
     raw = seed_unused_invite(db_engine=db.engine, email="nobody@example.com")
 
     class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
         async def __aenter__(self):
             return self
 
@@ -164,9 +172,7 @@ def test_invites_accept_succeeds_when_directory_returns_404(
     monkeypatch.setattr(directory.httpx, "AsyncClient", _Client)
 
     client = TestClient(app, base_url="http://testserver")
-    r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longpassword1"}
-    )
+    r = client.post("/invites/accept", json={"token": raw, "password": "longpassword1"})
     assert r.status_code == 200
     assert r.json().get("ok") is True
 

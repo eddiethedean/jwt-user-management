@@ -82,6 +82,30 @@ def test_inspect_requires_admin(app_client, db_engine) -> None:
     assert r2.status_code == 200
 
 
+def test_self_registration_disabled_blocks_register(
+    app_client, db_engine, monkeypatch
+) -> None:
+    import app.core.config as config_mod
+
+    monkeypatch.setattr(config_mod._defaults, "SELF_REGISTRATION_ENABLED", False)
+    config_mod.refresh_settings()
+    csrf, _ = _csrf_from_login_page(app_client)
+    r_html = app_client.get("/register", follow_redirects=False)
+    assert r_html.status_code in (302, 303)
+    assert "/login" in (r_html.headers.get("location") or "")
+    r_json = app_client.post(
+        "/register",
+        data={"email": "new@example.com", "csrf_token": csrf},
+        headers={"Accept": "application/json"},
+    )
+    assert r_json.status_code == 403
+    r_login = app_client.get("/login")
+    assert r_login.status_code == 200
+    assert "/register" not in r_login.text
+    monkeypatch.setattr(config_mod._defaults, "SELF_REGISTRATION_ENABLED", True)
+    config_mod.refresh_settings()
+
+
 def test_register_json_same_response_existing_user(app_client, db_engine) -> None:
     seed_user(db_engine=db_engine, email="exists@example.com", password="longpassword1")
     csrf, _ = _csrf_from_login_page(app_client)
@@ -125,6 +149,7 @@ def test_accept_ignores_directory_email_mismatch(tmp_path, monkeypatch) -> None:
     import app.services.directory as directory
 
     raw = seed_unused_invite(db_engine=db.engine, email="user@example.com")
+
     class _FakeAsyncClient:
         def __init__(self, *args, **kwargs):
             pass
@@ -149,9 +174,7 @@ def test_accept_ignores_directory_email_mismatch(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(directory.httpx, "AsyncClient", _FakeAsyncClient)
 
     client = TestClient(app, base_url="http://testserver")
-    r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longpassword1"}
-    )
+    r = client.post("/invites/accept", json={"token": raw, "password": "longpassword1"})
     assert r.status_code == 200
     h = bearer_for(client, email="user@example.com", password="longpassword1")
     me = client.get("/users/me", headers=h)
@@ -165,7 +188,6 @@ def test_concurrent_invite_accept_one_wins(tmp_path) -> None:
 
     raw1 = seed_unused_invite(db_engine=db.engine, email="race@example.com")
     raw2 = seed_unused_invite(db_engine=db.engine, email="race@example.com")
-    client = TestClient(app, base_url="http://testserver")
 
     async def accept(token: str):
         from httpx import ASGITransport, AsyncClient
@@ -181,9 +203,7 @@ def test_concurrent_invite_accept_one_wins(tmp_path) -> None:
         return await asyncio.gather(accept(raw1), accept(raw2), return_exceptions=True)
 
     results = asyncio.run(run_both())
-    statuses = [
-        r.status_code if hasattr(r, "status_code") else 500 for r in results
-    ]
+    statuses = [r.status_code if hasattr(r, "status_code") else 500 for r in results]
     assert 200 in statuses
     assert 400 in statuses
 
@@ -360,7 +380,9 @@ def test_reset_does_not_consume_token_when_user_deleted(app_client, db_engine) -
 
     from datetime import timedelta
 
-    uid = seed_user(db_engine=db_engine, email="gone@example.com", password="longpassword1")
+    uid = seed_user(
+        db_engine=db_engine, email="gone@example.com", password="longpassword1"
+    )
 
     raw_token = PasswordResetToken.new_raw_token()
     now = datetime.now(timezone.utc)
@@ -386,7 +408,8 @@ def test_reset_does_not_consume_token_when_user_deleted(app_client, db_engine) -
     with Session(db_engine) as s:
         row = s.exec(
             select(PasswordResetToken).where(
-                PasswordResetToken.token_hash == PasswordResetToken.hash_token(raw_token)
+                PasswordResetToken.token_hash
+                == PasswordResetToken.hash_token(raw_token)
             )
         ).first()
         assert row is not None

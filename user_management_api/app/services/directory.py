@@ -42,7 +42,9 @@ def _norm_country(v: str | None) -> str | None:
     return s or None
 
 
-def _parse_directory_response(data: Any, *, query_email: str) -> DirectoryEmailRecord | None:
+def _parse_directory_response(
+    data: Any, *, query_email: str
+) -> DirectoryEmailRecord | None:
     if isinstance(data, str):
         try:
             data = json.loads(data)
@@ -151,12 +153,11 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
             bool(settings.directory_lookup_required),
             base,
         )
-        with httpx.Client() as client:
+        with httpx.Client(verify=_directory_verify()) as client:
             resp = client.get(
                 base,
                 params={"query": email},
                 timeout=timeout,
-                verify=_directory_verify(),
             )
     except Exception:
         log.exception("Directory lookup: request failed email=%s url=%s", email, base)
@@ -181,12 +182,11 @@ async def lookup_email_async(email: str) -> DirectoryEmailRecord | None:
             bool(settings.directory_lookup_required),
             base,
         )
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=_directory_verify()) as client:
             resp = await client.get(
                 base,
                 params={"query": email},
                 timeout=timeout,
-                verify=_directory_verify(),
             )
     except Exception:
         log.exception("Directory lookup: request failed email=%s url=%s", email, base)

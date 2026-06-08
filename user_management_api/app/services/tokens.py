@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from sqlalchemy import text
+from sqlalchemy.engine import CursorResult
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import InviteToken, PasswordResetToken
@@ -50,7 +52,7 @@ async def try_consume_invite_token(
         ),
         {"now": _db_now(now), "token_hash": token_hash},
     )
-    return int(result.rowcount or 0)
+    return int(cast(CursorResult, result).rowcount or 0)
 
 
 async def try_consume_reset_token(
@@ -64,7 +66,7 @@ async def try_consume_reset_token(
         ),
         {"now": _db_now(now), "token_hash": token_hash},
     )
-    return int(result.rowcount or 0)
+    return int(cast(CursorResult, result).rowcount or 0)
 
 
 async def create_reset_token_atomic(
