@@ -1,20 +1,20 @@
-# Backend (bare-bones)
+# User Management API
 
-**Full from-scratch setup:** see the repository root [`README.md`](../README.md#setup-from-scratch) (Option A for API + Streamlit, Option B for FluxLit only).
+FastAPI + SQLModel + Alembic service with **JWT authentication**, **invite and password-reset flows**, and a **server-rendered HTML UI** on the same port as `/docs`.
 
-Minimal FastAPI + SQLModel + Alembic app with:
-- **JWT auth**: obtain token via form login or API token endpoint
-- **SQLite** persistence
+**Full from-scratch setup (repo root):** [`../README.md`](../README.md#setup-from-scratch)
 
-The browser UI is the **separate** Streamlit app in `../user_management_streamlit/`; configure it with **`BACKEND_URL`** pointing at this API.
+| Doc | Purpose |
+|-----|---------|
+| [`CONFIG.md`](CONFIG.md) | Every `config.py` and `.env` setting |
+| [`USER_GUIDE.md`](USER_GUIDE.md) | Run, deploy, HTML flows, API usage |
+| [`HTML_UI.md`](HTML_UI.md) | HTML routes, navigation, customization |
 
-## Posit Connect note (HTML UI)
+An alternate **Streamlit** UI lives in [`../user_management_streamlit/`](../user_management_streamlit/) — run it separately with `BACKEND_URL` pointing at this API.
 
-This backend previously included a legacy HTML UI, but when deployed to **Posit Connect** the browser often does **not** persist the login cookie in the embedded Connect context. The legacy HTML UI is now archived under `app/web/archive/`.
+---
 
-For Connect deployments, deploy **`user_management_streamlit/`** as its own Streamlit content (JWT in Streamlit session state) and set **`BACKEND_URL`** to the public URL of this API.
-
-## Run locally
+## Quickstart (local)
 
 Prereqs: **Python 3.10+**.
 
@@ -24,116 +24,127 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+# Edit .env: set a strong JWT_SECRET (or use JWT_ALLOW_WEAK_SECRET=1 for local dev)
 alembic upgrade head
-uvicorn app.asgi:app --reload --port 8001
+JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
 ```
 
-- Docs: `http://127.0.0.1:8001/docs`
+- **HTML UI:** http://127.0.0.1:8001/login  
+- **OpenAPI:** http://127.0.0.1:8001/docs  
+- **Health (JSON):** `curl -H 'Accept: application/json' http://127.0.0.1:8001/`
 
-Start the Streamlit UI separately (see `../user_management_streamlit/README.md`); set `BACKEND_URL=http://127.0.0.1:8001` (or your deployed API URL).
+After migrate, optionally seed users — see [Seeding users](#seeding-users) below.
 
-## Run on Workbench (behind a proxy prefix)
+---
 
-If you’re running behind Posit Workbench / RStudio Server (URLs like `/s/<service>/p/<project>/...`),
-use the runner script so Uvicorn is started with the correct `root_path`:
+## HTML UI
+
+Cookie-based sessions power the built-in UI. Navigation is **role-based**:
+
+| User | Lands on | Nav |
+|------|----------|-----|
+| Guest | `/login` | Register (if enabled), Sign in |
+| Non-admin | `/account` | Account |
+| Admin | `/admin` | Admin, Account |
+
+Key pages: `/login`, `/register` (when `SELF_REGISTRATION_ENABLED`), `/account`, `/admin`, `/admin/users/{id}` (edit user), `/invites/accept`, `/password/reset`.
+
+`/users` (HTML) redirects to `/admin` or `/account`; user listing is on **Admin** only.
+
+Customize branding, roles, and self-registration in **`config.py`** — see [`CONFIG.md`](CONFIG.md).
+
+### Posit Connect
+
+Embedded Connect iframes may drop cookies. For Connect HTML deployments set in **`config.py`**:
+
+```python
+AUTH_COOKIE_DEPLOYMENT: str = "connect"
+```
+
+For maximum reliability on Connect, deploy [`../user_management_streamlit/`](../user_management_streamlit/) instead (JWT in Streamlit session state).
+
+---
+
+## JSON API (summary)
+
+| Endpoint | Auth | Notes |
+|----------|------|-------|
+| `POST /auth/token` | — | Form: `username` (email), `password` → JWT |
+| `GET /users/me` | Bearer | Current user (+ `roles`) |
+| `PATCH /users/me` | Bearer | Update profile |
+| `POST /users/me/password` | Bearer | Change password |
+| `GET /users` | Bearer (admin) | List users (JSON); browser cookie → redirect |
+| `POST /invites` | Bearer (admin) | Create invite |
+| `POST /invites/accept` | — | Accept invite + set password |
+| `POST /password/forgot` | — | Request reset (non-enumerating) |
+| `POST /password/reset` | — | Complete reset |
+| `PATCH /admin/users/{id}` | Bearer (admin) | Update user (incl. `roles`) |
+| `DELETE /admin/users/{id}` | Bearer (admin) | Delete user |
+
+Example:
+
+```bash
+TOKEN="$(curl -sS -X POST http://127.0.0.1:8001/auth/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'username=user@example.com&password=your-password' \
+  | python -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')"
+
+curl -sS http://127.0.0.1:8001/users/me -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Configuration
+
+**Tunables** → edit [`config.py`](config.py) only (branding, roles, rate limits, cookies, invite domains, `SELF_REGISTRATION_ENABLED`, etc.).
+
+**Secrets** → copy [`.env.example`](.env.example) to `.env` (`DATABASE_URL`, `JWT_SECRET`, SMTP, directory URL).
+
+Full reference: [`CONFIG.md`](CONFIG.md).
+
+---
+
+## Workbench / reverse proxy
+
+Behind Posit Workbench or a path prefix, use the runner:
 
 ```bash
 cd user_management_api
 python run_workbench.py
 ```
 
-Notes:
-- The Workbench-specific logic (path normalization, safe redirects, external URL building) lives in the reusable package `fastapi_workbench/` at the repo root.
-- If Workbench sets `RS_SERVER_URL`, the runner calls `rserver-url` to infer the prefix automatically.
-- You can also set `BASE_PATH=/s/<service>/p/<project>` explicitly.
-- You can override the port with `PORT=8001` (otherwise a free port is chosen).
-- For browser-routable invite links, set `PUBLIC_BASE_URL=https://<your-workbench-host>` in **`config.py`** (the runner may still set the process **`PUBLIC_BASE_URL`** environment variable when `rserver-url` returns a full external URL for workbench URL helpers).
+Workbench helpers live in [`../fastapi_workbench/`](../fastapi_workbench/). Set `BASE_PATH` and `PUBLIC_BASE_URL` in **`config.py`** for correct invite/reset links.
 
-## HTML pages
+---
 
-The legacy HTML UI is archived and no longer served.
+## Seeding users
 
-## JSON API
+Migrations are **opt-in** at `alembic upgrade head` time (env vars in `.env` or shell):
 
-- JWT token: `POST /auth/token` (form-encoded: `username` = email, `password`)
-- Current user: `GET /users/me` (Bearer)
-- List users: `GET /users` (Bearer)
-- Create invite (admin only): `POST /invites` (Bearer; body: `{ "email": "..." }`)
-- Accept invite: `POST /invites/accept` (body: `{ "token": "...", "password": "..." }`)
-
-Example:
+**Admin** (`0002_seed_admin`):
 
 ```bash
-TOKEN="$(curl -sS -X POST http://127.0.0.1:8001/auth/token \\
-  -H 'Content-Type: application/x-www-form-urlencoded' \\
-  -d 'username=test@example.com&password=pass' | python -c 'import sys, json; print(json.load(sys.stdin)[\"access_token\"])')"
-
-curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
+SEED_ADMIN_ENABLED=1 SEED_ADMIN_PASSWORD='your-strong-password' alembic upgrade head
 ```
 
-## Environment
+**Non-admin** (`0003_seed_user`) — requires both `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` (min 12 chars).
 
-See **[`CONFIG.md`](CONFIG.md)** for a full reference of every `config.py` and `.env` setting (branding, roles, seeds, cookies, rate limits, etc.).
+---
 
-- **Tunables (no secrets):** `PUBLIC_BASE_URL`, `UI_PUBLIC_BASE_URL`, `INVITE_ALLOWED_EMAIL_DOMAINS`, `BASE_PATH`, cookie flags, `JWT_ALGORITHM`, `JWT_EXPIRES_MINUTES`, SMTP port/TLS defaults, directory timeout/required/verify flags — edit **`config.py`** in this directory (`user_management_api/config.py`) only. Do not duplicate these keys in **`.env`**.
+## Development checks
 
-- **Secrets and deployment endpoints:** copy **`.env.example`** to **`.env`** and set **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials if you send mail, **`DIRECTORY_LOOKUP_URL`** / **`DIRECTORY_LOOKUP_CA_BUNDLE`** when you use directory lookup, and **`SEED_*`** if you customize seeding.
-
-### Optional: directory (LDAP) lookup
-
-Use this when an external HTTP service can confirm that an email exists in your directory (for example LDAP-backed APIs on Posit Connect).
-
-1. Set **`DIRECTORY_LOOKUP_URL`** in `.env` to the **base URL** of the lookup service. The backend issues:
-
-   `GET <DIRECTORY_LOOKUP_URL>?query=<url-encoded-email>`
-
-2. The response must be JSON with an **`attributes`** object. The backend reads:
-
-   - **Email:** `attributes.mail` or `attributes.userPrincipalName` (string or first element of an array).
-   - **Display name:** optional `displayName` or `cn`.
-   - **Country:** optional `c` or `co`. Values like `C=US` are normalized to `US` for storage and JWT claims.
-
-3. **`DIRECTORY_LOOKUP_REQUIRED`**: when `true`, failed directory HTTP responses or invalid JSON from the directory service can cause **`lookup_email`** to raise (used only for optional enrichment). **Invites and self-registration are not blocked** when the directory returns “not found”; directory data is used to set **`user.country`** (and related fields) when a user **accepts** an invite if a record is available.
-
-4. Other knobs: **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`** — booleans and timeout are defined in **`config.py`**. **`DIRECTORY_LOOKUP_CA_BUNDLE`** is a filesystem path and belongs in **`.env`** only.
-
-5. **Invite / registration domains:** edit the **`INVITE_ALLOWED_EMAIL_DOMAINS`** tuple in **`config.py`** (defaults **`socom.mil`**, **`soc.mil`**). Add suffixes such as **`example.com`** for local demos.
-
-The admin **`POST /invites/lookup`** preview returns directory **country** (and display fields) when the service responds; if the service errors or is disabled, the response still succeeds with empty strings.
-
-### Optional: SMTP (invites, self-registration, password reset)
-
-Set **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** (and port, TLS, credentials as needed) so the API can send **invite**, **self-registration setup**, and **password reset** emails. If SMTP is not configured, invite and reset flows still create tokens and return URLs in API responses; email calls are skipped where implemented as no-ops. When SMTP is configured but sending fails, the server logs an error (without changing the non-enumerating JSON responses for forgot-password).
-
-### Seed an initial admin user (optional, opt-in)
-
-Revision `0002_seed_admin` does **not** create an admin unless you explicitly enable seeding at migrate time:
+From `user_management_api/`:
 
 ```bash
-SEED_ADMIN_ENABLED=1 \
-SEED_ADMIN_PASSWORD='your-strong-password-here' \
-alembic upgrade head
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/pytest -q tests
 ```
 
-Optional overrides:
-
-- `SEED_ADMIN_EMAIL` (default `admin@example.com`)
-- `SEED_ADMIN_PASSWORD` (required when seeding; min 12 characters; weak defaults rejected)
-
-### Seed a normal user (optional)
-
-Revision `0003_seed_user` creates a **non-admin** account when both variables are set in `.env` (or the environment) at migrate time:
-
-- `SEED_USER_EMAIL`
-- `SEED_USER_PASSWORD` (min 12 characters; weak defaults rejected)
-
-If either is missing, the migration is a no-op. The insert is idempotent (skips when the email already exists).
-
-## Run tests
-
-In some environments, globally installed pytest plugins can break test runs. Use:
+From repo root (format, lint, typecheck):
 
 ```bash
-cd user_management_api
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests
+ruff format --check user_management_api
+ruff check user_management_api
+ty check user_management_api
 ```
+
+Or use `./run_tests.sh` inside `user_management_api/`.

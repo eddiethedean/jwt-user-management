@@ -209,11 +209,31 @@ BRAND_STACK: tuple[str, ...] = ("FastAPI", "PostgreSQL")
 ## Quick start checklist
 
 1. `cp .env.example .env` and set `JWT_SECRET` (and `DATABASE_URL` if not SQLite).
-2. Edit `config.py` for your org: `INVITE_ALLOWED_EMAIL_DOMAINS`, branding, roles.
+2. Edit `config.py` for your org: `INVITE_ALLOWED_EMAIL_DOMAINS`, branding, roles, `SELF_REGISTRATION_ENABLED`.
 3. `alembic upgrade head` (optionally with `SEED_*` env vars).
-4. `JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --port 8001` for local dev.
+4. `JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001` for local dev.
+5. Open http://127.0.0.1:8001/login — customize appearance via `APP_TITLE`, `BRAND_*`, `BRAND_STACK`.
+
+## Development checks
+
+From `user_management_api/`:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/pytest -q tests
+```
+
+From repository root:
+
+```bash
+ruff format --check user_management_api
+ruff check user_management_api
+ty check user_management_api
+```
+
+Typecheck uses `user_management_api/.venv/bin/python` (see root `pyproject.toml`).
 
 ## Related docs
 
-- [`README.md`](README.md) — run, test, API overview
-- [`USER_GUIDE.md`](USER_GUIDE.md) — deployment and API usage
+- [`README.md`](README.md) — quickstart, API summary, seeding
+- [`USER_GUIDE.md`](USER_GUIDE.md) — HTML flows, deployment, troubleshooting
+- [`HTML_UI.md`](HTML_UI.md) — pages, navigation, HTML security

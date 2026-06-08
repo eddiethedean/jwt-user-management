@@ -1,83 +1,86 @@
 # User guide: `user_management_api`
 
-This guide explains how to **run**, **use**, and **deploy** the FastAPI backend in `user_management_api/`.
+How to **run**, **use**, and **deploy** the FastAPI backend and its built-in HTML UI.
 
-## What this service does
+| Doc | When to read |
+|-----|----------------|
+| [`README.md`](README.md) | Quickstart, API summary, tests |
+| [`CONFIG.md`](CONFIG.md) | All settings (`config.py` + `.env`) |
+| [`HTML_UI.md`](HTML_UI.md) | Pages, nav, branding |
 
-- **User management** (create/update/deactivate users)
-- **JWT authentication** (`/auth/token` issues bearer tokens)
-- **Invites** (admin generates invite links; users accept invites)
-- **Password resets** (request reset link; set a new password)
+---
 
-The browser UI is the **Streamlit** app in `../user_management_streamlit/`, run as a **separate process** with `BACKEND_URL` pointing at this API.
+## What this service provides
 
-## Prerequisites
+- **JWT API** — bearer tokens via `POST /auth/token`
+- **HTML UI** — login, account, admin (same process as the API)
+- **Invites** — admins invite users; accept via link or API
+- **Self-registration** — optional (`SELF_REGISTRATION_ENABLED` in `config.py`)
+- **Password reset** — forgot/reset email flow
+- **Configurable roles** — multi-role assignment on admin edit user (`USER_ROLES` / `ADMIN_ROLES`)
+- **Directory enrichment** — optional HTTP lookup for email/country on invite accept
 
-- Python **3.10+**
-- A virtual environment tool (built-in `venv` is fine)
+**Alternate UI:** Streamlit in [`../user_management_streamlit/`](../user_management_streamlit/) with `BACKEND_URL` set to this API.
 
-## Quickstart (local, SQLite)
+---
 
-From repo root:
+## Quickstart
 
 ```bash
 cd user_management_api
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-uvicorn app.asgi:app --reload --port 8001
+JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
 ```
 
-- **API docs**: `http://127.0.0.1:8001/docs`
+Open http://127.0.0.1:8001/login or http://127.0.0.1:8001/docs .
 
-Run the Streamlit UI from `../user_management_streamlit/` separately; set `BACKEND_URL` there to this API (see that folder’s README).
+---
 
-## Configuration (`.env` and `config.py`)
+## Using the HTML UI
 
-Copy **`.env.example`** to **`.env`** for secrets and deployment endpoints (**`DATABASE_URL`**, **`JWT_SECRET`**, SMTP, **`DIRECTORY_LOOKUP_URL`**, etc.).
+### Guests
 
-### Tunables in `config.py`
+- **Sign in** — `/login`
+- **Register** — `/register` when `SELF_REGISTRATION_ENABLED` is `True` (sends setup email; requires SMTP)
+- **Accept invite** — link from email → `/invites/accept?token=...`
+- **Reset password** — `/password/reset?token=...` or forgot-password form on login page
 
-- **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://127.0.0.1:8001`)
-- **`BASE_PATH`**: optional external path prefix when behind a reverse proxy (e.g. `/connect/app`)
-- **`UI_PUBLIC_BASE_URL`**: optional Streamlit origin for emailed deep links (see root README)
+### Non-admin users
 
-### Core settings (`.env`)
+- After login → **`/account`** (profile + password)
+- Nav: **Account** only
 
-- **`DATABASE_URL`**: default `sqlite:///./app.db`
+### Admins
 
-### Secrets (required for real deployments)
+- After login → **`/admin`** (user list, invites)
+- Edit user → `/admin/users/{id}` (roles, active flag, delete)
+- Nav: **Admin**, **Account**
+- Cannot change own admin/active status or delete self
 
-- **`JWT_SECRET`**: JWT signing key (use a strong secret outside `ENVIRONMENT=dev`)
-- **`SESSION_SECRET`**: admin web session cookie signing secret (use a strong secret outside `ENVIRONMENT=dev`)
+### Root `/`
 
-### Admin access
+- Signed-in → `/admin` or `/account` by role  
+- Guest → `/login`
 
-- **`ADMIN_API_KEY`**: if set, allows admin API access via header `X-Admin-Api-Key`
+---
 
-### Optional email sending
+## Configuration
 
-- **`SMTP_*`**: send invite/reset emails
+**Do not duplicate settings.** Use two files:
 
-### Optional Azure AD validation
+1. **`config.py`** — committed tunables (see [`CONFIG.md`](CONFIG.md))
+2. **`.env`** — secrets (`DATABASE_URL`, `JWT_SECRET`, SMTP, directory URL, seed vars at migrate time)
 
-- **`AZURE_*`**: if set, invite acceptance and invite creation can validate emails against your tenant
+Restart uvicorn after editing `config.py`.
 
-### Airgapped / offline mode
+---
 
-If deployed on an airgapped intranet with no internet access, set:
+## API usage
 
-- **`OFFLINE_MODE=true`**
-
-This disables outbound SaaS integrations (notably Azure AD / Microsoft Graph validation), while keeping intranet integrations like SMTP available.
-
-## How to use the API
-
-### 1) Obtain a JWT
-
-`POST /auth/token` uses **form data** (OAuth2 password flow shape):
+### 1) Get a JWT
 
 ```bash
 curl -sS -X POST "http://127.0.0.1:8001/auth/token" \
@@ -85,145 +88,135 @@ curl -sS -X POST "http://127.0.0.1:8001/auth/token" \
   -d "username=user@example.com&password=your-password"
 ```
 
-Response:
+Returns `access_token` and `token_type: bearer`.
 
-- `access_token`: JWT string
-- `token_type`: `bearer`
-
-### 2) Call authenticated endpoints
-
-Example: get current user:
+### 2) Authenticated calls
 
 ```bash
-TOKEN="...jwt..."
 curl -sS "http://127.0.0.1:8001/users/me" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### 3) Admin endpoints
+Response includes `roles` (derived from the user's assigned roles in `config.py`).
 
-Admin authorization is either:
+### 3) Admin API
 
-- **Admin JWT** (a user with `is_admin=true`), OR
-- **`X-Admin-Api-Key`** matching `ADMIN_API_KEY`
-
-Example: list users with an admin API key:
+Requires a user with `is_admin=true` (any role in `ADMIN_ROLES`).
 
 ```bash
+# List users (JSON only with Bearer; browser cookie redirects to /admin)
 curl -sS "http://127.0.0.1:8001/users" \
-  -H "X-Admin-Api-Key: $ADMIN_API_KEY"
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# Update roles
+curl -sS -X PATCH "http://127.0.0.1:8001/admin/users/2" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"roles": ["User", "Super"]}'
 ```
 
-## UI
+HTML admin actions use cookie auth + CSRF on form posts (`/admin/invite`, `/admin/users/{id}/update`, etc.).
 
-This service is API-first. The legacy HTML UI (including `/admin/`, `/login`, etc.)
-was archived because cookie-based sessions proved unreliable in embedded Posit
-Connect contexts.
-
-The supported UI is the Streamlit app in `../user_management_streamlit/`. Run it as its own Streamlit process and set **`BACKEND_URL`** to the URL of this API (include any path prefix the API is served under).
-
-### Seeding an initial admin user (optional)
-
-When running `alembic upgrade head`, you can seed an initial admin user by setting:
-
-- `SEED_ADMIN_EMAIL`
-- `SEED_ADMIN_PASSWORD`
-- `SEED_ADMIN_FULL_NAME` (optional)
-
-If the email already exists, the migration does nothing.
+---
 
 ## Invites
 
-### Admin creates an invite
+1. Admin creates invite (HTML **Admin** page or `POST /invites` with Bearer).
+2. Email contains link to `/invites/accept?token=...` (built from `PUBLIC_BASE_URL` + `BASE_PATH`).
+3. User sets password; account is created. `grant_admin` on the invite sets admin role when accepted.
 
-`POST /invites` (admin-only). The response includes an `invite_url`.
+Domain allowlist: `INVITE_ALLOWED_EMAIL_DOMAINS` in `config.py`.
 
-### User accepts the invite
+---
 
-- API: `POST /invites/accept`
+## Self-registration
+
+When `SELF_REGISTRATION_ENABLED = True` (default):
+
+- Guest submits email on `/register`
+- Setup email sent (SMTP required)
+- Same accept flow as invites
+
+Set `SELF_REGISTRATION_ENABLED = False` for **invite-only** deployments (nav and routes disabled).
+
+---
 
 ## Password reset
 
-### Request a reset link
+- **Request:** login page → forgot password, or `POST /password/forgot`
+- **Complete:** email link → `/password/reset`, or `POST /password/reset`
+- Responses are non-enumerating (always `ok` on forgot)
 
-`POST /password/forgot` always returns `ok=true` (to avoid account enumeration).
+---
 
-### Reset password
+## Directory (LDAP) lookup
 
-- API: `POST /password/reset`
+Optional enrichment when accepting invites or registering:
 
-## Running behind a reverse proxy (Posit Connect / Workbench / path prefix)
+1. Set `DIRECTORY_LOOKUP_URL` in `.env` — backend calls `GET <url>?query=<email>`
+2. JSON `attributes.mail` / `userPrincipalName`, optional `c` / `co` for country
+3. Tune timeout/required/SSL in `config.py`
 
-If the app is served under an external prefix like:
+A directory “not found” does **not** block invite accept; country is set when a record exists.
 
-- `https://host/connect/app/...`
+---
 
-set:
+## Deployment behind a proxy
 
-- **`BASE_PATH=/connect/app`**
-- **`PUBLIC_BASE_URL=https://host`** (or `https://host/connect/app` depending on how you build external links; see below)
+Set in **`config.py`**:
 
-### Link generation rule of thumb
+- `BASE_PATH` — external prefix (e.g. `/connect/app`)
+- `PUBLIC_BASE_URL` — browser-visible origin for emailed links
 
-- Invite/reset links are generated from **`PUBLIC_BASE_URL + BASE_PATH + /...`**.
-- For most reverse proxies, set:
-  - `PUBLIC_BASE_URL=https://your-host`
-  - `BASE_PATH=/your/prefix`
+For Posit Connect embedded HTML, also consider `AUTH_COOKIE_DEPLOYMENT = "connect"`.
 
-## Local Connect-like proxy (nginx)
+### Local nginx proxy
 
-There is a local nginx proxy under `infra/connect-proxy/` to mimic “served behind a prefix”.
-
-Example:
+See `infra/connect-proxy/` at repo root. Example:
 
 ```bash
-BACKEND_HOST=host.docker.internal \
-BACKEND_PORT=8001 \
-PROXY_PREFIX=/connect/app \
-PROXY_MODE=preserve \
-PROXY_PORT=8080 \
+BACKEND_HOST=host.docker.internal BACKEND_PORT=8001 \
+PROXY_PREFIX=/connect/app PROXY_MODE=preserve PROXY_PORT=8080 \
 docker compose -f infra/connect-proxy/docker-compose.yml up
 ```
 
-Then access the API, for example:
+API docs: http://127.0.0.1:8080/connect/app/docs
 
-- `http://127.0.0.1:8080/connect/app/docs`
+---
 
-Run the Streamlit app in `../user_management_streamlit/` as a separate process. Set `BACKEND_URL` to the browser-visible API base URL (for the example above, `http://127.0.0.1:8080/connect/app`).
+## Seeding users (migrations)
 
-If your proxy strips the prefix before proxying:
+**Admin** — requires `SEED_ADMIN_ENABLED=1` and `SEED_ADMIN_PASSWORD` at migrate time.
 
-- `PROXY_MODE=strip` (nginx strips prefix and sets `X-Forwarded-Prefix`)
+**Non-admin** — requires `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` at migrate time.
+
+Both migrations are idempotent. See [`README.md`](README.md#seeding-users) and [`CONFIG.md`](CONFIG.md).
+
+---
 
 ## Development checks
 
-From repo root (using the repo root venv):
-
 ```bash
-ruff format . && ruff check . && ty check .
+cd user_management_api
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/pytest -q tests
 ```
 
-Run backend tests:
+From repo root:
 
 ```bash
-pytest -q user_management_api/tests
+ruff format --check user_management_api && ruff check user_management_api
+ty check user_management_api
 ```
 
-Run e2e tests (optional):
-
-```bash
-pytest -q e2e
-```
-
-Proxy-mode e2e:
-
-```bash
-E2E_USE_PROXY=1 E2E_PROXY_MODE=preserve pytest -q e2e
-E2E_USE_PROXY=1 E2E_PROXY_MODE=strip pytest -q e2e
-```
+---
 
 ## Troubleshooting
 
-- **Invite/reset links point to the wrong place**: set `PUBLIC_BASE_URL` and `BASE_PATH` correctly for your deployment.
-- **Running behind a proxy**: ensure the proxy forwards `X-Forwarded-*` headers and (for strip mode) sets `X-Forwarded-Prefix`.
-- **Airgapped intranet**: set `OFFLINE_MODE=true` and do not set `AZURE_*`.
+| Problem | Fix |
+|---------|-----|
+| White page / 500 after upgrade | Run `alembic upgrade head` (schema drift, e.g. missing `roles` column) |
+| Invite links wrong host | Set `PUBLIC_BASE_URL` and `BASE_PATH` in `config.py` |
+| Cookies not set on Connect | `AUTH_COOKIE_DEPLOYMENT = "connect"` or use Streamlit UI |
+| Registration unavailable | `SELF_REGISTRATION_ENABLED`, SMTP, and allowed email domains |
+| Weak `JWT_SECRET` rejected | Use 16+ char secret or `JWT_ALLOW_WEAK_SECRET=1` locally |
+| Rate limited | `RATE_LIMIT_*` in `config.py`; trust proxy IPs for XFF |
