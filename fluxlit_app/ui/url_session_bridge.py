@@ -72,8 +72,12 @@ def apply_hydrated_auth(
 def narrow_session_blob(st: Any, auth: Any) -> dict[str, JsonValue]:
     out: dict[str, JsonValue] = {}
     page = st.session_state.get("_page")
-    if page in ("Users", "Admin", "Account"):
+    if page in ("Admin", "Account"):
         out["_page"] = str(page)
+    admin_view = st.session_state.get("_admin_view")
+    if admin_view == "edit" and st.session_state.get("_edit_user_id"):
+        out["_admin_view"] = "edit"
+        out["_edit_user_id"] = int(st.session_state.get("_edit_user_id") or 0)
     return out
 
 

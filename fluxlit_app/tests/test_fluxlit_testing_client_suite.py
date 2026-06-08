@@ -12,102 +12,29 @@ an empty element tree.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
-
-import httpx
 import pytest
 from fluxlit.client import ApiClient
 from fluxlit.testing import FluxLitTestClient
-import fluxlit.testing as _fluxlit_testing
-from sqlmodel import Session
 from starlette.testclient import TestClient
 from streamlit.testing.v1 import AppTest
 
-from fluxlit_test_helpers import load_fluxlit_app
-
-_FLUX_APP_ROOT = Path(__file__).resolve().parents[1]
-_FLUXLIT_MAIN = (
-    Path(_fluxlit_testing.__file__).resolve().parent / "streamlit" / "main.py"
+from fluxlit_test_helpers import load_fluxlit_app, seed_admin, seed_user
+from streamlit_apptest_helpers import (
+    FLUXLIT_MAIN,
+    bridge_api_client,
+    click_button,
+    fluxlit_env,
+    text_input_by_key,
 )
-
-
-def _seed_user(
-    *,
-    db_engine,
-    email: str,
-    password: str,
-    is_admin: bool = False,
-    is_active: bool = True,
-) -> int:
-    from app.core.security import hash_password
-    from app.models import User
-
-    with Session(db_engine) as s:
-        u = User(
-            email=email,
-            hashed_password=hash_password(password),
-            is_admin=is_admin,
-            is_active=is_active,
-            created_at=datetime.now(timezone.utc),
-        )
-        s.add(u)
-        s.commit()
-        s.refresh(u)
-        return int(u.id or 0)
-
-
-def _text_input_by_key(at, key: str):
-    matches = [t for t in at.text_input if getattr(t, "key", None) == key]
-    if not matches:
-        raise AssertionError(f"Text input not found for key={key!r}")
-    return matches[0]
-
-
-def _click_button(at, label: str) -> None:
-    for b in at.button:
-        if getattr(b, "label", None) == label or getattr(b, "value", None) == label:
-            b.click()
-            return
-    raise AssertionError(f"Button not found: {label!r}")
-
-
-@pytest.fixture
-def _patch_api_client(monkeypatch):
-    def _install(handler):
-        monkeypatch.setattr(ApiClient, "request", handler)
-
-    return _install
-
 
 # --- FluxLitTestClient: gateway / OpenAPI ---
 
 
-def test_fluxlit_test_client_api_is_starlette_test_client(tmp_path) -> None:
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'tc.db'}")
+def test_fluxlit_test_client_harness_smoke(tmp_path) -> None:
+    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'harness.db'}")
     tc = FluxLitTestClient(app)
     assert isinstance(tc.api, TestClient)
-
-
-def test_fluxlit_test_client_api_prefix_default(tmp_path) -> None:
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'pfx.db'}")
-    tc = FluxLitTestClient(app)
     assert tc.api_prefix == "/api"
-
-
-def test_fluxlit_test_client_openapi_lists_user_routes(tmp_path) -> None:
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'o.db'}")
-    tc = FluxLitTestClient(app)
-    spec = tc.openapi()
-    paths = spec.get("paths") or {}
-    assert isinstance(paths, dict)
-    assert any("/users/me" in p for p in paths)
-    assert any("/auth/token" in p for p in paths)
-
-
-def test_fluxlit_test_client_openapi_method_matches_raw_get(tmp_path) -> None:
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'o2.db'}")
-    tc = FluxLitTestClient(app)
     raw = tc.api_get("/openapi.json")
     assert raw.status_code == 200
     assert raw.json() == tc.openapi()
@@ -164,7 +91,7 @@ def test_fluxlit_test_client_auth_token_wrong_password(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'tok.db'}")
     import app.db as db
 
-    _seed_user(
+    seed_user(
         db_engine=db.engine,
         email="u@example.com",
         password="right-password",
@@ -182,7 +109,7 @@ def test_fluxlit_test_client_auth_token_success(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'tok2.db'}")
     import app.db as db
 
-    _seed_user(
+    seed_user(
         db_engine=db.engine,
         email="ok@example.com",
         password="secret1234",
@@ -198,15 +125,23 @@ def test_fluxlit_test_client_auth_token_success(tmp_path) -> None:
     assert body.get("token_type") == "bearer"
 
 
-def test_fluxlit_test_client_register_rejects_duplicate_email(tmp_path) -> None:
+def test_register_duplicate_email_returns_ok_without_leak(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'reg.db'}")
     import app.db as db
+    from sqlmodel import Session, select
 
-    _seed_user(db_engine=db.engine, email="dup@example.com", password="x")
+    from app.models import InviteToken
+
+    seed_user(db_engine=db.engine, email="dup@example.com", password="x")
     tc = FluxLitTestClient(app)
     r = tc.api_post("/register", data={"email": "dup@example.com"})
     assert r.status_code == 200
-    assert r.json() == {"ok": True, "email_sent": False}
+    assert r.json() == {"ok": True}
+    with Session(db.engine) as s:
+        invites = s.exec(
+            select(InviteToken).where(InviteToken.email == "dup@example.com")
+        ).all()
+    assert invites == []
 
 
 def test_fluxlit_test_client_register_creates_invite_for_new_email(
@@ -227,14 +162,14 @@ def test_fluxlit_test_client_register_creates_invite_for_new_email(
     body = r.json()
     assert body.get("ok") is True
     assert "setup_url" not in body
-    assert body.get("email_sent") is True
+    assert "email_sent" not in body
 
 
 def test_fluxlit_test_client_bearer_users_me(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'me.db'}")
     import app.db as db
 
-    _seed_user(
+    seed_user(
         db_engine=db.engine,
         email="me@example.com",
         password="pw12345678",
@@ -255,7 +190,7 @@ def test_fluxlit_test_client_rejects_inactive_bearer_user(tmp_path) -> None:
     import app.db as db
     from app.core.security import create_access_token
 
-    uid = _seed_user(
+    uid = seed_user(
         db_engine=db.engine,
         email="inactive@example.com",
         password="pw12345678",
@@ -273,7 +208,7 @@ def test_fluxlit_test_client_patch_me_updates_full_name(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'pn.db'}")
     import app.db as db
 
-    _seed_user(
+    seed_user(
         db_engine=db.engine,
         email="patch@example.com",
         password="pw12345678",
@@ -297,7 +232,7 @@ def test_fluxlit_test_client_admin_users_patch_requires_admin(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'ad.db'}")
     import app.db as db
 
-    uid = _seed_user(
+    uid = seed_user(
         db_engine=db.engine,
         email="plain@example.com",
         password="pw12345678",
@@ -320,69 +255,82 @@ def test_fluxlit_test_client_admin_users_patch_requires_admin(tmp_path) -> None:
 # --- FluxLitTestClient.streamlit() ---
 
 
+def _patch_load_me_for_tc(monkeypatch, tc) -> None:
+    def _load_me(st, token: str):
+        r = tc.api_get("/users/me", headers={"Authorization": f"Bearer {token}"})
+        me = r.json() if r.status_code == 200 else {}
+        st.session_state["_me"] = me
+        return me
+
+    monkeypatch.setattr("ui.pages.jwt_users_page.load_me", _load_me)
+
+
 def test_streamlit_login_against_real_api(tmp_path, monkeypatch) -> None:
     """Streamlit login flow backed by the real bundled API (ApiClient delegates to tc.api)."""
     monkeypatch.setenv("FLUXLIT_DISABLE_URL_SESSION", "1")
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'real_login.db'}")
     import app.db as db
 
-    _seed_user(
+    seed_user(
         db_engine=db.engine,
         email="u@example.com",
         password="secret1234",
     )
     tc = FluxLitTestClient(app)
 
-    def _bridge_api_client(self, method: str, path: str, **kwargs):
-        p = path if path.startswith("/") else f"/{path}"
-        if method.upper() == "GET" and "/__meta" in p:
-            return tc.api_get("/__meta")
-        if not p.startswith(tc.api_prefix):
-            p = f"{tc.api_prefix}{p}"
-        return tc.api.request(method.upper(), p, **kwargs)
+    monkeypatch.setattr(
+        ApiClient,
+        "request",
+        lambda self, method, path, **kwargs: bridge_api_client(
+            tc, method, path, **kwargs
+        ),
+    )
+    _patch_load_me_for_tc(monkeypatch, tc)
+    fluxlit_env(monkeypatch)
 
-    monkeypatch.setattr(ApiClient, "request", _bridge_api_client)
-    monkeypatch.setenv("FLUXLIT_APP", "main:app")
-    monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
-    monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
-
-    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30).run()
-    _text_input_by_key(at, "login_email").input("u@example.com")
-    _text_input_by_key(at, "login_password").input("secret1234")
-    _click_button(at, "Login")
+    at = AppTest.from_file(str(FLUXLIT_MAIN), default_timeout=30).run()
+    text_input_by_key(at, "login_email").input("u@example.com")
+    text_input_by_key(at, "login_password").input("secret1234")
+    click_button(at, label="Sign in")
     at = at.run()
     at = at.run()
     assert not at.exception
-    assert "user_auth" in at.session_state
     assert at.session_state["user_auth"].is_authenticated
     assert at.session_state["user_auth"].email == "u@example.com"
+    assert at.session_state["_page"] == "Account"
+    assert at.session_state["access_token"]
 
 
-def test_fluxlit_streamlit_invalid_login_shows_error_via_test_client(
-    tmp_path, monkeypatch, _patch_api_client
-):
+def test_streamlit_admin_login_routes_to_admin_page(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("FLUXLIT_DISABLE_URL_SESSION", "1")
+    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'admin_ui.db'}")
+    import app.db as db
 
-    def handler(self, method: str, path: str, **kwargs):
-        p = path if path.startswith("/") else f"/{path}"
-        if method == "GET" and "/__meta" in p:
-            return httpx.Response(200, json={"ok": True, "external_api_base": ""})
-        if method == "POST" and "/auth/token" in p:
-            return httpx.Response(401, json={"detail": "nope"})
-        return httpx.Response(200, json={})
-
-    _patch_api_client(handler)
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'st8.db'}")
+    seed_admin(db_engine=db.engine)
     tc = FluxLitTestClient(app)
-    at = tc.streamlit(
-        target="main:app",
-        internal_api_base="http://testserver/api",
-        extra_sys_path=_FLUX_APP_ROOT,
-    )
 
-    _text_input_by_key(at, "login_email").input("bad@test.local")
-    _text_input_by_key(at, "login_password").input("pw")
-    _click_button(at, "Login")
+    monkeypatch.setattr(
+        ApiClient,
+        "request",
+        lambda self, method, path, **kwargs: bridge_api_client(
+            tc, method, path, **kwargs
+        ),
+    )
+    _patch_load_me_for_tc(monkeypatch, tc)
+    fluxlit_env(monkeypatch)
+
+    at = AppTest.from_file(str(FLUXLIT_MAIN), default_timeout=30).run()
+    text_input_by_key(at, "login_email").input("admin@example.com")
+    text_input_by_key(at, "login_password").input("admin123")
+    click_button(at, label="Sign in")
+    at = at.run()
     at = at.run()
     assert not at.exception
-    assert len(at.error) >= 1
+    assert at.session_state["user_auth"].is_authenticated
+    assert at.session_state["_me"].get("is_admin") is True
+    menu = [r for r in at.radio if getattr(r, "label", None) == "Menu"]
+    assert len(menu) == 1
+    assert "Admin" in menu[0].options
+    menu[0].set_value("Admin")
+    at = at.run()
+    assert at.session_state["_page"] == "Admin"

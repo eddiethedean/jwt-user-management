@@ -10,7 +10,7 @@ Database migrations live here as well ([`alembic/`](alembic/), [`alembic.ini`](a
 
 - The Streamlit UI keeps the JWT in **Streamlit session state**, which tends to behave better in embedded Connect / proxy contexts than the retired server-rendered HTML UI.
 - Invite and password-reset links use FluxLit's native public URL helpers. Prefer **`FLUXLIT_PUBLIC_BASE_URL`** and keep it aligned with the URL users see in the browser.
-- Behind a path prefix or reverse proxy, set **`FLUXLIT_ROOT_PATH`** and typically **`FLUXLIT_TRUST_PROXY=1`**. FluxLit 0.8.1 handles app/API/docs URLs and Workbench mode directly.
+- Behind a path prefix or reverse proxy, set **`FLUXLIT_ROOT_PATH`** and typically **`FLUXLIT_TRUST_PROXY=1`**. FluxLit 0.13.x handles app/API/docs URLs and Workbench mode directly.
 
 ## Run locally
 
@@ -106,7 +106,7 @@ python -c 'from run_workbench import start_app; start_app(open_with_browser=Fals
 
 Then open `http://127.0.0.1:8768/workbench/`; API docs are at `http://127.0.0.1:8768/workbench/api/docs`.
 
-Keep **`FLUXLIT_PUBLIC_BASE_URL`** consistent with the external app URL used for invite and reset links. `PUBLIC_BASE_URL` remains supported as a legacy fallback by FluxLit 0.8.1, but new deployments should prefer the namespaced setting.
+Keep **`FLUXLIT_PUBLIC_BASE_URL`** consistent with the external app URL used for invite and reset links. `PUBLIC_BASE_URL` remains supported as a legacy fallback, but new deployments should prefer the namespaced setting.
 
 ## JSON API (mounted at `/api`)
 
@@ -141,6 +141,10 @@ curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/users/me
 | `JWT_SECRET` | Set in `.env`. |
 | `JWT_ALGORITHM` / `JWT_EXPIRES_MINUTES` | Edit **`config.py`** (defaults: HS256, 60 minutes). |
 | `PUBLIC_BASE_URL` | Edit **`config.py`** (default matches local `fluxlit dev`). |
+| `USER_ROLES` / `ADMIN_ROLES` | Edit **`config.py`** (multi-role admin; defaults: Admin, User, Super). |
+| `SELF_REGISTRATION_ENABLED` | Edit **`config.py`** (gate `POST /register`). |
+| `RATE_LIMIT_*` | Edit **`config.py`** (in-process auth rate limits). |
+| `SMTP_ALLOW_LEGACY_PORT25_FALLBACK` | Edit **`config.py`** (default `False`). |
 
 Tunables such as **`BASE_PATH`**, **`INVITE_ALLOWED_EMAIL_DOMAINS`**, SMTP port/TLS, and directory timeouts live only in **`config.py`** beside `app/`. **`.env`** must not duplicate those keys.
 

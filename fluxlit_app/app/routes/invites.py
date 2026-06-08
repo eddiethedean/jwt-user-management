@@ -1,60 +1,64 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.email_validation import validate_email_format
+from app.core.rate_limit import check_rate_limit
+from app.core.roles import apply_user_roles, roles_for_admin_flag
 from app.core.security import hash_password, validate_new_password
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
 from app.routes.deps import admin_from_bearer, bearer_scheme
 from app.routes.email_links import external_accept_invite_url
-from app.services.directory import lookup_email
+from app.schemas.invites import (
+    CreateInviteRequest,
+    InspectInviteRequest,
+    InviteAcceptRequest,
+    InviteLookupRequest,
+)
+from app.services.directory import lookup_email_async
 from app.services.email import send_invite_email
-from app.services.tokens import invalidate_unused_invite_tokens, try_consume_invite_token
+from app.services.tokens import create_invite_token_atomic, try_consume_invite_token
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
 log = logging.getLogger("uvicorn.error")
 
 
-def _norm_email(v: str) -> str:
-    return (v or "").strip().lower()
-
-
-def _invite_url(request: Request, token: str) -> str:
-    return external_accept_invite_url(request, token=token)
-
-
 def _as_utc_aware(dt: datetime) -> datetime:
-    """
-    SQLite commonly returns naive datetimes even when we store timezone-aware values.
-    Treat naive DB timestamps as UTC to keep comparisons consistent.
-    """
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
 
+async def _ensure_no_existing_user(db: AsyncSession, email: str) -> None:
+    existing = (await db.exec(select(User).where(User.email == email))).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="User already has an account")
+
+
 @router.post("")
 async def create_invite(
     request: Request,
-    payload: dict = Body(...),
+    payload: CreateInviteRequest,
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
     await admin_from_bearer(db=db, creds=creds)
-    email = _norm_email(str(payload.get("email") or ""))
-    grant_admin = bool(payload.get("grant_admin") or False)
-    if not email:
-        raise HTTPException(status_code=422, detail="email is required")
+    try:
+        email = validate_email_format(payload.email)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     if not invite_email_domain_allowed(email):
         raise HTTPException(
@@ -62,59 +66,62 @@ async def create_invite(
             detail="email domain is not allowed for invites",
         )
 
+    await _ensure_no_existing_user(db, email)
+
     if settings.directory_lookup_url and settings.directory_lookup_required:
         try:
-            rec = lookup_email(email)
+            rec = await lookup_email_async(email)
         except Exception:
             raise HTTPException(status_code=422, detail="directory lookup failed")
         if not rec:
-            raise HTTPException(
-                status_code=422, detail="email not found in directory"
-            )
+            raise HTTPException(status_code=422, detail="email not found in directory")
 
-    raw = InviteToken.new_raw_token()
-    token_hash = InviteToken.hash_token(raw)
-    now = datetime.now(timezone.utc)
-    await invalidate_unused_invite_tokens(db, email=email, now=now)
-    invite = InviteToken(
-        email=email,
-        token_hash=token_hash,
-        created_at=now,
-        expires_at=now + timedelta(days=7),
-        used_at=None,
-        grant_admin=grant_admin,
+    raw = await create_invite_token_atomic(
+        db, email=email, grant_admin=payload.grant_admin
     )
-    db.add(invite)
-    await db.commit()
 
-    invite_url = _invite_url(request, raw)
+    invite_url = external_accept_invite_url(request, token=raw)
+    email_sent = False
     try:
         send_invite_email(to_email=email, invite_url=invite_url)
+        email_sent = True
     except Exception:
         log.exception("invite_email_send_failed")
+    if not email_sent:
+        raise HTTPException(status_code=503, detail="Could not send invite email")
+
+    invite_row = (
+        await db.exec(
+            select(InviteToken).where(
+                InviteToken.token_hash == InviteToken.hash_token(raw)
+            )
+        )
+    ).first()
+    expires_at = invite_row.expires_at if invite_row else datetime.now(timezone.utc)
 
     return {
         "ok": True,
         "invite_url": invite_url,
-        "expires_at": invite.expires_at,
+        "expires_at": expires_at,
     }
 
 
 @router.post("/lookup")
 async def lookup_invite_email(
-    payload: dict = Body(...),
+    payload: InviteLookupRequest,
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
     await admin_from_bearer(db=db, creds=creds)
-    email = _norm_email(str(payload.get("email") or ""))
-    if not email:
-        raise HTTPException(status_code=422, detail="email is required")
+    try:
+        email = validate_email_format(payload.email)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     if not settings.directory_lookup_url:
         return {"ok": True, "email": "", "country": "", "display_name": ""}
     rec = None
     try:
-        rec = lookup_email(email)
+        rec = await lookup_email_async(email)
     except Exception:
         log.warning("invite_directory_preview_lookup_failed", exc_info=True)
     return {
@@ -127,17 +134,16 @@ async def lookup_invite_email(
 
 @router.post("/inspect")
 async def inspect_invite_token(
-    payload: dict = Body(...), db: AsyncSession = Depends(get_db)
+    request: Request,
+    payload: InspectInviteRequest,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
-    Helper endpoint for non-HTML clients (e.g. Streamlit) to display the
-    email bound to an invite token, matching the HTML accept page behavior.
+    Public helper for Streamlit accept-invite UI (token required in body).
+    Rate-limited; does not require admin auth.
     """
-    token = str(payload.get("token") or "")
-    if not token:
-        raise HTTPException(status_code=422, detail="token is required")
-
-    token_hash = InviteToken.hash_token(token)
+    check_rate_limit(request, scope="invites_inspect")
+    token_hash = InviteToken.hash_token(payload.token)
     invite: Optional[InviteToken] = (
         await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
     ).first()
@@ -169,9 +175,7 @@ async def _accept(
     if not invite_email_domain_allowed(invite.email):
         raise HTTPException(status_code=400, detail="Email domain is not allowed")
 
-    existing = (
-        await db.exec(select(User).where(User.email == invite.email))
-    ).first()
+    existing = (await db.exec(select(User).where(User.email == invite.email))).first()
     if existing:
         raise HTTPException(
             status_code=400,
@@ -182,39 +186,67 @@ async def _accept(
     if consumed != 1:
         raise HTTPException(status_code=400, detail="Invite already used")
 
+    dup = (await db.exec(select(User).where(User.email == invite.email))).first()
+    if dup:
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email already exists",
+        )
+
     fn = (full_name or "").strip() or None
     country = None
     if settings.directory_lookup_url:
         try:
-            rec = lookup_email(invite.email)
+            rec = await lookup_email_async(invite.email)
         except Exception:
             rec = None
         if rec and rec.country:
             country = rec.country
+    grant_admin = bool(invite.grant_admin)
     user = User(
         email=invite.email,
         full_name=fn,
         country=country,
         hashed_password=hash_password(password),
-        is_admin=bool(invite.grant_admin),
+        is_admin=False,
+        roles=None,
+    )
+    apply_user_roles(
+        user,
+        roles_for_admin_flag(
+            grant_admin,
+            allowed_roles=settings.user_roles,
+            admin_roles=settings.admin_roles,
+        ),
+        allowed_roles=settings.user_roles,
+        admin_roles=settings.admin_roles,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email already exists",
+        )
 
 
 @router.post("/accept")
 async def accept_invite_api(
-    payload: dict = Body(...), db: AsyncSession = Depends(get_db)
+    request: Request,
+    payload: InviteAcceptRequest,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    token = str(payload.get("token") or "")
-    password = str(payload.get("password") or "")
-    full_name = payload.get("full_name")
-    full_name_s = None if full_name is None else str(full_name)
-    if not token or not password:
-        raise HTTPException(status_code=422, detail="token and password are required")
+    check_rate_limit(request, scope="invites_accept")
     try:
-        validate_new_password(password)
+        validate_new_password(payload.password)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    await _accept(db=db, token=token, password=password, full_name=full_name_s)
+    await _accept(
+        db=db,
+        token=payload.token,
+        password=payload.password,
+        full_name=payload.full_name,
+    )
     return {"ok": True}

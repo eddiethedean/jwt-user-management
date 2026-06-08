@@ -85,9 +85,20 @@ class Settings:
         "jwt_expires_minutes",
         "smtp_port",
         "smtp_use_tls",
+        "smtp_allow_legacy_port25_fallback",
+        "rate_limit_enabled",
+        "rate_limit_auth_per_minute",
+        "rate_limit_trusted_proxies",
         "directory_lookup_timeout_s",
         "directory_lookup_required",
         "directory_lookup_verify_ssl",
+        "user_roles",
+        "admin_roles",
+        "self_registration_enabled",
+        "app_title",
+        "brand_tag",
+        "brand_tag_title",
+        "brand_stack",
     )
 
     def __init__(self) -> None:
@@ -111,6 +122,19 @@ class Settings:
 
         self.smtp_port = int(getattr(d, "SMTP_PORT", 25))
         self.smtp_use_tls = bool(getattr(d, "SMTP_USE_TLS", False))
+        self.smtp_allow_legacy_port25_fallback = bool(
+            getattr(d, "SMTP_ALLOW_LEGACY_PORT25_FALLBACK", False)
+        )
+
+        self.rate_limit_enabled = bool(getattr(d, "RATE_LIMIT_ENABLED", True))
+        self.rate_limit_auth_per_minute = int(
+            getattr(d, "RATE_LIMIT_AUTH_PER_MINUTE", 20)
+        )
+        self.rate_limit_trusted_proxies = frozenset(
+            str(x).strip()
+            for x in getattr(d, "RATE_LIMIT_TRUSTED_PROXIES", ()) or ()
+            if str(x).strip()
+        )
 
         self.directory_lookup_timeout_s = int(getattr(d, "DIRECTORY_LOOKUP_TIMEOUT_S", 5))
         self.directory_lookup_required = bool(
@@ -118,6 +142,38 @@ class Settings:
         )
         self.directory_lookup_verify_ssl = bool(
             getattr(d, "DIRECTORY_LOOKUP_VERIFY_SSL", True)
+        )
+
+        self.user_roles = tuple(
+            str(x).strip() for x in getattr(d, "USER_ROLES", ()) or () if str(x).strip()
+        )
+        admin_roles = tuple(
+            str(x).strip()
+            for x in getattr(d, "ADMIN_ROLES", ()) or ()
+            if str(x).strip()
+        )
+        unknown_admin = [r for r in admin_roles if r not in self.user_roles]
+        if unknown_admin:
+            raise ValueError(
+                "ADMIN_ROLES must be a subset of USER_ROLES; "
+                f"unknown: {', '.join(unknown_admin)}"
+            )
+        self.admin_roles = admin_roles
+
+        self.self_registration_enabled = bool(
+            getattr(d, "SELF_REGISTRATION_ENABLED", True)
+        )
+
+        self.app_title = (
+            str(getattr(d, "APP_TITLE", "") or "User Management").strip()
+            or "User Management"
+        )
+        self.brand_tag = str(getattr(d, "BRAND_TAG", "") or "").strip()
+        self.brand_tag_title = str(getattr(d, "BRAND_TAG_TITLE", "") or "").strip()
+        self.brand_stack = tuple(
+            str(x).strip()
+            for x in getattr(d, "BRAND_STACK", ()) or ()
+            if str(x).strip()
         )
 
     def normalized_invite_email_domains(self) -> frozenset[str]:

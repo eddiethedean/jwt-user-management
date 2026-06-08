@@ -1,19 +1,26 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.email_validation import validate_email_format
+from app.core.rate_limit import check_rate_limit
 from app.core.security import bump_token_version, hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
 from app.routes.email_links import external_password_reset_url
+from app.schemas.password import (
+    ForgotPasswordRequest,
+    InspectResetRequest,
+    ResetPasswordRequest,
+)
 from app.services.email import send_password_reset_email
-from app.services.tokens import invalidate_unused_reset_tokens, try_consume_reset_token
+from app.services.tokens import create_reset_token_atomic, try_consume_reset_token
 
 
 router = APIRouter(prefix="/password", tags=["password"])
@@ -26,54 +33,47 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+async def _issue_reset_token(
+    request: Request, *, db: AsyncSession, email_n: str
+) -> None:
+    user = (await db.exec(select(User).where(User.email == email_n))).first()
+    if not user:
+        return
+    raw = await create_reset_token_atomic(db, email=email_n)
+    reset_url = external_password_reset_url(request, token=raw)
+    try:
+        send_password_reset_email(to_email=email_n, reset_url=reset_url)
+    except Exception:
+        log.exception("password_reset_email_send_failed")
+
+
 @router.post("/forgot")
 async def forgot_password_api(
     request: Request,
-    payload: dict,
+    payload: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """
-    Real flow: generate a reset token and email it (non-enumerating).
-    Returns ok=true regardless of whether the account exists.
-    """
-    email_n = (str(payload.get("email") or "")).strip().lower()
-    user: Optional[User] = None
-    if email_n:
-        user = (await db.exec(select(User).where(User.email == email_n))).first()
-    if user:
-        raw = PasswordResetToken.new_raw_token()
-        token_hash = PasswordResetToken.hash_token(raw)
-        now = datetime.now(timezone.utc)
-        await invalidate_unused_reset_tokens(db, email=email_n, now=now)
-        rec = PasswordResetToken(
-            email=email_n,
-            token_hash=token_hash,
-            created_at=now,
-            expires_at=now + timedelta(hours=2),
-            used_at=None,
-        )
-        db.add(rec)
-        await db.commit()
-        reset_url = external_password_reset_url(request, token=raw)
-        try:
-            send_password_reset_email(to_email=email_n, reset_url=reset_url)
-        except Exception:
-            log.exception("password_reset_email_send_failed")
+    try:
+        email_n = validate_email_format(payload.email)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    check_rate_limit(request, scope="password_forgot", email=email_n)
+    await _issue_reset_token(request, db=db, email_n=email_n)
     return {"ok": True}
 
 
 @router.post("/inspect")
 async def inspect_reset_token(
-    payload: dict, db: AsyncSession = Depends(get_db)
+    request: Request,
+    payload: InspectResetRequest,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
-    Helper endpoint for non-HTML clients (e.g. Streamlit) to display the
-    email bound to a reset token, matching the HTML reset page behavior.
+    Public helper for Streamlit reset-password UI (token required in body).
+    Rate-limited; does not require admin auth.
     """
-    token = str(payload.get("token") or "")
-    if not token:
-        raise HTTPException(status_code=422, detail="token is required")
-    token_hash = PasswordResetToken.hash_token(token)
+    check_rate_limit(request, scope="password_inspect")
+    token_hash = PasswordResetToken.hash_token(payload.token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
             select(PasswordResetToken).where(
@@ -92,17 +92,20 @@ async def inspect_reset_token(
 
 
 @router.post("/reset")
-async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
-    token = str(payload.get("token") or "")
-    password = str(payload.get("password") or "")
-    if not token or not password:
+async def reset_api(
+    request: Request,
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    if not (payload.token or "").strip() or not (payload.password or "").strip():
         raise HTTPException(status_code=422, detail="token and password are required")
+    check_rate_limit(request, scope="password_reset")
     try:
-        validate_new_password(password)
+        validate_new_password(payload.password)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    token_hash = PasswordResetToken.hash_token(token)
+    token_hash = PasswordResetToken.hash_token(payload.token)
     rec: Optional[PasswordResetToken] = (
         await db.exec(
             select(PasswordResetToken).where(
@@ -118,16 +121,18 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     if _as_utc_aware(rec.expires_at) < now:
         raise HTTPException(status_code=400, detail="Reset link expired")
 
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == rec.email))
+    ).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Reset link invalid or expired")
+
     consumed = await try_consume_reset_token(db, token_hash=token_hash, now=now)
     if consumed != 1:
         raise HTTPException(status_code=400, detail="Reset link already used")
 
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.email == rec.email))
-    ).first()
-    if user:
-        user.hashed_password = hash_password(password)
-        bump_token_version(user)
-        db.add(user)
+    user.hashed_password = hash_password(payload.password)
+    bump_token_version(user)
+    db.add(user)
     await db.commit()
     return {"ok": True}

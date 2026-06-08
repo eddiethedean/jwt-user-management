@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
+from app.core.rate_limit import check_rate_limit
+from app.core.roles import display_user_roles
 from app.core.security import (
     bump_token_version,
     hash_password,
@@ -32,6 +35,7 @@ async def me(current_user: User = Depends(get_current_user)) -> dict:
         "country": current_user.country,
         "is_active": current_user.is_active,
         "is_admin": current_user.is_admin,
+        "roles": display_user_roles(current_user, settings.user_roles),
         "created_at": current_user.created_at.isoformat(),
     }
 
@@ -53,10 +57,12 @@ async def update_me(
 
 @router.post("/users/me/password")
 async def change_my_password(
+    request: Request,
     payload: dict = Body(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    check_rate_limit(request, scope="password_change", email=current_user.email)
     cur = str(payload.get("current_password") or "")
     new = str(payload.get("new_password") or "")
     confirm = str(payload.get("confirm_password") or "")
@@ -83,7 +89,7 @@ async def users(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> JSONResponse:
     _ = await admin_from_bearer(db=db, creds=creds)
-    users = (await db.exec(select(User).order_by(text("id")))).all()
+    all_users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(
         content=[
             {
@@ -93,8 +99,9 @@ async def users(
                 "country": u.country,
                 "is_active": u.is_active,
                 "is_admin": u.is_admin,
+                "roles": display_user_roles(u, settings.user_roles),
                 "created_at": u.created_at.isoformat(),
             }
-            for u in users
+            for u in all_users
         ]
     )

@@ -1,7 +1,9 @@
 """
 JWT users Streamlit UI (FluxLit ``discover_pages`` pattern).
 
-https://fluxlit.readthedocs.io/en/stable/quickstart.html#project-layout
+Navigation and pages mirror ``user_management_api`` HTML UI:
+guest → Sign in (+ Register when enabled); admin → Admin + Account;
+non-admin → Account only. Accept-invite and reset-password are deep-link pages.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import httpx
 from fluxlit import FluxLit
 
 from ui.auth_state import SESSION_KEY, get_auth_state, login_success, logout
+from ui.branding import render_brand, self_registration_enabled
 from ui.pages.um_helpers import (
     api_docs_link,
     dbg,
@@ -26,6 +29,7 @@ from ui.pages.um_screens_public import (
     render_register,
     render_reset_password,
 )
+from ui.theme import apply_um_theme
 from ui.url_session_bridge import (
     apply_hydrated_auth,
     clear_url_session,
@@ -36,13 +40,8 @@ from ui.url_session_bridge import (
     url_session_enabled,
 )
 
-PublicPage = Literal["Login", "Register", "Accept invite", "Reset password"]
-PUBLIC_NAV: tuple[PublicPage, ...] = (
-    "Login",
-    "Register",
-    "Accept invite",
-    "Reset password",
-)
+PublicPage = Literal["Sign in", "Register"]
+DeepLinkPage = Literal["Accept invite", "Reset password"]
 
 
 def _query_param_first(st, key: str) -> str:
@@ -54,25 +53,24 @@ def _query_param_first(st, key: str) -> str:
     return str(raw)
 
 
-def _apply_public_link_params(st) -> None:
+def _apply_public_link_params(st) -> DeepLinkPage | None:
     page_raw = _query_param_first(st, "page")
     token = _query_param_first(st, "token")
-    page: PublicPage | None = (
-        cast(PublicPage, page_raw) if page_raw in PUBLIC_NAV else None
-    )
-    if page:
-        st.session_state["public_page_nav"] = page
-    if not page or not token:
-        return
-
+    deep_pages = {"Accept invite", "Reset password"}
+    if page_raw not in deep_pages:
+        return None
+    page = cast(DeepLinkPage, page_raw)
+    if not token:
+        return page
     marker = f"{page}:{token}"
     if st.session_state.get("_public_link_marker") == marker:
-        return
+        return page
     if page == "Accept invite":
         st.session_state["invite_token"] = token
     elif page == "Reset password":
         st.session_state["reset_token"] = token
     st.session_state["_public_link_marker"] = marker
+    return page
 
 
 def register(app: FluxLit) -> None:
@@ -80,7 +78,8 @@ def register(app: FluxLit) -> None:
 
     @app.page("/", title="User Management")
     def jwt_users_home(st, client) -> None:  # noqa: ANN001
-        st.title("User Management")
+        apply_um_theme()
+        render_brand(st)
 
         if "_debug_logs" not in st.session_state:
             st.session_state["_debug_logs"] = []
@@ -165,34 +164,55 @@ def register(app: FluxLit) -> None:
                 docs_href=docs_link,
             )
         else:
-            _apply_public_link_params(st)
-            st.sidebar.subheader("Navigation")
-            if (
-                "public_page_nav" not in st.session_state
-                or st.session_state["public_page_nav"] not in PUBLIC_NAV
-            ):
-                st.session_state["public_page_nav"] = "Login"
-            nav_raw = st.sidebar.radio(
-                "Menu",
-                options=list(PUBLIC_NAV),
-                key="public_page_nav",
-            )
-            public_page: PublicPage = nav_raw if nav_raw in PUBLIC_NAV else "Login"
+            deep_page = _apply_public_link_params(st)
 
-            st.sidebar.divider()
-            st.sidebar.link_button("API docs", docs_link, use_container_width=True)
-
-            def _load_me_for_login(token: str):
-                return load_me(st, token)
-
-            if public_page == "Login":
-                render_login(st, post_form=_post_form, load_me_fn=_load_me_for_login)
-            elif public_page == "Register":
-                render_register(st, post_form=_post_form)
-            elif public_page == "Accept invite":
+            if deep_page == "Accept invite":
+                st.sidebar.caption("Invite link")
+                st.sidebar.link_button("API docs", docs_link, use_container_width=True)
                 render_accept_invite(st, post_json_pub=_post_json_pub)
-            else:
+            elif deep_page == "Reset password":
+                st.sidebar.caption("Password reset")
+                st.sidebar.link_button("API docs", docs_link, use_container_width=True)
                 render_reset_password(st, post_json_pub=_post_json_pub)
+            else:
+                public_opts: list[PublicPage] = ["Sign in"]
+                if self_registration_enabled():
+                    public_opts.append("Register")
+
+                st.sidebar.subheader("Navigation")
+                if (
+                    "public_page_nav" not in st.session_state
+                    or st.session_state["public_page_nav"] not in public_opts
+                ):
+                    st.session_state["public_page_nav"] = "Sign in"
+                nav_raw = st.sidebar.radio(
+                    "Menu",
+                    options=public_opts,
+                    key="public_page_nav",
+                )
+                public_page: PublicPage = (
+                    nav_raw if nav_raw in public_opts else "Sign in"
+                )
+
+                st.sidebar.divider()
+                st.sidebar.link_button("API docs", docs_link, use_container_width=True)
+
+                def _go_register() -> None:
+                    st.session_state["public_page_nav"] = "Register"
+
+                def _load_me_for_login(token: str):
+                    return load_me(st, token)
+
+                if public_page == "Sign in":
+                    render_login(
+                        st,
+                        post_form=_post_form,
+                        post_json_pub=_post_json_pub,
+                        load_me_fn=_load_me_for_login,
+                        on_register=_go_register if self_registration_enabled() else None,
+                    )
+                else:
+                    render_register(st, post_form=_post_form)
 
         if url_session_enabled():
             persist_url_session_narrow(st, url_store, auth, param=url_session_param)

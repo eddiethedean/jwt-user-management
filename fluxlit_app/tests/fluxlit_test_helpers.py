@@ -90,6 +90,101 @@ def _load_app_package() -> None:
     spec.loader.exec_module(app_pkg)
 
 
+def seed_user(
+    *,
+    db_engine: Any,
+    email: str,
+    password: str,
+    is_admin: bool = False,
+    is_active: bool = True,
+) -> int:
+    from datetime import datetime, timezone
+
+    from sqlmodel import Session
+
+    from app.core.security import hash_password
+    from app.models import User
+
+    with Session(db_engine) as s:
+        roles = "Admin" if is_admin else "User"
+        u = User(
+            email=email,
+            hashed_password=hash_password(password),
+            is_admin=is_admin,
+            is_active=is_active,
+            roles=roles,
+            created_at=datetime.now(timezone.utc),
+        )
+        s.add(u)
+        s.commit()
+        s.refresh(u)
+        assert u.id is not None
+        return int(u.id)
+
+
+def seed_admin(*, db_engine: Any) -> int:
+    return seed_user(
+        db_engine=db_engine,
+        email="admin@example.com",
+        password="admin123",
+        is_admin=True,
+    )
+
+
+def seed_unused_invite(
+    *,
+    db_engine: Any,
+    email: str,
+    grant_admin: bool = False,
+) -> str:
+    from datetime import datetime, timezone
+
+    from sqlmodel import Session
+
+    from app.models import InviteToken
+
+    raw = InviteToken.new_raw_token()
+    now = datetime.now(timezone.utc)
+    inv = InviteToken(
+        email=email,
+        token_hash=InviteToken.hash_token(raw),
+        created_at=now,
+        expires_at=now.replace(year=2099),
+        used_at=None,
+        grant_admin=grant_admin,
+    )
+    with Session(db_engine) as s:
+        s.add(inv)
+        s.commit()
+    return raw
+
+
+def bearer_for(tc: Any, *, email: str, password: str) -> dict[str, str]:
+    post = getattr(tc, "api_post", None) or tc.post
+    r = post("/auth/token", data={"username": email, "password": password})
+    if r.status_code != 200:
+        raise AssertionError(
+            f"bearer_for login failed for {email!r}: {r.status_code} {r.text}"
+        )
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+class FakeHttpxResponse:
+    """Minimal httpx response stub for directory service mocks."""
+
+    def __init__(self, *, status_code: int, json_data: Any = None):
+        self.status_code = status_code
+        self._json_data = json_data
+
+    @property
+    def ok(self) -> bool:
+        return 200 <= self.status_code < 300
+
+    def json(self) -> Any:
+        return self._json_data
+
+
 def load_fluxlit_app(
     *,
     db_url: str,
@@ -136,7 +231,11 @@ def load_fluxlit_app(
         "app.invite_email_domains",
         "app.db",
         "app.core.security",
+        "app.core.rate_limit",
+        "app.core.roles",
         "app.services.email",
+        "app.services.directory",
+        "app.services.tokens",
         "app.routes.admin",
         "app.routes.public_urls",
         "app.routes.invites",

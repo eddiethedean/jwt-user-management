@@ -2,33 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, List
+from typing import Any
 
+import pytest
 from fluxlit.testing import FluxLitTestClient
 from starlette.testclient import TestClient
 
-from fluxlit_test_helpers import load_fluxlit_app
-
-
-def _seed_user(*, db_engine, email: str, password: str, is_admin: bool) -> int:
-    from sqlmodel import Session
-
-    from app.core.security import hash_password
-    from app.models import User
-
-    with Session(db_engine) as s:
-        u = User(
-            email=email,
-            hashed_password=hash_password(password),
-            is_admin=is_admin,
-            created_at=datetime.now(timezone.utc),
-        )
-        s.add(u)
-        s.commit()
-        s.refresh(u)
-        assert u.id is not None
-        return int(u.id)
+from fluxlit_test_helpers import load_fluxlit_app, seed_admin, seed_user
 
 
 class _Sent:
@@ -36,29 +16,40 @@ class _Sent:
         self.msg = msg
 
 
-class _FakeSMTP:
-    sent: List[_Sent] = []
+def _make_fake_smtp(sent: list[_Sent]):
+    class _FakeSMTP:
+        def __init__(self, host: str, port: int | None = None):  # noqa: ARG002
+            self._closed = False
 
-    def __init__(self, host: str, port: int | None = None):  # noqa: ARG002
-        self._closed = False
+        def __enter__(self):
+            return self
 
-    def __enter__(self):
-        return self
+        def __exit__(self, exc_type, exc, tb):  # noqa: ARG002
+            self.quit()
 
-    def __exit__(self, exc_type, exc, tb):  # noqa: ARG002
-        self.quit()
+        def starttls(self) -> None:
+            return None
 
-    def starttls(self) -> None:
-        return None
+        def login(self, username: str, password: str) -> None:  # noqa: ARG002
+            return None
 
-    def login(self, username: str, password: str) -> None:  # noqa: ARG002
-        return None
+        def send_message(self, msg) -> None:
+            sent.append(_Sent(msg))
 
-    def send_message(self, msg) -> None:
-        self.sent.append(_Sent(msg))
+        def quit(self) -> None:
+            self._closed = True
 
-    def quit(self) -> None:
-        self._closed = True
+    return _FakeSMTP
+
+
+@pytest.fixture
+def smtp_sent(monkeypatch):
+    sent: list[_Sent] = []
+    monkeypatch.setattr(
+        "app.services.email.smtplib.SMTP",
+        _make_fake_smtp(sent),
+    )
+    return sent
 
 
 def _extract_first_text_part(msg) -> str:
@@ -71,7 +62,7 @@ def _extract_first_text_part(msg) -> str:
 
 
 def test_invite_api_sends_fluxlit_page_url_when_smtp_configured(
-    tmp_path, monkeypatch
+    tmp_path, smtp_sent
 ) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = load_fluxlit_app(db_url=db_url)
@@ -80,18 +71,11 @@ def test_invite_api_sends_fluxlit_page_url_when_smtp_configured(
     from app.core.config import settings
     from app.core.security import create_access_token
 
-    admin_id = _seed_user(
-        db_engine=db.engine,
-        email="admin@example.com",
-        password="admin123",
-        is_admin=True,
-    )
+    admin_id = seed_admin(db_engine=db.engine)
     token = create_access_token(subject=str(admin_id))
 
     settings.smtp_host = "smtp.test.local"
     settings.smtp_from_email = "noreply@test.local"
-    monkeypatch.setattr("app.services.email.smtplib.SMTP", _FakeSMTP)
-    _FakeSMTP.sent.clear()
 
     tc = FluxLitTestClient(app)
     r = tc.api_post(
@@ -103,13 +87,13 @@ def test_invite_api_sends_fluxlit_page_url_when_smtp_configured(
     data = r.json()
     assert data["ok"] is True
     assert "/?page=Accept+invite&token=" in data["invite_url"]
-    assert len(_FakeSMTP.sent) == 1
-    body = _extract_first_text_part(_FakeSMTP.sent[0].msg)
+    assert len(smtp_sent) == 1
+    body = _extract_first_text_part(smtp_sent[0].msg)
     assert "Accept invite:" in body
 
 
 def test_invite_email_uses_fluxlit_public_base_url_when_set(
-    tmp_path, monkeypatch
+    tmp_path, smtp_sent
 ) -> None:
     db_url = f"sqlite:///{tmp_path / 'fluxlit_public.db'}"
     app = load_fluxlit_app(
@@ -124,18 +108,11 @@ def test_invite_email_uses_fluxlit_public_base_url_when_set(
     from app.core.config import settings
     from app.core.security import create_access_token
 
-    admin_id = _seed_user(
-        db_engine=db.engine,
-        email="admin@example.com",
-        password="admin123",
-        is_admin=True,
-    )
+    admin_id = seed_admin(db_engine=db.engine)
     token = create_access_token(subject=str(admin_id))
 
     settings.smtp_host = "smtp.test.local"
     settings.smtp_from_email = "noreply@test.local"
-    monkeypatch.setattr("app.services.email.smtplib.SMTP", _FakeSMTP)
-    _FakeSMTP.sent.clear()
 
     tc = FluxLitTestClient(app)
     r = tc.api_post(
@@ -144,13 +121,13 @@ def test_invite_email_uses_fluxlit_public_base_url_when_set(
         json={"email": "new.user@example.com", "grant_admin": False},
     )
     assert r.status_code == 200
-    body = _extract_first_text_part(_FakeSMTP.sent[0].msg)
+    body = _extract_first_text_part(smtp_sent[0].msg)
     assert "https://workbench.example.org/my-app/?page=" in body
     assert "127.0.0.1" not in body
 
 
 def test_invite_email_fluxlit_public_base_avoids_duplicate_mount(
-    tmp_path, monkeypatch
+    tmp_path, smtp_sent
 ) -> None:
     """When FLUXLIT_PUBLIC_BASE_URL already ends with ASGI root_path, do not prefix twice."""
     db_url = f"sqlite:///{tmp_path / 'dup_mount.db'}"
@@ -165,18 +142,11 @@ def test_invite_email_fluxlit_public_base_avoids_duplicate_mount(
     from app.core.config import settings
     from app.core.security import create_access_token
 
-    admin_id = _seed_user(
-        db_engine=db.engine,
-        email="admin2@example.com",
-        password="admin123",
-        is_admin=True,
-    )
+    admin_id = seed_admin(db_engine=db.engine)
     token = create_access_token(subject=str(admin_id))
 
     settings.smtp_host = "smtp.test.local"
     settings.smtp_from_email = "noreply@test.local"
-    monkeypatch.setattr("app.services.email.smtplib.SMTP", _FakeSMTP)
-    _FakeSMTP.sent.clear()
 
     client = TestClient(
         app.api, base_url="http://internal.test", root_path="/prefix/app"
@@ -187,32 +157,30 @@ def test_invite_email_fluxlit_public_base_avoids_duplicate_mount(
         json={"email": "mount.user@example.com", "grant_admin": False},
     )
     assert r.status_code == 200
-    body = _extract_first_text_part(_FakeSMTP.sent[0].msg)
+    body = _extract_first_text_part(smtp_sent[0].msg)
     assert "https://workbench.example.org/prefix/app/?page=" in body
     assert "/prefix/app/prefix/app" not in body
 
 
-def test_password_forgot_email_uses_fluxlit_page_url(tmp_path, monkeypatch) -> None:
+def test_password_forgot_email_uses_fluxlit_page_url(tmp_path, smtp_sent) -> None:
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = load_fluxlit_app(db_url=db_url)
 
     import app.db as db
     from app.core.config import settings
 
-    _ = _seed_user(
+    seed_user(
         db_engine=db.engine,
         email="user@example.com",
-        password="pw",
+        password="pw12345678",
         is_admin=False,
     )
 
     settings.smtp_host = "smtp.test.local"
     settings.smtp_from_email = "noreply@test.local"
-    monkeypatch.setattr("app.services.email.smtplib.SMTP", _FakeSMTP)
-    _FakeSMTP.sent.clear()
 
     tc = FluxLitTestClient(app)
     r = tc.api_post("/password/forgot", json={"email": "user@example.com"})
     assert r.status_code == 200
-    body = _extract_first_text_part(_FakeSMTP.sent[0].msg)
+    body = _extract_first_text_part(smtp_sent[0].msg)
     assert "/?page=Reset+password&token=" in body

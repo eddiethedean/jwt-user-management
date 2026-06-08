@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -10,6 +9,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.email_validation import validate_email_format
+from app.core.rate_limit import check_rate_limit
 from app.core.security import (
     create_access_token,
     token_extra_claims,
@@ -17,62 +18,60 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
-from app.models import InviteToken, User
+from app.models import User
 from app.routes.email_links import external_accept_invite_url
+from app.services.directory import lookup_email_async
 from app.services.email import send_self_registration_email
-from app.services.tokens import invalidate_unused_invite_tokens
+from app.services.tokens import create_invite_token_atomic
 
 
 router = APIRouter(tags=["auth"])
 log = logging.getLogger("uvicorn.error")
 
 
-def _norm_email(v: str) -> str:
-    return (v or "").strip().lower()
+def _self_registration_enabled() -> bool:
+    from app.core.config import settings as live_settings
+
+    return live_settings.self_registration_enabled
 
 
-@router.post("/register")
-async def register_submit(
+async def _register_user(
+    *,
     request: Request,
-    email: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    email_n = _norm_email(email)
+    email_n: str,
+    db: AsyncSession,
+) -> tuple[bool, bool, Optional[str]]:
+    """
+    Create a self-registration invite and send email.
+    Returns (ok, email_sent, error_message).
+    """
     if not email_n:
-        raise HTTPException(status_code=400, detail="Email is required")
+        return False, False, "Email is required"
 
     existing: Optional[User] = (
         await db.exec(select(User).where(User.email == email_n))
     ).first()
     if existing:
-        return {"ok": True, "email_sent": False}
+        return True, False, None
 
     if not invite_email_domain_allowed(email_n):
-        raise HTTPException(
-            status_code=400,
-            detail="Email domain is not allowed for registration",
-        )
+        return False, False, "Email domain is not allowed for registration"
+
+    if settings.directory_lookup_url:
+        rec = None
+        try:
+            rec = await lookup_email_async(email_n)
+        except Exception:
+            rec = None
+        if settings.directory_lookup_required and not rec:
+            return False, False, "Email not found in directory"
 
     if not (settings.smtp_host and settings.smtp_from_email):
-        raise HTTPException(
-            status_code=503,
-            detail="Self-registration email is not configured",
-        )
+        return False, False, "Self-registration email is not configured"
 
-    raw = InviteToken.new_raw_token()
-    token_hash = InviteToken.hash_token(raw)
-    now = datetime.now(timezone.utc)
-    await invalidate_unused_invite_tokens(db, email=email_n, now=now)
-    invite = InviteToken(
-        email=email_n,
-        token_hash=token_hash,
-        created_at=now,
-        expires_at=now + timedelta(hours=2),
-        used_at=None,
-        grant_admin=False,
+    raw = await create_invite_token_atomic(
+        db, email=email_n, grant_admin=False, expires_hours=2
     )
-    db.add(invite)
-    await db.commit()
 
     setup_url = external_accept_invite_url(request, token=raw)
     email_sent = False
@@ -82,15 +81,54 @@ async def register_submit(
     except Exception:
         log.exception("self_registration_email_send_failed")
 
-    return {"ok": True, "email_sent": email_sent}
+    if not email_sent:
+        return (
+            False,
+            False,
+            "Could not send registration email. Please try again later.",
+        )
+    return True, True, None
+
+
+@router.post("/register")
+async def register_submit(
+    request: Request,
+    email: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    if not _self_registration_enabled():
+        raise HTTPException(status_code=403, detail="Self-registration is disabled")
+    try:
+        email_n = validate_email_format(email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    check_rate_limit(request, scope="register", email=email_n)
+
+    ok, _email_sent, err = await _register_user(request=request, email_n=email_n, db=db)
+
+    if err:
+        status = (
+            503
+            if "not configured" in err.lower() or "could not send" in err.lower()
+            else 400
+        )
+        raise HTTPException(status_code=status, detail=err)
+
+    return {"ok": ok}
 
 
 @router.post("/auth/token")
 async def token(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    username = _norm_email(form.username)
+    try:
+        username = validate_email_format(form.username)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+    check_rate_limit(request, scope="auth_token", email=username)
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == username))
     ).first()

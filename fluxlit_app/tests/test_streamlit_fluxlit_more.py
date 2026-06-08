@@ -2,74 +2,24 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import httpx
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from fluxlit.client import ApiClient
-import fluxlit.testing as _fluxlit_testing
-
-_REPO = Path(__file__).resolve().parents[2]
-_FLUX = _REPO / "fluxlit_app"
-_FLUXLIT_MAIN = (
-    Path(_fluxlit_testing.__file__).resolve().parent / "streamlit" / "main.py"
+from streamlit_apptest_helpers import (
+    FLUXLIT_MAIN,
+    click_button,
+    fluxlit_env,
+    setup_streamlit_paths_and_env,
+    text_input_by_key,
 )
 
 
 @pytest.fixture(autouse=True)
 def _paths_and_env(tmp_path, monkeypatch):
-    for p in (str(_FLUX),):
-        if p not in sys.path:
-            sys.path.insert(0, p)
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/st2.db")
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    for k in ("DIRECTORY_LOOKUP_URL", "DIRECTORY_LOOKUP_REQUIRED"):
-        monkeypatch.delenv(k, raising=False)
-    for mod in (
-        "main",
-        "fluxlit_gateway",
-        "api_backend",
-        "paths",
-        "streamlit_ui",
-        "auth_state",
-        "ui_helpers",
-    ):
-        sys.modules.pop(mod, None)
-    for k in list(sys.modules.keys()):
-        if k == "ui" or k.startswith("ui."):
-            sys.modules.pop(k, None)
+    setup_streamlit_paths_and_env(tmp_path, monkeypatch)
     yield
-
-
-def _text_input_by_key(at: AppTest, key: str):
-    matches = [t for t in at.text_input if getattr(t, "key", None) == key]
-    if not matches:
-        raise AssertionError(f"Text input not found for key={key!r}")
-    return matches[0]
-
-
-def _click_button(at: AppTest, label: str) -> None:
-    for b in at.button:
-        if getattr(b, "label", None) == label or getattr(b, "value", None) == label:
-            b.click()
-            return
-    raise AssertionError(f"Button not found: {label}")
-
-
-def _set_public_page(at: AppTest, page: str) -> None:
-    matches = [r for r in at.radio if getattr(r, "label", None) == "Menu"]
-    if not matches:
-        raise AssertionError("Public navigation radio not found")
-    matches[0].set_value(page)
-
-
-def _fluxlit_env(monkeypatch):
-    monkeypatch.setenv("FLUXLIT_APP", "main:app")
-    monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
-    monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
 
 
 def test_login_invalid_credentials_shows_error(monkeypatch):
@@ -78,23 +28,27 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
         if method == "GET" and "/__meta" in p:
             return httpx.Response(200, json={"ok": True, "external_api_base": ""})
         if method == "POST" and "/auth/token" in p:
-            return httpx.Response(401, json={"detail": "Invalid"})
+            return httpx.Response(401, json={"detail": "Invalid credentials"})
         return httpx.Response(200, json={})
 
     monkeypatch.setattr(ApiClient, "request", fake_request)
-    _fluxlit_env(monkeypatch)
+    fluxlit_env(monkeypatch)
 
-    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30).run()
+    at = AppTest.from_file(str(FLUXLIT_MAIN), default_timeout=30).run()
     assert not at.exception
 
-    _text_input_by_key(at, "login_email").input("bad@test.local")
-    _text_input_by_key(at, "login_password").input("wrong")
-    _click_button(at, "Login")
+    text_input_by_key(at, "login_email").input("bad@test.local")
+    text_input_by_key(at, "login_password").input("wrong")
+    click_button(at, label="Sign in")
     at.run()
     assert not at.exception
 
     assert "access_token" not in at.session_state
-    assert len(at.error) >= 1
+    assert len(at.error) == 1
+    assert (
+        at.error[0].value
+        == "Invalid email or password: 401 (Invalid credentials)"
+    )
 
 
 def test_sign_out_clears_username_and_token(monkeypatch):
@@ -111,25 +65,26 @@ def test_sign_out_clears_username_and_token(monkeypatch):
         return httpx.Response(200, json={})
 
     monkeypatch.setattr(ApiClient, "request", fake_request)
-    _fluxlit_env(monkeypatch)
+    fluxlit_env(monkeypatch)
 
-    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30)
+    at = AppTest.from_file(str(FLUXLIT_MAIN), default_timeout=30)
     at.run()
     assert not at.exception
-    _text_input_by_key(at, "login_email").input("user@test.local")
-    _text_input_by_key(at, "login_password").input("pw")
-    _click_button(at, "Login")
+    text_input_by_key(at, "login_email").input("user@test.local")
+    text_input_by_key(at, "login_password").input("pw")
+    click_button(at, label="Sign in")
     at.run()
     assert not at.exception
     assert at.session_state["access_token"] == "tok"
     assert at.session_state["username"] == "user@test.local"
 
-    _click_button(at, "Sign out")
+    click_button(at, key="sign_out_sidebar")
     at.run()
     assert not at.exception
     assert "access_token" not in at.session_state
     assert "username" not in at.session_state
     assert "_me" not in at.session_state
+    assert not at.session_state["user_auth"].is_authenticated
 
 
 def test_forgot_password_shows_error_when_backend_fails(monkeypatch):
@@ -142,17 +97,14 @@ def test_forgot_password_shows_error_when_backend_fails(monkeypatch):
         return httpx.Response(200, json={})
 
     monkeypatch.setattr(ApiClient, "request", fake_request)
-    _fluxlit_env(monkeypatch)
+    fluxlit_env(monkeypatch)
 
-    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30).run()
+    at = AppTest.from_file(str(FLUXLIT_MAIN), default_timeout=30).run()
     assert not at.exception
-    _set_public_page(at, "Reset password")
-    at.run()
-    assert not at.exception
-    _text_input_by_key(at, "forgot_email").input("x@test.local")
-    _click_button(at, "Send reset link")
+    text_input_by_key(at, "login_reset_email").input("x@test.local")
+    click_button(at, key="login_send_reset")
     at.run()
     assert not at.exception
 
-    assert len(at.error) >= 1
+    assert len(at.error) == 1
     assert "503" in at.error[0].value or "failed" in at.error[0].value.lower()
