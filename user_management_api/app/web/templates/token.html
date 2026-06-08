@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Token{% endblock %}
+{% block body %}
+  <div class="card">
+    <h2>JWT issued</h2>
+    <p class="muted">Signed in as <code>{{ email }}</code></p>
+
+    {% if admin_error %}
+      <div class="err">{{ admin_error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ base_path }}/logout" style="margin-top: 10px;">
+      <button type="submit">Log out</button>
+    </form>
+
+    <label>Token</label>
+    <pre style="margin: 6px 0 0;">{{ token }}</pre>
+  </div>
+{% endblock %}
+

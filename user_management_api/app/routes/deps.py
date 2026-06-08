@@ -66,3 +66,25 @@ async def get_current_user(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> User:
     return await user_from_bearer(db=db, creds=creds)
+
+
+async def user_from_token(
+    *, db: AsyncSession, token: str, require_admin: bool = False
+) -> User:
+    try:
+        payload: dict[str, Any] = decode_token(token)
+        user_id = int(payload.get("sub") or 0)
+    except (JWTError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.id == user_id))
+    ).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    _validate_token_version(payload, user)
+    if not getattr(user, "is_active", True):
+        raise HTTPException(status_code=403, detail="User is inactive")
+    if require_admin and not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user

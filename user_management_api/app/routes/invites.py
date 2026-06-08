@@ -4,13 +4,15 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from fastapi_workbench import base_path, safe_external_redirect
 from app.core.config import settings
-from app.core.security import hash_password, validate_new_password
+from app.core.security import validate_new_password
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
@@ -18,7 +20,8 @@ from app.routes.deps import admin_from_bearer, bearer_scheme
 from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
-from app.services.tokens import invalidate_unused_invite_tokens, try_consume_invite_token
+from app.services.tokens import invalidate_unused_invite_tokens
+from app.web.templates import templates
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
@@ -29,15 +32,7 @@ def _norm_email(v: str) -> str:
     return (v or "").strip().lower()
 
 
-def _invite_url(request: Request, token: str) -> str:
-    return external_accept_invite_url(request, token=token)
-
-
 def _as_utc_aware(dt: datetime) -> datetime:
-    """
-    SQLite commonly returns naive datetimes even when we store timezone-aware values.
-    Treat naive DB timestamps as UTC to keep comparisons consistent.
-    """
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
@@ -87,7 +82,7 @@ async def create_invite(
     db.add(invite)
     await db.commit()
 
-    invite_url = _invite_url(request, raw)
+    invite_url = external_accept_invite_url(request, token=raw)
     try:
         send_invite_email(to_email=email, invite_url=invite_url)
     except Exception:
@@ -129,10 +124,6 @@ async def lookup_invite_email(
 async def inspect_invite_token(
     payload: dict = Body(...), db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """
-    Helper endpoint for non-HTML clients (e.g. Streamlit) to display the
-    email bound to an invite token, matching the HTML accept page behavior.
-    """
     token = str(payload.get("token") or "")
     if not token:
         raise HTTPException(status_code=422, detail="token is required")
@@ -152,9 +143,44 @@ async def inspect_invite_token(
     }
 
 
+@router.get("/accept", response_class=HTMLResponse, include_in_schema=False)
+async def accept_invite_page(
+    request: Request, token: str, db: AsyncSession = Depends(get_db)
+) -> HTMLResponse:
+    bp = base_path(request)
+    token_hash = InviteToken.hash_token(token)
+    invite: Optional[InviteToken] = (
+        await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
+    ).first()
+    if not invite:
+        return templates.TemplateResponse(
+            request,
+            "accept_invite.html",
+            {
+                "request": request,
+                "token": token,
+                "error": "Invite not found",
+                "base_path": bp,
+            },
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        request,
+        "accept_invite.html",
+        {
+            "request": request,
+            "token": token,
+            "invite_email": invite.email,
+            "base_path": bp,
+        },
+    )
+
+
 async def _accept(
     *, db: AsyncSession, token: str, password: str, full_name: str | None = None
 ) -> None:
+    from app.core.security import hash_password
+
     token_hash = InviteToken.hash_token(token)
     invite: Optional[InviteToken] = (
         await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
@@ -178,6 +204,8 @@ async def _accept(
             detail="An account with this email already exists",
         )
 
+    from app.services.tokens import try_consume_invite_token
+
     consumed = await try_consume_invite_token(db, token_hash=token_hash, now=now)
     if consumed != 1:
         raise HTTPException(status_code=400, detail="Invite already used")
@@ -200,6 +228,40 @@ async def _accept(
     )
     db.add(user)
     await db.commit()
+
+
+@router.post("/accept-form", response_class=HTMLResponse, include_in_schema=False)
+async def accept_invite_form(
+    request: Request,
+    token: str = Form(...),
+    full_name: Optional[str] = Form(default=None),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    bp = base_path(request)
+    try:
+        validate_new_password(password)
+        await _accept(db=db, token=token, password=password, full_name=full_name)
+    except HTTPException as e:
+        token_hash = InviteToken.hash_token(token)
+        invite: Optional[InviteToken] = (
+            await db.exec(
+                select(InviteToken).where(InviteToken.token_hash == token_hash)
+            )
+        ).first()
+        return templates.TemplateResponse(
+            request,
+            "accept_invite.html",
+            {
+                "request": request,
+                "token": token,
+                "invite_email": invite.email if invite else "",
+                "error": e.detail,
+                "base_path": bp,
+            },
+            status_code=e.status_code,
+        )
+    return safe_external_redirect(request, "/login", status_code=303)
 
 
 @router.post("/accept")

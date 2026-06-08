@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from fastapi_workbench import base_path, safe_redirect
 from app.core.security import (
     bump_token_version,
     hash_password,
@@ -17,7 +18,9 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.models import User
-from app.routes.deps import admin_from_bearer, bearer_scheme, get_current_user
+from app.routes.deps import bearer_scheme, get_current_user, user_from_token
+from app.web.session import get_auth_token
+from app.web.templates import templates
 
 
 router = APIRouter(tags=["users"])
@@ -77,13 +80,46 @@ async def change_my_password(
     return {"ok": True}
 
 
-@router.get("/users")
+@router.get("/users", response_class=Response)
 async def users(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-) -> JSONResponse:
-    _ = await admin_from_bearer(db=db, creds=creds)
-    users = (await db.exec(select(User).order_by(text("id")))).all()
+) -> Response:
+    """Admin-only user directory (HTML cookie or JSON bearer)."""
+    bp = base_path(request)
+
+    cookie_token = get_auth_token(request)
+    if cookie_token:
+        user = await user_from_token(db=db, token=cookie_token, require_admin=True)
+        all_users = (await db.exec(select(User).order_by(text("id")))).all()
+        return templates.TemplateResponse(
+            request,
+            "users.html",
+            {
+                "request": request,
+                "users": all_users,
+                "email": user.email,
+                "session_email": user.email,
+                "is_admin": True,
+                "base_path": bp,
+            },
+        )
+
+    if not creds:
+        accept = (request.headers.get("accept") or "").lower()
+        wants_html = ("text/html" in accept) or ("*/*" in accept) or not accept
+        if wants_html:
+            return safe_redirect(
+                request,
+                "/login?msg=Please%20log%20in%20to%20view%20Users.&next=/users",
+                status_code=303,
+            )
+        raise HTTPException(
+            status_code=401, detail="Provide Authorization: Bearer <token>"
+        )
+    _ = await user_from_token(db=db, token=creds.credentials, require_admin=True)
+    all_users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(
         content=[
             {
@@ -95,6 +131,6 @@ async def users(
                 "is_admin": u.is_admin,
                 "created_at": u.created_at.isoformat(),
             }
-            for u in users
+            for u in all_users
         ]
     )

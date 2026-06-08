@@ -1,21 +1,11 @@
-## Legacy HTML UI (archived)
+# HTML UI (restored)
 
-This backend originally shipped with a server-rendered HTML UI under:
-- `app/web/templates/`
-- `app/web/static/`
+The server-rendered HTML UI is served from this API process again (same port as `/docs`).
 
-The interactive UI lives in `user_management_streamlit/` (Streamlit and a restored
-HTML app under `user_management_streamlit/web/`). This API copy under
-`app/web/archive/` is kept for reference only.
+- **Templates**: `app/web/templates/`
+- **Static assets**: `app/web/static/` (mounted at `/static`)
+- **Routes**: cookie-auth HTML handlers in `app/routes/` alongside the JSON API
 
-### What’s here
-- **Auth pages**: `login.html`, `register.html`
-- **Account**: `account.html`
-- **Users**: `users.html`
-- **Admin**: `admin.html`, `admin_user_edit.html`
-- **Invite/reset pages**: `accept_invite.html`, `reset_password.html`
+Entry points: `/`, `/register`, `/login`, `/admin`, `/users`, `/account`.
 
-### Preferred UI going forward
-Use Streamlit (`user_management_streamlit/user_app.py`) or the HTML UI
-(`user_management_streamlit/html_app.py`) as browser UIs; both are separate from this API process.
-
+The standalone `user_management_streamlit/html_app.py` remains available as an alternate deployment option.

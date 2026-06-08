@@ -4,16 +4,19 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from fastapi_workbench import base_path, safe_external_redirect
 from app.core.security import bump_token_version, hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
 from app.routes.email_links import external_password_reset_url
 from app.services.email import send_password_reset_email
 from app.services.tokens import invalidate_unused_reset_tokens, try_consume_reset_token
+from app.web.templates import templates
 
 
 router = APIRouter(prefix="/password", tags=["password"])
@@ -26,16 +29,64 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+@router.post("/forgot-form", response_class=HTMLResponse, include_in_schema=False)
+async def forgot_password_form(
+    request: Request,
+    email: str = Form(...),
+    return_to: str = Form(default="login"),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    bp = base_path(request)
+    email_n = (email or "").strip().lower()
+    reset_url: Optional[str] = None
+
+    user: Optional[User] = None
+    if email_n:
+        user = (await db.exec(select(User).where(User.email == email_n))).first()
+
+    if user:
+        raw = PasswordResetToken.new_raw_token()
+        token_hash = PasswordResetToken.hash_token(raw)
+        now = datetime.now(timezone.utc)
+        await invalidate_unused_reset_tokens(db, email=email_n, now=now)
+        rec = PasswordResetToken(
+            email=email_n,
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=now + timedelta(hours=2),
+            used_at=None,
+        )
+        db.add(rec)
+        await db.commit()
+        reset_url = external_password_reset_url(request, token=raw)
+        try:
+            send_password_reset_email(to_email=email_n, reset_url=reset_url)
+            from app.core.config import settings
+
+            if settings.smtp_host and settings.smtp_from_email:
+                reset_url = None
+        except Exception:
+            log.exception("password_reset_email_send_failed")
+
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {
+            "request": request,
+            "base_path": bp,
+            "success": "If the account exists, a reset link has been created.",
+            "reset_email": email_n,
+            "reset_url": reset_url,
+        },
+    )
+
+
 @router.post("/forgot")
 async def forgot_password_api(
     request: Request,
     payload: dict,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """
-    Real flow: generate a reset token and email it (non-enumerating).
-    Returns ok=true regardless of whether the account exists.
-    """
     email_n = (str(payload.get("email") or "")).strip().lower()
     user: Optional[User] = None
     if email_n:
@@ -66,10 +117,6 @@ async def forgot_password_api(
 async def inspect_reset_token(
     payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """
-    Helper endpoint for non-HTML clients (e.g. Streamlit) to display the
-    email bound to a reset token, matching the HTML reset page behavior.
-    """
     token = str(payload.get("token") or "")
     if not token:
         raise HTTPException(status_code=422, detail="token is required")
@@ -131,3 +178,84 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
         db.add(user)
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/reset", response_class=HTMLResponse, include_in_schema=False)
+async def reset_page(
+    request: Request,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    bp = base_path(request)
+    token_hash = PasswordResetToken.hash_token(token)
+    rec: Optional[PasswordResetToken] = (
+        await db.exec(
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == token_hash
+            )
+        )
+    ).first()
+    if not rec:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "token": token,
+                "error": "Reset link not found",
+            },
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        request,
+        "reset_password.html",
+        {
+            "request": request,
+            "base_path": bp,
+            "token": token,
+            "reset_email": rec.email,
+        },
+    )
+
+
+@router.post("/reset-form", response_class=HTMLResponse, include_in_schema=False)
+async def reset_form(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    bp = base_path(request)
+    try:
+        validate_new_password(password)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "token": token,
+                "reset_email": "",
+                "error": str(e),
+            },
+            status_code=400,
+        )
+    try:
+        await reset_api({"token": token, "password": password}, db)
+    except HTTPException as e:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "token": token,
+                "reset_email": "",
+                "error": str(e.detail),
+            },
+            status_code=e.status_code,
+        )
+
+    return safe_external_redirect(request, "/login", status_code=303)

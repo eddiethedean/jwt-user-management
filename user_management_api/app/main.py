@@ -2,11 +2,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi_workbench import (
     base_path as wb_base_path,
     merge_public_base_with_mount,
+    safe_redirect,
     workbench_browser_base,
 )
+from app.routes.account import router as account_router
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.password_reset import router as password_reset_router
@@ -25,7 +28,11 @@ from app.web.debug_panel import (
 app = FastAPI(title="User Management API")
 
 _APP_ROOT = Path(__file__).resolve().parent
-## Legacy HTML UI assets were archived; no static mount needed.
+app.mount(
+    "/static",
+    StaticFiles(directory=str(_APP_ROOT / "web" / "static")),
+    name="static",
+)
 
 
 @app.middleware("http")
@@ -95,6 +102,7 @@ async def cookie_debug_middleware(request: Request, call_next):
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(account_router)
 app.include_router(invites_router)
 app.include_router(password_reset_router)
 app.include_router(users_router)
@@ -128,4 +136,7 @@ async def meta(request: Request) -> JSONResponse:
 
 @app.get("/", include_in_schema=False)
 async def root(request: Request) -> Response:
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept or "*/*" in accept:
+        return safe_redirect(request, "/register", status_code=302)
     return JSONResponse({"ok": True, "service": "user_management_api", "docs": "/docs"})

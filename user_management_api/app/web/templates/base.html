@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}User Management{% endblock %}</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: rgba(255, 255, 255, 0.06);
+        --panel-strong: rgba(255, 255, 255, 0.1);
+        --fg: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.72);
+        --border: rgba(255, 255, 255, 0.14);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        --radius: 14px;
+        --radius-sm: 10px;
+        --accent: #7c7cff;
+        --accent-2: #22c55e;
+        --danger: #fb7185;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f7fb;
+          --panel: rgba(255, 255, 255, 0.9);
+          --panel-strong: rgba(255, 255, 255, 1);
+          --fg: rgba(9, 10, 18, 0.92);
+          --muted: rgba(9, 10, 18, 0.64);
+          --border: rgba(9, 10, 18, 0.12);
+          --shadow: 0 10px 30px rgba(16, 24, 40, 0.12);
+          --accent: #4f46e5;
+          --accent-2: #16a34a;
+          --danger: #e11d48;
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html { min-height: 100%; }
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        color: var(--fg);
+        background: radial-gradient(1200px 600px at 20% -10%, rgba(124, 124, 255, 0.25), transparent 60%),
+                    radial-gradient(800px 500px at 90% 10%, rgba(34, 197, 94, 0.18), transparent 55%),
+                    var(--bg);
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      a { color: inherit; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      .wrap {
+        max-width: 860px;
+        margin: 40px auto;
+        padding: 0 18px 48px;
+        min-height: calc(100vh - 40px);
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+      .brand { display: flex; flex-direction: column; gap: 2px; }
+      .brandTop { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+      .brandTitle { font-weight: 950; letter-spacing: -0.03em; font-size: 18px; line-height: 1.1; }
+      .brandTag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        font-size: 12px;
+        font-weight: 800;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+      }
+      .brandTagDot { width: 8px; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 85%, transparent); }
+      .brandSub { color: var(--muted); font-size: 13px; max-width: 54ch; }
+      .brandStack { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+      .stackPill {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 55%, transparent);
+        font-size: 12px;
+        font-weight: 700;
+        color: color-mix(in srgb, var(--fg) 90%, transparent);
+      }
+
+      .nav {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .navGroup {
+        display: inline-flex;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+      }
+
+      .navLink {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+        background: transparent;
+        text-decoration: none;
+        font-weight: 650;
+        font-size: 13px;
+        line-height: 1;
+      }
+
+      .navLink:hover {
+        text-decoration: none;
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+
+      .navLink--active {
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+
+      .navDot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 65%, transparent);
+      }
+      .navLink--active .navDot {
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+
+      @media (max-width: 700px) {
+        .wrap { margin-top: 22px; }
+        .topbar { align-items: flex-start; flex-direction: column; }
+        .nav { width: 100%; justify-content: flex-start; }
+        .navGroup { width: 100%; justify-content: space-between; }
+        .navLink { flex: 1; justify-content: center; }
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      h2, h3 { margin: 0; letter-spacing: -0.02em; }
+      h2 { font-size: 22px; margin-bottom: 10px; }
+      h3 { font-size: 16px; margin: 18px 0 8px; color: var(--fg); }
+
+      .muted { color: var(--muted); font-size: 13px; }
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+      label { display: block; margin: 12px 0 6px; font-weight: 650; }
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--panel-strong);
+        color: var(--fg);
+        outline: none;
+      }
+      input::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+      input:focus { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+
+      button {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 90%, transparent), var(--panel));
+        color: var(--fg);
+        cursor: pointer;
+        font-weight: 650;
+      }
+      button:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+
+      .spinner {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid color-mix(in srgb, var(--muted) 65%, transparent);
+        border-top-color: color-mix(in srgb, var(--accent) 85%, transparent);
+        animation: spin 0.8s linear infinite;
+        display: inline-block;
+        vertical-align: -2px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Session pill: "Viewing as ..." + Logout */
+      .sessionRow {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+      .sessionPill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+        overflow: hidden;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(10px);
+      }
+      .sessionPill__label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 650;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+        white-space: nowrap;
+      }
+      .sessionPill__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+      .sessionPill__action {
+        margin: 0;
+        padding: 8px 12px;
+        border: none;
+        border-left: 1px solid var(--border);
+        border-radius: 0;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 750;
+        cursor: pointer;
+      }
+      .sessionPill__action:hover {
+        border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+      .sessionPill__link {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-left: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 750;
+        text-decoration: none;
+        color: inherit;
+      }
+      .sessionPill__link:hover {
+        border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        text-decoration: none;
+      }
+
+      .pillRow a { text-decoration: none; }
+      .pillRow a:hover { text-decoration: none; }
+
+      .err, .ok, .info {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--panel-strong);
+      }
+      .err { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); background: color-mix(in srgb, var(--danger) 14%, var(--panel-strong)); }
+      .ok { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); background: color-mix(in srgb, var(--accent-2) 12%, var(--panel-strong)); }
+
+      code, pre {
+        background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 2px 6px;
+      }
+      pre { padding: 12px; overflow: auto; }
+
+      table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: var(--radius-sm); }
+      th, td { padding: 10px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+      thead th { font-size: 12px; color: var(--muted); font-weight: 750; letter-spacing: 0.02em; text-transform: uppercase; }
+      tbody tr:hover { background: color-mix(in srgb, var(--panel-strong) 65%, transparent); }
+      .colCenter { text-align: center; }
+
+      /* Tables: let columns size to content, but don't stretch the page. */
+      .tableWrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .dataTable {
+        table-layout: auto;
+        width: 100%;
+      }
+      .dataTable th,
+      .dataTable td { white-space: nowrap; }
+
+      /* Cookie debug panel (toggle via COOKIE_DEBUG=true) */
+      .debugPanel {
+        position: fixed;
+        left: 14px;
+        right: 14px;
+        bottom: 14px;
+        max-height: 34vh;
+        overflow: auto;
+        z-index: 9999;
+        border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+        background: color-mix(in srgb, var(--panel-strong) 85%, transparent);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+      .debugPanel__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        font-weight: 850;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--fg) 88%, transparent);
+      }
+      .debugPanel__btn {
+        margin: 0;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: transparent;
+        font-size: 12px;
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .debugPanel__btn:hover {
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+      }
+      .debugPanel__body {
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: color-mix(in srgb, var(--fg) 92%, transparent);
+      }
+      .debugPanel__body pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brandTop">
+            <div class="brandTitle">User Management</div>
+            <div class="brandTag" title="Demo app">
+              <span class="brandTagDot" aria-hidden="true"></span>
+              Demo
+            </div>
+          </div>
+          <div class="brandSub">A minimal, browser-friendly user system with login, invites, and admin tools.</div>
+          <div class="brandStack" aria-label="Stack">
+            <span class="stackPill">FastAPI</span>
+            <span class="stackPill">SQLModel</span>
+            <span class="stackPill">JWT</span>
+            <span class="stackPill">HTML</span>
+            <span class="stackPill">CSS</span>
+            <span class="stackPill">JS</span>
+          </div>
+        </div>
+        <div class="nav">
+          {# Normalize the current request path so active nav works under prefixes/root_path. #}
+          {% set _p = request.url.path %}
+          {% set _bp = (base_path or '') %}
+          {% set _rel = _p %}
+          {% if _bp and _rel.startswith(_bp) %}
+            {% set _rel = _rel[_bp|length:] %}
+          {% endif %}
+          {% if not _rel.startswith('/') %}
+            {% set _rel = '/' ~ _rel %}
+          {% endif %}
+          <div class="navGroup" role="navigation" aria-label="Primary">
+            <a class="navLink {% if _rel == '/register' %}navLink--active{% endif %}" href="{{ base_path }}/register">
+              <span class="navDot" aria-hidden="true"></span>
+              Register
+            </a>
+            <a class="navLink {% if _rel == '/login' or _rel.startswith('/password/') or _rel.startswith('/invites/') %}navLink--active{% endif %}" href="{{ base_path }}/login">
+              <span class="navDot" aria-hidden="true"></span>
+              Login
+            </a>
+            <a class="navLink {% if _rel == '/users' %}navLink--active{% endif %}" href="{{ base_path }}/users">
+              <span class="navDot" aria-hidden="true"></span>
+              Users
+            </a>
+            <a class="navLink {% if _rel == '/admin' or _rel.startswith('/admin/') %}navLink--active{% endif %}" href="{{ base_path }}/admin">
+              <span class="navDot" aria-hidden="true"></span>
+              Admin
+            </a>
+          </div>
+        </div>
+      </div>
+      {% if session_email %}
+        <div class="sessionRow" aria-label="Session">
+          <div class="sessionPill" title="Current session">
+            <div class="sessionPill__label">
+              <span class="sessionPill__dot" aria-hidden="true"></span>
+              <span>Signed in as <code>{{ session_email }}</code></span>
+            </div>
+            <a class="sessionPill__link" href="{{ base_path }}/account" title="Account">Account</a>
+            <form method="post" action="{{ base_path }}/logout" style="margin: 0;">
+              <button type="submit" class="sessionPill__action" title="Log out">Log out</button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+      {% block body %}{% endblock %}
+    </div>
+
+    {% if request.state.cookie_debug_enabled %}
+      <div class="debugPanel" id="cookieDebugPanel" role="region" aria-label="Cookie debug">
+        <div class="debugPanel__head">
+          <div>Cookie debug (COOKIE_DEBUG=true)</div>
+          <button class="debugPanel__btn" type="button" onclick="(function(){var p=document.getElementById('cookieDebugPanel'); if(!p) return; var b=p.querySelector('.debugPanel__body'); if(!b) return; b.style.display=(b.style.display==='none'?'block':'none'); })()">Toggle</button>
+        </div>
+        <div class="debugPanel__body">
+          <pre>{% for line in (request.state.cookie_debug_logs or []) %}{{ line }}
+{% endfor %}</pre>
+        </div>
+      </div>
+    {% endif %}
+  </body>
+</html>
+

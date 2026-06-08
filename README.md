@@ -2,8 +2,8 @@
 
 This repo contains:
 
-- **`user_management_api/`** — FastAPI + SQLModel + Alembic backend with JWT auth (API-only).
-- **`user_management_streamlit/`** — Streamlit UI (`BACKEND_URL`) plus optional legacy HTML UI (`html_app.py`, cookie auth).
+- **`user_management_api/`** — FastAPI + SQLModel + Alembic backend with JWT auth (JSON API and server-rendered HTML UI on the same process).
+- **`user_management_streamlit/`** — Streamlit UI (`BACKEND_URL`) plus optional standalone HTML UI (`html_app.py`, cookie auth).
 - **`fluxlit_app/`** — Single-process [FluxLit](https://fluxlit.readthedocs.io/en/stable/) app: FastAPI mounted at **`/api`** plus Streamlit in one ASGI app.
 - **`e2e/`** — Playwright browser tests.
 - **`fastapi_workbench/`** — Helpers for Posit Workbench / RStudio Server path prefixes (used by the standalone API).
