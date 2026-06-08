@@ -18,6 +18,7 @@ import requests  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _E2E_DB_PATH: Optional[Path] = None
+_BACKEND_PUBLIC_URL: Optional[str] = None
 
 # Interpreter for API + Streamlit (must have ``user_management_api`` and e2e deps).
 # Default: repo root ``.venv``. Override: ``export JWT_USER_MGMT_E2E_PYTHON=/path/to/python``.
@@ -120,11 +121,13 @@ def admin_credentials():
 
 
 @pytest.fixture(scope="session")
-def app_urls(ports):
+def app_urls(ports, run_apps):
+    backend = _BACKEND_PUBLIC_URL or f"http://127.0.0.1:{ports['backend']}"
     return {
-        "backend": f"http://127.0.0.1:{ports['backend']}",
-        "admin": f"http://127.0.0.1:{ports['backend']}/admin",
+        "backend": backend.rstrip("/"),
+        "admin": f"{backend.rstrip('/')}/admin",
         "user": f"http://127.0.0.1:{ports['user']}",
+        "proxy_enabled": _truthy_env("E2E_USE_PROXY"),
     }
 
 
@@ -132,10 +135,15 @@ def app_urls(ports):
 def run_apps(ports, admin_credentials):
     """
     Start backend + Streamlit user app once per test session.
+    When ``E2E_USE_PROXY=1``, also start a Connect-like reverse proxy in front of the API.
     """
+    global _BACKEND_PUBLIC_URL  # noqa: PLW0603
+
     run_id = f"{os.getpid()}-{int(time.time())}"
     backend_port = str(ports["backend"])
     user_port = str(ports["user"])
+    use_proxy = _truthy_env("E2E_USE_PROXY")
+    proxy_proc: Optional[subprocess.Popen] = None
 
     logs_dir = REPO_ROOT / "e2e" / "artifacts" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -206,8 +214,44 @@ def run_apps(ports, admin_credentials):
 
     backend = _start_uvicorn_with_retry()
 
-    # Wait for backend.
-    _wait_http_ok(f"http://127.0.0.1:{backend_port}/docs", timeout_s=45)
+    backend_direct = f"http://127.0.0.1:{backend_port}"
+    _wait_http_ok(f"{backend_direct}/docs", timeout_s=45)
+
+    if use_proxy:
+        proxy_port = str(_free_port())
+        ports["proxy"] = int(proxy_port)
+        prefix = _proxy_prefix()
+        proxy_log = logs_dir / f"proxy-{run_id}.log"
+        proxy_fp = proxy_log.open("a", encoding="utf-8")
+        proxy_proc = subprocess.Popen(
+            [
+                str(BACKEND_PY),
+                str(REPO_ROOT / "e2e" / "connect_like_proxy.py"),
+                "--listen-port",
+                proxy_port,
+                "--upstream",
+                backend_direct,
+                "--prefix",
+                prefix,
+                "--mode",
+                _proxy_mode(),
+            ],
+            cwd=str(REPO_ROOT),
+            env=env_backend,
+            stdout=proxy_fp,
+            stderr=subprocess.STDOUT,
+        )
+        time.sleep(0.3)
+        if proxy_proc.poll() is not None:
+            raise RuntimeError(
+                f"proxy process exited early.\n{_tail_path(proxy_log)}"
+            )
+        backend_public = f"http://127.0.0.1:{proxy_port}{prefix}"
+        _wait_http_ok(f"{backend_public}/docs", timeout_s=45)
+    else:
+        backend_public = backend_direct
+
+    _BACKEND_PUBLIC_URL = backend_public.rstrip("/")
 
     def _start_streamlit_with_retry(
         *, cwd: Path, env: dict, log_path: Path, port_key: str
@@ -257,7 +301,7 @@ def run_apps(ports, admin_credentials):
     env_user.pop("PYTHONPATH", None)
     env_user.update(
         {
-            "BACKEND_URL": backend_public.rstrip("/"),
+            "BACKEND_URL": _BACKEND_PUBLIC_URL,
             "STREAMLIT_TEST_MODE": "",
             "DEBUG": "false",
         }
@@ -279,15 +323,13 @@ def run_apps(ports, admin_credentials):
                 raise RuntimeError(f"{name} process exited early.\n{_tail_path(log)}")
         yield
     finally:
-        for p in (user, backend):
-            if p.poll() is None:
+        for p in (user, backend, proxy_proc):
+            if p is not None and p.poll() is None:
                 p.terminate()
-        # Best-effort drain and kill.
         time.sleep(0.5)
-        for p in (user, backend):
-            if p.poll() is None:
+        for p in (user, backend, proxy_proc):
+            if p is not None and p.poll() is None:
                 p.kill()
-        # log file handles are owned by the OS; processes are terminated above.
 
 
 @pytest.fixture(scope="session")

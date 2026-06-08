@@ -137,6 +137,14 @@ def test_external_ui_url_no_duplicate_mount(
 
 
 def test_package_version_matches_release() -> None:
-    import fastapi_workbench as fb
+    import tomllib
+    from pathlib import Path
 
-    assert fb.__version__ == "0.3.1"
+    root = Path(__file__).resolve().parents[1]
+    expected = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]["version"]
+    init_src = (root / "src" / "fastapi_workbench" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    assert f'__version__ = "{expected}"' in init_src

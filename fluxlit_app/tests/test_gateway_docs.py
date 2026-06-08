@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from fluxlit.testing import FluxLitTestClient
 
-from conftest import load_fluxlit_app
+from fluxlit_test_helpers import load_fluxlit_app
 
 
 def test_openapi_docs_served_under_api_prefix(tmp_path) -> None:
     """OpenAPI docs should be reachable (same expectation as the API-only ASGI smoke test)."""
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'g.db'}")
     tc = FluxLitTestClient(app)
-    assert tc.api_get("/openapi.json").status_code == 200
+    spec = tc.api_get("/openapi.json")
+    assert spec.status_code == 200
+    paths = spec.json().get("paths") or {}
+    assert any("/auth/token" in p for p in paths)
     assert tc.api_get("/docs").status_code == 200

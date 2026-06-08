@@ -64,7 +64,7 @@ def _looks_like_workbench_sign_in(body: str) -> bool:
 def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
     info = detect_real_workbench()
     if not info:
-        raise pytest.skip.Exception(
+        pytest.skip(
             "Not in a real Workbench environment (or missing rserver-url/curl)."
         )
 
@@ -120,7 +120,7 @@ def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
             _curl_args(info.curl_bin) + [ping_url], text=True
         ).strip()
         if _looks_like_workbench_sign_in(out):
-            raise pytest.skip.Exception(
+            pytest.skip(
                 "Workbench required interactive sign-in for proxied URL. "
                 "Set WORKBENCH_CURL_ARGS (e.g. Cookie/SSO headers) to enable this integration test."
             )
@@ -132,7 +132,7 @@ def test_real_workbench_proxy_routing_and_root_path_normalization() -> None:
             _curl_args(info.curl_bin) + [scope_url], text=True
         ).strip()
         if _looks_like_workbench_sign_in(scope_out):
-            raise pytest.skip.Exception(
+            pytest.skip(
                 "Workbench required interactive sign-in for proxied URL. "
                 "Set WORKBENCH_CURL_ARGS (e.g. Cookie/SSO headers) to enable this integration test."
             )

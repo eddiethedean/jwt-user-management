@@ -4,7 +4,7 @@ from fluxlit.gateway import build_gateway
 from fluxlit.testing import FluxLitTestClient
 from starlette.testclient import TestClient
 
-from conftest import load_fluxlit_app
+from fluxlit_test_helpers import load_fluxlit_app
 from ui.pages.um_helpers import api_docs_link
 
 

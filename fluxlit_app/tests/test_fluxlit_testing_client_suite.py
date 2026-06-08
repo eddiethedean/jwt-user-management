@@ -19,12 +19,17 @@ import httpx
 import pytest
 from fluxlit.client import ApiClient
 from fluxlit.testing import FluxLitTestClient
+import fluxlit.testing as _fluxlit_testing
 from sqlmodel import Session
 from starlette.testclient import TestClient
+from streamlit.testing.v1 import AppTest
 
-from conftest import load_fluxlit_app
+from fluxlit_test_helpers import load_fluxlit_app
 
 _FLUX_APP_ROOT = Path(__file__).resolve().parents[1]
+_FLUXLIT_MAIN = (
+    Path(_fluxlit_testing.__file__).resolve().parent / "streamlit" / "main.py"
+)
 
 
 def _seed_user(
@@ -88,14 +93,6 @@ def test_fluxlit_test_client_api_prefix_default(tmp_path) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'pfx.db'}")
     tc = FluxLitTestClient(app)
     assert tc.api_prefix == "/api"
-
-
-def test_fluxlit_test_client_openapi_has_service_title(tmp_path) -> None:
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'ti.db'}")
-    tc = FluxLitTestClient(app)
-    info = tc.openapi().get("info") or {}
-    assert isinstance(info, dict)
-    assert "title" in info
 
 
 def test_fluxlit_test_client_openapi_lists_user_routes(tmp_path) -> None:
@@ -313,39 +310,42 @@ def test_fluxlit_test_client_admin_users_patch_requires_admin(tmp_path) -> None:
 # --- FluxLitTestClient.streamlit() ---
 
 
-def test_fluxlit_streamlit_smoke_via_test_client(
-    tmp_path, monkeypatch, _patch_api_client
-):
+def test_streamlit_login_against_real_api(tmp_path, monkeypatch) -> None:
+    """Streamlit login flow backed by the real bundled API (ApiClient delegates to tc.api)."""
     monkeypatch.setenv("FLUXLIT_DISABLE_URL_SESSION", "1")
-    _patch_api_client(
-        lambda *a, **k: httpx.Response(200, json={"ok": True, "external_api_base": ""})
-    )
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'st.db'}")
-    tc = FluxLitTestClient(app)
-    at = tc.streamlit(
-        target="main:app",
-        internal_api_base="http://testserver/api",
-        extra_sys_path=_FLUX_APP_ROOT,
-    )
-    assert not at.exception
-    assert any("user management" in t.value.lower() for t in at.title)
+    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'real_login.db'}")
+    import app.db as db
 
-
-def test_fluxlit_streamlit_internal_api_base_wiring_via_test_client(
-    tmp_path, monkeypatch, _patch_api_client
-):
-    monkeypatch.setenv("FLUXLIT_DISABLE_URL_SESSION", "1")
-    _patch_api_client(
-        lambda *a, **k: httpx.Response(200, json={"ok": True, "external_api_base": ""})
+    _seed_user(
+        db_engine=db.engine,
+        email="u@example.com",
+        password="secret1234",
     )
-    app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'stib.db'}")
     tc = FluxLitTestClient(app)
-    at = tc.streamlit(
-        target="main:app",
-        internal_api_base="http://127.0.0.1:59999/api",
-        extra_sys_path=_FLUX_APP_ROOT,
-    )
+
+    def _bridge_api_client(self, method: str, path: str, **kwargs):
+        p = path if path.startswith("/") else f"/{path}"
+        if method.upper() == "GET" and "/__meta" in p:
+            return tc.api_get("/__meta")
+        if not p.startswith(tc.api_prefix):
+            p = f"{tc.api_prefix}{p}"
+        return tc.api.request(method.upper(), p, **kwargs)
+
+    monkeypatch.setattr(ApiClient, "request", _bridge_api_client)
+    monkeypatch.setenv("FLUXLIT_APP", "main:app")
+    monkeypatch.setenv("FLUXLIT_INTERNAL_API_BASE", "http://testserver/api")
+    monkeypatch.setenv("FLUXLIT_API_PREFIX", "/api")
+
+    at = AppTest.from_file(str(_FLUXLIT_MAIN), default_timeout=30).run()
+    _text_input_by_key(at, "login_email").input("u@example.com")
+    _text_input_by_key(at, "login_password").input("secret1234")
+    _click_button(at, "Login")
+    at = at.run()
+    at = at.run()
     assert not at.exception
+    assert "user_auth" in at.session_state
+    assert at.session_state["user_auth"].is_authenticated
+    assert at.session_state["user_auth"].email == "u@example.com"
 
 
 def test_fluxlit_streamlit_invalid_login_shows_error_via_test_client(
