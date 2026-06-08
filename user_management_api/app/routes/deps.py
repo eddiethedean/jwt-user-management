@@ -16,6 +16,15 @@ from app.models import User
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def _validate_token_version(payload: dict[str, Any], user: User) -> None:
+    expected = int(getattr(user, "token_version", 0) or 0)
+    if "tv" in payload:
+        if int(payload.get("tv") or 0) != expected:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    elif expected != 0:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
 async def user_from_bearer(
     *, db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
 ) -> User:
@@ -37,6 +46,7 @@ async def user_from_bearer(
     ).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    _validate_token_version(payload, user)
     if not getattr(user, "is_active", True):
         raise HTTPException(status_code=403, detail="User is inactive")
     return user

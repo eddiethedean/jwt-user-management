@@ -44,6 +44,21 @@ def add_cookie_debug(request: Request, msg: str, /, **fields: Any) -> None:
         logs.append(line)
 
 
+def redact_set_cookie_header(value: str | None) -> str:
+    """Return a safe summary of Set-Cookie without secret values."""
+    if not value:
+        return ""
+    names: list[str] = []
+    for part in value.split(","):
+        chunk = part.strip()
+        if not chunk:
+            continue
+        name = (chunk.split("=", 1)[0] or "").strip()
+        if name:
+            names.append(name)
+    return f"present names={names!r}" if names else "present"
+
+
 def cookie_debug_payload(request: Request, *, max_chars: int = 3500) -> str:
     """
     Serialize this request's debug logs for a cookie value.

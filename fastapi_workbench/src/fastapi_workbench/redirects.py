@@ -17,6 +17,15 @@ def _is_absolute_url(to: str) -> bool:
     return bool(p.scheme and p.netloc)
 
 
+def _safe_relative_path(dest: str) -> str | None:
+    """Return a normalized relative path or None if unsafe."""
+    if not dest.startswith("/") or dest.startswith("//"):
+        return None
+    if _is_absolute_url(dest):
+        return None
+    return dest
+
+
 def safe_redirect(
     request: Request,
     to: str,
@@ -27,16 +36,13 @@ def safe_redirect(
     include_root_path: bool = True,
 ) -> Response:
     dest = (to or "").strip() or "/"
+    safe_path = _safe_relative_path(dest)
+    if safe_path is None:
+        safe_path = "/"
 
-    if _is_absolute_url(dest):
-        return RedirectResponse(url=dest, status_code=status_code)
-
-    if dest.startswith("/"):
-        if prefer_relative_in_workbench and is_workbench_request(request):
-            return RedirectResponse(url=dest.lstrip("/"), status_code=status_code)
-        return RedirectResponse(url=dest, status_code=status_code)
-
-    return RedirectResponse(url=dest, status_code=status_code)
+    if prefer_relative_in_workbench and is_workbench_request(request):
+        return RedirectResponse(url=safe_path.lstrip("/"), status_code=status_code)
+    return RedirectResponse(url=safe_path, status_code=status_code)
 
 
 def safe_external_redirect(

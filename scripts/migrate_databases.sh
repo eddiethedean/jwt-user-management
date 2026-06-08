@@ -11,10 +11,18 @@ if [[ -f "$ROOT/.venv/bin/activate" ]]; then
 fi
 
 echo "==> user_management_api"
-(cd "$ROOT/user_management_api" && alembic upgrade head)
+(
+  cd "$ROOT/user_management_api"
+  unset DATABASE_URL
+  alembic upgrade head
+)
 
 echo "==> fluxlit_app"
-(cd "$ROOT/fluxlit_app" && alembic upgrade head)
+(
+  cd "$ROOT/fluxlit_app"
+  unset DATABASE_URL
+  alembic upgrade head
+)
 
 echo "Done."
 echo "  API:    $ROOT/user_management_api/app.db"

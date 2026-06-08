@@ -110,7 +110,8 @@ def load_fluxlit_app(
             os.environ.pop(k, None)
 
     os.environ["DATABASE_URL"] = db_url
-    os.environ["JWT_SECRET"] = "test-secret"
+    os.environ["JWT_SECRET"] = "test-secret-for-jwt-signing"
+    os.environ["JWT_ALLOW_WEAK_SECRET"] = "1"
     if extra_env:
         os.environ.update(extra_env)
 

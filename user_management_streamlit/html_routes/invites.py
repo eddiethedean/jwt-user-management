@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, external_url, safe_external_redirect
 from app.core.config import settings
-from app.core.security import decode_token, hash_password
+from app.core.security import decode_token, validate_new_password
 from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
@@ -185,54 +185,9 @@ async def accept_invite_page(
 async def _accept(
     *, db: AsyncSession, token: str, password: str, full_name: str | None = None
 ) -> None:
-    token_hash = InviteToken.hash_token(token)
-    invite: Optional[InviteToken] = (
-        await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
-    ).first()
-    if not invite:
-        raise HTTPException(status_code=404, detail="Invite not found")
-    now = datetime.now(timezone.utc)
-    if invite.used_at is not None:
-        raise HTTPException(status_code=400, detail="Invite already used")
-    if _as_utc_aware(invite.expires_at) < now:
-        raise HTTPException(status_code=400, detail="Invite expired")
+    from app.routes.invites import _accept as api_accept
 
-    user = (await db.exec(select(User).where(User.email == invite.email))).first()
-    if user:
-        user.hashed_password = hash_password(password)
-        user.is_admin = bool(user.is_admin or invite.grant_admin)
-        if full_name is not None:
-            fn = full_name.strip()
-            if fn:
-                user.full_name = fn
-        if settings.directory_lookup_url:
-            try:
-                rec = lookup_email(invite.email)
-            except Exception:
-                rec = None
-            if rec and rec.country and not user.country:
-                user.country = rec.country
-    else:
-        fn = (full_name or "").strip() or None
-        country = None
-        if settings.directory_lookup_url:
-            try:
-                rec = lookup_email(invite.email)
-            except Exception:
-                rec = None
-            if rec and rec.country:
-                country = rec.country
-        user = User(
-            email=invite.email,
-            full_name=fn,
-            country=country,
-            hashed_password=hash_password(password),
-            is_admin=bool(invite.grant_admin),
-        )
-        db.add(user)
-    invite.used_at = now
-    db.add(invite)
-    await db.commit()
+    await api_accept(db=db, token=token, password=password, full_name=full_name)
 
 
 @router.post("/accept-form", response_class=HTMLResponse, include_in_schema=False)
@@ -245,6 +200,7 @@ async def accept_invite_form(
 ) -> Response:
     bp = base_path(request)
     try:
+        validate_new_password(password)
         await _accept(db=db, token=token, password=password, full_name=full_name)
     except HTTPException as e:
         token_hash = InviteToken.hash_token(token)
@@ -284,5 +240,9 @@ async def accept_invite_api(
     full_name_s = None if full_name is None else str(full_name)
     if not token or not password:
         raise HTTPException(status_code=422, detail="token and password are required")
+    try:
+        validate_new_password(password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     await _accept(db=db, token=token, password=password, full_name=full_name_s)
     return {"ok": True}

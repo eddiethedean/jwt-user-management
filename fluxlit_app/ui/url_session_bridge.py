@@ -71,12 +71,6 @@ def apply_hydrated_auth(
 
 def narrow_session_blob(st: Any, auth: Any) -> dict[str, JsonValue]:
     out: dict[str, JsonValue] = {}
-    tok = getattr(auth, "access_token", "") or ""
-    if tok:
-        out["access_token"] = str(tok)
-    em = getattr(auth, "email", "") or ""
-    if em:
-        out["username"] = str(em)
     page = st.session_state.get("_page")
     if page in ("Users", "Admin", "Account"):
         out["_page"] = str(page)

@@ -70,6 +70,7 @@ from user_management_streamlit.web.debug_panel import (  # noqa: E402
     COOKIE_DEBUG_LOG_COOKIE,
     cookie_debug_payload,
     init_cookie_debug,
+    redact_set_cookie_header,
 )
 
 app = FastAPI(title="User Management HTML UI")
@@ -119,7 +120,7 @@ async def cookie_debug_middleware(request: Request, call_next):
             request,
             "cookie:resp",
             status_code=getattr(resp, "status_code", None),
-            set_cookie_header=resp.headers.get("set-cookie"),
+            set_cookie_header=redact_set_cookie_header(resp.headers.get("set-cookie")),
         )
         payload = cookie_debug_payload(request)
         if payload:

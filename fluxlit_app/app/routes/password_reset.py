@@ -8,11 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import hash_password, validate_new_password
+from app.core.security import bump_token_version, hash_password, validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
-from app.routes.public_urls import email_browser_page_url
+from app.routes.email_links import external_password_reset_url
 from app.services.email import send_password_reset_email
+from app.services.tokens import invalidate_unused_reset_tokens, try_consume_reset_token
 
 
 router = APIRouter(prefix="/password", tags=["password"])
@@ -43,6 +44,7 @@ async def forgot_password_api(
         raw = PasswordResetToken.new_raw_token()
         token_hash = PasswordResetToken.hash_token(raw)
         now = datetime.now(timezone.utc)
+        await invalidate_unused_reset_tokens(db, email=email_n, now=now)
         rec = PasswordResetToken(
             email=email_n,
             token_hash=token_hash,
@@ -52,7 +54,7 @@ async def forgot_password_api(
         )
         db.add(rec)
         await db.commit()
-        reset_url = email_browser_page_url(request, page="Reset password", token=raw)
+        reset_url = external_password_reset_url(request, token=raw)
         try:
             send_password_reset_email(to_email=email_n, reset_url=reset_url)
         except Exception:
@@ -116,13 +118,16 @@ async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     if _as_utc_aware(rec.expires_at) < now:
         raise HTTPException(status_code=400, detail="Reset link expired")
 
+    consumed = await try_consume_reset_token(db, token_hash=token_hash, now=now)
+    if consumed != 1:
+        raise HTTPException(status_code=400, detail="Reset link already used")
+
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == rec.email))
     ).first()
     if user:
         user.hashed_password = hash_password(password)
+        bump_token_version(user)
         db.add(user)
-    rec.used_at = now
-    db.add(rec)
     await db.commit()
     return {"ok": True}

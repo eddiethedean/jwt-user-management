@@ -151,14 +151,7 @@ def _render_admin(st: Any, auth: AuthState, *, public_api_base: str) -> None:
                     },
                 )
         if response_ok(r2):
-            j = safe_json(r2)
-            st.success("Invite created")
-            st.code(
-                public_url(
-                    str(j.get("invite_url") or ""),
-                    public_api_base=public_api_base or "",
-                )
-            )
+            st.success("Invite created. If email is configured, the invite was sent.")
         else:
             show_http_error("Invite failed", r2)
 

@@ -79,7 +79,8 @@ def load_wrapped_app(
 ) -> ASGIApp:
     """Load the backend ASGI app (app.asgi:app) with a fresh SQLite DB and settings."""
     os.environ["DATABASE_URL"] = db_url
-    os.environ["JWT_SECRET"] = "test-secret"
+    os.environ["JWT_SECRET"] = "test-secret-for-jwt-signing"
+    os.environ["JWT_ALLOW_WEAK_SECRET"] = "1"
     if enable_directory:
         os.environ["DIRECTORY_LOOKUP_URL"] = "http://directory.test/ldapEmail"
         os.environ["DIRECTORY_LOOKUP_REQUIRED"] = "true"
@@ -120,6 +121,7 @@ def load_wrapped_app(
         "app.routes.email_links",
         "app.services.directory",
         "app.services.email",
+        "app.services.tokens",
         "app.routes.auth",
         "app.routes.invites",
         "app.routes.admin",

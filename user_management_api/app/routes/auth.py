@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -11,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
+    token_extra_claims,
     verify_password,
 )
 from app.db import get_db
@@ -18,9 +20,11 @@ from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
 from app.routes.email_links import external_accept_invite_url
 from app.services.email import send_self_registration_email
+from app.services.tokens import invalidate_unused_invite_tokens
 
 
 router = APIRouter(tags=["auth"])
+log = logging.getLogger("uvicorn.error")
 
 
 def _norm_email(v: str) -> str:
@@ -41,7 +45,7 @@ async def register_submit(
         await db.exec(select(User).where(User.email == email_n))
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email already exists")
+        return {"ok": True, "email_sent": False}
 
     if not invite_email_domain_allowed(email_n):
         raise HTTPException(
@@ -49,9 +53,16 @@ async def register_submit(
             detail="Email domain is not allowed for registration",
         )
 
+    if not (settings.smtp_host and settings.smtp_from_email):
+        raise HTTPException(
+            status_code=503,
+            detail="Self-registration email is not configured",
+        )
+
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
     now = datetime.now(timezone.utc)
+    await invalidate_unused_invite_tokens(db, email=email_n, now=now)
     invite = InviteToken(
         email=email_n,
         token_hash=token_hash,
@@ -65,14 +76,13 @@ async def register_submit(
 
     setup_url = external_accept_invite_url(request, token=raw)
     email_sent = False
-    if settings.smtp_host and settings.smtp_from_email:
-        try:
-            send_self_registration_email(to_email=email_n, setup_url=setup_url)
-            email_sent = True
-        except Exception:
-            pass
+    try:
+        send_self_registration_email(to_email=email_n, setup_url=setup_url)
+        email_sent = True
+    except Exception:
+        log.exception("self_registration_email_send_failed")
 
-    return {"ok": True, "setup_url": setup_url, "email_sent": email_sent}
+    return {"ok": True, "email_sent": email_sent}
 
 
 @router.post("/auth/token")
@@ -92,8 +102,6 @@ async def token(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     access_token = create_access_token(
         subject=str(user.id),
-        extra_claims={"country": user.country}
-        if getattr(user, "country", None)
-        else None,
+        extra_claims=token_extra_claims(user),
     )
     return {"access_token": access_token, "token_type": "bearer"}

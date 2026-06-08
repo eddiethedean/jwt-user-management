@@ -1,5 +1,6 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+import os
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -48,6 +49,21 @@ class Secrets(BaseSettings):
         v = (v or "").strip()
         if not v:
             raise ValueError("JWT_SECRET must be set")
+        weak = {"dev-secret", "secret", "changeme", "password", "jwt-secret"}
+        if v.lower() in weak and not (
+            os.getenv("JWT_ALLOW_WEAK_SECRET", "").strip().lower()
+            in {"1", "true", "yes", "on"}
+        ):
+            raise ValueError(
+                "JWT_SECRET is too weak; set a strong secret or JWT_ALLOW_WEAK_SECRET=1 for local dev"
+            )
+        if len(v) < 16 and not (
+            os.getenv("JWT_ALLOW_WEAK_SECRET", "").strip().lower()
+            in {"1", "true", "yes", "on"}
+        ):
+            raise ValueError(
+                "JWT_SECRET must be at least 16 characters, or set JWT_ALLOW_WEAK_SECRET=1 for local dev"
+            )
         return v
 
 
@@ -127,7 +143,7 @@ class Settings:
             getattr(d, "DIRECTORY_LOOKUP_REQUIRED", False)
         )
         self.directory_lookup_verify_ssl = bool(
-            getattr(d, "DIRECTORY_LOOKUP_VERIFY_SSL", False)
+            getattr(d, "DIRECTORY_LOOKUP_VERIFY_SSL", True)
         )
 
     def normalized_invite_email_domains(self) -> frozenset[str]:

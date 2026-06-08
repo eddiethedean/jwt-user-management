@@ -40,7 +40,7 @@ SMTP_USE_TLS: bool = False
 # --- Directory client (service URL → ``.env`` only) ---
 DIRECTORY_LOOKUP_TIMEOUT_S: int = 5
 DIRECTORY_LOOKUP_REQUIRED: bool = False
-DIRECTORY_LOOKUP_VERIFY_SSL: bool = False
+DIRECTORY_LOOKUP_VERIFY_SSL: bool = True
 
 # --- Invite / self-registration email domains (suffix after ``@``) ---
 INVITE_ALLOWED_EMAIL_DOMAINS: tuple[str, ...] = ("socom.mil", "soc.mil")

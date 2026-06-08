@@ -365,15 +365,16 @@ def _public_url(url: str) -> str:
 
 
 def _load_me() -> dict:
-    me = st.session_state.get("_me")
-    if isinstance(me, dict):
-        return me
     try:
         r = _authed_client().get("/users/me")
     except httpx.RequestError:
-        me = {}
+        me: dict = {}
     else:
-        me = safe_json(r) if r.is_success else {}
+        if r.status_code in (401, 403):
+            logout()
+            me = {}
+        else:
+            me = safe_json(r) if r.is_success else {}
     st.session_state["_me"] = me
     return me
 
@@ -478,20 +479,13 @@ def _render_register() -> None:
                 st.stop()
             if resp.is_success:
                 data = safe_json(resp)
-                setup_url = str(data.get("setup_url") or "").strip()
-                if setup_url:
-                    emailed = bool(data.get("email_sent"))
-                    st.success(
-                        "Setup link is ready."
-                        + (
-                            " Check your email."
-                            if emailed
-                            else " Email is not configured; copy the link below."
-                        )
-                    )
-                    st.code(_public_url(setup_url))
+                if data.get("email_sent"):
+                    st.success("If your email is allowed, a setup link was sent. Check your inbox.")
                 else:
-                    st.success("If allowed, a setup link was generated/sent.")
+                    st.success(
+                        "If your email is allowed and not already registered, "
+                        "we attempted to send a setup link."
+                    )
             else:
                 show_http_error("Registration failed", resp)
 
@@ -771,9 +765,7 @@ if auth.is_authenticated:
                 if r2 is None:
                     st.stop()
                 if r2.is_success:
-                    j = safe_json(r2)
-                    st.success("Invite created")
-                    st.code(_public_url(str(j.get("invite_url") or "")))
+                    st.success("Invite created. If email is configured, the invite was sent.")
                 else:
                     show_http_error("Invite failed", r2)
 

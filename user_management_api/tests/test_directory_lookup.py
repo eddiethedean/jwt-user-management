@@ -13,18 +13,29 @@ from api_test_helpers import (
 )
 
 
-def test_register_creates_setup_token(tmp_path) -> None:
-    """Registration does not call directory; it always creates an invite token."""
+def test_register_creates_setup_token(tmp_path, monkeypatch) -> None:
+    """Registration requires SMTP and does not return raw setup tokens."""
     db_url = f"sqlite:///{tmp_path / 'test.db'}"
     app = load_wrapped_app(db_url=db_url, enable_directory=True)
     client = TestClient(app, base_url="http://testserver")
+
+    import app.core.config as config
+
+    config.settings.smtp_host = "smtp.test.local"
+    config.settings.smtp_from_email = "noreply@test.local"
+    monkeypatch.setattr(
+        "app.routes.auth.send_self_registration_email",
+        lambda **kwargs: None,
+    )
+
     r = client.post(
         "/register", data={"email": "nobody@example.com"}, follow_redirects=False
     )
     assert r.status_code == 200
     data = r.json()
     assert data.get("ok") is True
-    assert data.get("setup_url")
+    assert "setup_url" not in data
+    assert data.get("email_sent") is True
 
 
 def test_lookup_parses_country_from_directory_response(
@@ -114,12 +125,12 @@ def test_invites_accept_succeeds_when_directory_returns_404(
 
     client = TestClient(app, base_url="http://testserver")
     r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longenough"}
+        "/invites/accept", json={"token": raw, "password": "longpassword1"}
     )
     assert r.status_code == 200
     assert r.json().get("ok") is True
 
-    h = bearer_for(client, email="nobody@example.com", password="longenough")
+    h = bearer_for(client, email="nobody@example.com", password="longpassword1")
     me = client.get("/users/me", headers=h)
     assert me.status_code == 200
     assert me.json()["email"] == "nobody@example.com"

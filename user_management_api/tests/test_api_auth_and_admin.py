@@ -67,18 +67,25 @@ def test_users_me_success_for_active_user(app_client, db_engine) -> None:
     assert body["is_admin"] is False
 
 
-def test_users_list_success_for_active_user(app_client, db_engine) -> None:
+def test_users_list_requires_admin(app_client, db_engine) -> None:
     seed_user(
         db_engine=db_engine,
         email="list@example.com",
-        password="secret1234",
+        password="secret123456",
     )
-    h = bearer_for(app_client, email="list@example.com", password="secret1234")
+    h = bearer_for(app_client, email="list@example.com", password="secret123456")
+    r = app_client.get("/users", headers=h)
+    assert r.status_code == 403
+
+
+def test_users_list_success_for_admin(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    h = bearer_for(app_client, email="admin@example.com", password="admin123")
     r = app_client.get("/users", headers=h)
     assert r.status_code == 200
     users = r.json()
     assert isinstance(users, list)
-    assert any(u.get("email") == "list@example.com" for u in users)
+    assert any(u.get("email") == "admin@example.com" for u in users)
 
 
 def test_invites_accept_creates_user_and_marks_token_used(
@@ -88,7 +95,7 @@ def test_invites_accept_creates_user_and_marks_token_used(
 
     raw = seed_unused_invite(db_engine=db_engine, email="new@example.com")
     r = app_client.post(
-        "/invites/accept", json={"token": raw, "password": "longenough"}
+        "/invites/accept", json={"token": raw, "password": "longpassword1"}
     )
     assert r.status_code == 200
     assert r.json().get("ok") is True
@@ -105,7 +112,7 @@ def test_invites_accept_creates_user_and_marks_token_used(
         assert u
         from app.core.security import verify_password
 
-        assert verify_password("longenough", u.hashed_password)
+        assert verify_password("longpassword1", u.hashed_password)
 
 
 def test_invites_accept_sets_country_from_directory(
@@ -131,11 +138,11 @@ def test_invites_accept_sets_country_from_directory(
 
     client = TestClient(app, base_url="http://testserver")
     r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longenough"}
+        "/invites/accept", json={"token": raw, "password": "longpassword1"}
     )
     assert r.status_code == 200
 
-    h = bearer_for(client, email="user@example.com", password="longenough")
+    h = bearer_for(client, email="user@example.com", password="longpassword1")
     me = client.get("/users/me", headers=h)
     assert me.status_code == 200
     assert me.json()["country"] == "US"
@@ -155,7 +162,7 @@ def test_invites_accept_grant_admin(tmp_path) -> None:
     )
     client = TestClient(app, base_url="http://testserver")
     r = client.post(
-        "/invites/accept", json={"token": raw, "password": "longenough"}
+        "/invites/accept", json={"token": raw, "password": "longpassword1"}
     )
     assert r.status_code == 200
 

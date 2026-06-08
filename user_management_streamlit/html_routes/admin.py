@@ -24,7 +24,9 @@ from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
-from user_management_streamlit.web.session import get_auth_token, set_auth_cookie
+from app.services.tokens import invalidate_unused_invite_tokens
+from user_management_streamlit.html_routes.deps import user_from_token
+from user_management_streamlit.web.session import get_auth_token
 from user_management_streamlit.web.templates import templates
 
 
@@ -70,7 +72,7 @@ async def admin_invite_lookup(
             {"ok": False, "error": "Not authenticated"}, status_code=401
         )
 
-    _ = await _require_admin_user(db=db, token=active_token)
+    _ = await user_from_token(db=db, token=active_token, require_admin=True)
 
     email_n = _norm_email(email)
     if not email_n:
@@ -164,23 +166,11 @@ async def admin_api_delete_user(
 
 
 async def _require_user(*, db: AsyncSession, token: str) -> User:
-    try:
-        payload: dict[str, Any] = decode_token(token)
-        user_id = int(payload.get("sub") or 0)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = (await db.exec(select(User).where(User.id == user_id))).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return user
+    return await user_from_token(db=db, token=token)
 
 
 async def _require_admin_user(*, db: AsyncSession, token: str) -> User:
-    user = await _require_user(db=db, token=token)
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+    return await user_from_token(db=db, token=token, require_admin=True)
 
 
 async def _require_admin_bearer(
@@ -188,45 +178,18 @@ async def _require_admin_bearer(
 ) -> User:
     if not creds:
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    user = await _require_user(db=db, token=creds.credentials)
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+    return await user_from_token(
+        db=db, token=creds.credentials, require_admin=True
+    )
 
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
 async def admin_page(
     request: Request,
-    token: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
     cookie_token = get_auth_token(request)
-    if token:
-        # If we were given a token via URL (legacy/demo mode), promote it into the
-        # HttpOnly cookie and clean up the URL. If the user is not an admin, keep
-        # them on the users page with a friendly message.
-        user = await _require_user(db=db, token=token)
-        resp = safe_redirect(request, "/admin", status_code=303)
-        set_auth_cookie(resp, request=request, token=token)
-        if not getattr(user, "is_admin", False):
-            users = (await db.exec(select(User).order_by(text("id")))).all()
-            return templates.TemplateResponse(
-                request,
-                "users.html",
-                {
-                    "request": request,
-                    "users": users,
-                    "email": user.email,
-                    "session_email": user.email,
-                    "is_admin": False,
-                    "admin_error": "You don’t have admin privileges for this app.",
-                    "base_path": bp,
-                },
-                status_code=403,
-            )
-        return resp
-
     token = cookie_token
     if not token:
         # No separate admin login page: send everyone to the normal login.
@@ -294,12 +257,13 @@ async def open_admin_from_page(
 
     msg = "You don’t have admin privileges for this app."
     if return_to == "token":
+        redacted = f"{token[:8]}…{token[-4:]}" if len(token) > 16 else "<redacted>"
         return templates.TemplateResponse(
             request,
             "token.html",
             {
                 "request": request,
-                "token": token,
+                "token": redacted,
                 "email": user.email,
                 "session_email": user.email,
                 "admin_error": msg,
@@ -411,6 +375,7 @@ async def admin_invite_submit(
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
     now = datetime.now(timezone.utc)
+    await invalidate_unused_invite_tokens(db, email=email_n, now=now)
     invite = InviteToken(
         email=email_n,
         token_hash=token_hash,
@@ -518,11 +483,20 @@ async def admin_user_update(
     token = get_auth_token(request)
     if not token:
         return safe_redirect(request, "/login", status_code=303)
-    _ = await _require_admin_user(db=db, token=token)
+    admin = await _require_admin_user(db=db, token=token)
 
     user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin.id:
+        new_active = bool(is_active)
+        new_admin = bool(is_admin)
+        if new_active != bool(user.is_active) or new_admin != bool(user.is_admin):
+            raise HTTPException(
+                status_code=400,
+                detail="You can’t modify your own role/status here",
+            )
 
     fn = (full_name or "").strip() or None
     user.full_name = fn

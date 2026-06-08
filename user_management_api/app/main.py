@@ -19,6 +19,7 @@ from app.web.debug_panel import (
     COOKIE_DEBUG_LOG_COOKIE,
     cookie_debug_payload,
     init_cookie_debug,
+    redact_set_cookie_header,
 )
 
 app = FastAPI(title="User Management API")
@@ -65,7 +66,7 @@ async def cookie_debug_middleware(request: Request, call_next):
             request,
             "cookie:resp",
             status_code=getattr(resp, "status_code", None),
-            set_cookie_header=resp.headers.get("set-cookie"),
+            set_cookie_header=redact_set_cookie_header(resp.headers.get("set-cookie")),
         )
         # Persist per-request debug logs through redirects by storing them in a cookie.
         payload = cookie_debug_payload(request)

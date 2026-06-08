@@ -205,19 +205,29 @@ def test_fluxlit_test_client_register_rejects_duplicate_email(tmp_path) -> None:
     _seed_user(db_engine=db.engine, email="dup@example.com", password="x")
     tc = FluxLitTestClient(app)
     r = tc.api_post("/register", data={"email": "dup@example.com"})
-    assert r.status_code == 400
+    assert r.status_code == 200
+    assert r.json() == {"ok": True, "email_sent": False}
 
 
-def test_fluxlit_test_client_register_creates_invite_for_new_email(tmp_path) -> None:
+def test_fluxlit_test_client_register_creates_invite_for_new_email(
+    tmp_path, monkeypatch
+) -> None:
     app = load_fluxlit_app(db_url=f"sqlite:///{tmp_path / 'reg2.db'}")
+    import app.core.config as config
+
+    config.settings.smtp_host = "smtp.test.local"
+    config.settings.smtp_from_email = "noreply@test.local"
+    monkeypatch.setattr(
+        "app.routes.auth.send_self_registration_email",
+        lambda **kwargs: None,
+    )
     tc = FluxLitTestClient(app)
     r = tc.api_post("/register", data={"email": "fresh@example.com"})
     assert r.status_code == 200
     body = r.json()
     assert body.get("ok") is True
-    assert body.get("setup_url")
-    assert "/?page=Accept+invite&token=" in body["setup_url"]
-    assert body.get("email_sent") is False
+    assert "setup_url" not in body
+    assert body.get("email_sent") is True
 
 
 def test_fluxlit_test_client_bearer_users_me(tmp_path) -> None:

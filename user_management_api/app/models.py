@@ -18,6 +18,7 @@ class User(SQLModel, table=True):
     hashed_password: str
     is_active: bool = Field(default=True, index=True)
     is_admin: bool = Field(default=False, index=True)
+    token_version: int = Field(default=0)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

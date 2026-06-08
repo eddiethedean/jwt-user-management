@@ -18,6 +18,6 @@ SMTP_USE_TLS: bool = False
 
 DIRECTORY_LOOKUP_TIMEOUT_S: int = 5
 DIRECTORY_LOOKUP_REQUIRED: bool = False
-DIRECTORY_LOOKUP_VERIFY_SSL: bool = False
+DIRECTORY_LOOKUP_VERIFY_SSL: bool = True
 
 INVITE_ALLOWED_EMAIL_DOMAINS: tuple[str, ...] = ("socom.mil", "soc.mil")

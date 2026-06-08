@@ -111,13 +111,16 @@ class WorkbenchPathMiddleware:
 
         debug = _debug_enabled()
         if debug:
+            qs = (scope.get("query_string") or b"").decode(errors="replace")
+            if "token=" in qs:
+                qs = "<redacted>"
             log.warning(
                 "Workbench middleware incoming: method=%r root_path=%r path=%r raw_path=%r query_string=%r",
                 scope.get("method"),
                 scope.get("root_path"),
                 scope.get("path"),
                 scope.get("raw_path"),
-                (scope.get("query_string") or b"").decode(errors="replace"),
+                qs,
             )
 
         s1 = self._maybe_decode_absolute_url_path(scope)

@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, external_url, safe_external_redirect
 from app.core.config import settings
-from app.core.security import hash_password
+from app.core.security import validate_new_password
 from app.db import get_db
 from app.models import PasswordResetToken, User
 from app.services.email import send_password_reset_email
@@ -137,37 +137,9 @@ async def forgot_password_api(
 
 @router.post("/reset")
 async def reset_api(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
-    token = str(payload.get("token") or "")
-    password = str(payload.get("password") or "")
-    if not token or not password:
-        raise HTTPException(status_code=422, detail="token and password are required")
+    from app.routes.password_reset import reset_api as api_reset
 
-    token_hash = PasswordResetToken.hash_token(token)
-    rec: Optional[PasswordResetToken] = (
-        await db.exec(
-            select(PasswordResetToken).where(
-                PasswordResetToken.token_hash == token_hash
-            )
-        )
-    ).first()
-    if not rec:
-        raise HTTPException(status_code=404, detail="Reset link not found")
-    now = datetime.now(timezone.utc)
-    if rec.used_at is not None:
-        raise HTTPException(status_code=400, detail="Reset link already used")
-    if _as_utc_aware(rec.expires_at) < now:
-        raise HTTPException(status_code=400, detail="Reset link expired")
-
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.email == rec.email))
-    ).first()
-    if user:
-        user.hashed_password = hash_password(password)
-        db.add(user)
-    rec.used_at = now
-    db.add(rec)
-    await db.commit()
-    return {"ok": True}
+    return await api_reset(payload, db)
 
 
 @router.get("/reset", response_class=HTMLResponse, include_in_schema=False)
@@ -217,15 +189,9 @@ async def reset_form(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     bp = base_path(request)
-    token_hash = PasswordResetToken.hash_token(token)
-    rec: Optional[PasswordResetToken] = (
-        await db.exec(
-            select(PasswordResetToken).where(
-                PasswordResetToken.token_hash == token_hash
-            )
-        )
-    ).first()
-    if not rec:
+    try:
+        validate_new_password(password)
+    except ValueError as e:
         return templates.TemplateResponse(
             request,
             "reset_password.html",
@@ -233,25 +199,14 @@ async def reset_form(
                 "request": request,
                 "base_path": bp,
                 "token": token,
-                "error": "Reset link not found",
-            },
-            status_code=404,
-        )
-    now = datetime.now(timezone.utc)
-    if rec.used_at is not None:
-        return templates.TemplateResponse(
-            request,
-            "reset_password.html",
-            {
-                "request": request,
-                "base_path": bp,
-                "token": token,
-                "reset_email": rec.email,
-                "error": "Reset link already used",
+                "reset_email": "",
+                "error": str(e),
             },
             status_code=400,
         )
-    if _as_utc_aware(rec.expires_at) < now:
+    try:
+        await reset_api({"token": token, "password": password}, db)
+    except HTTPException as e:
         return templates.TemplateResponse(
             request,
             "reset_password.html",
@@ -259,21 +214,11 @@ async def reset_form(
                 "request": request,
                 "base_path": bp,
                 "token": token,
-                "reset_email": rec.email,
-                "error": "Reset link expired",
+                "reset_email": "",
+                "error": str(e.detail),
             },
-            status_code=400,
+            status_code=e.status_code,
         )
-
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.email == rec.email))
-    ).first()
-    if user:
-        user.hashed_password = hash_password(password)
-        db.add(user)
-    rec.used_at = now
-    db.add(rec)
-    await db.commit()
 
     return safe_external_redirect(
         request,

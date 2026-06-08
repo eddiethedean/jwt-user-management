@@ -9,10 +9,15 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import hash_password, validate_new_password, verify_password
+from app.core.security import (
+    bump_token_version,
+    hash_password,
+    validate_new_password,
+    verify_password,
+)
 from app.db import get_db
 from app.models import User
-from app.routes.deps import bearer_scheme, get_current_user, user_from_bearer
+from app.routes.deps import admin_from_bearer, bearer_scheme, get_current_user
 
 
 router = APIRouter(tags=["users"])
@@ -66,6 +71,7 @@ async def change_my_password(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     current_user.hashed_password = hash_password(new)
+    bump_token_version(current_user)
     db.add(current_user)
     await db.commit()
     return {"ok": True}
@@ -76,9 +82,7 @@ async def users(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> JSONResponse:
-    if not creds:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    _ = await user_from_bearer(db=db, creds=creds)
+    _ = await admin_from_bearer(db=db, creds=creds)
     users = (await db.exec(select(User).order_by(text("id")))).all()
     return JSONResponse(
         content=[

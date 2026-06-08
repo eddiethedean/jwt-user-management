@@ -44,6 +44,7 @@ def _run_migrations_if_enabled(*, cwd: str | None = None) -> None:
         )
     except Exception as e:  # noqa: BLE001
         print("Failed to run migrations via Alembic:", e)
+        raise
 
 
 def start_app(
@@ -121,13 +122,17 @@ def start_app(
 
     _run_migrations_if_enabled(cwd=migrations_cwd)
 
+    forwarded_allow_ips = (
+        os.environ.get("FORWARDED_ALLOW_IPS") or "127.0.0.1"
+    )
+
     uvicorn.run(
         f"{app_module_name}:{app_variable_name}",
         host=host,
         port=port,
         root_path=root_path,
         proxy_headers=True,
-        forwarded_allow_ips="*",
+        forwarded_allow_ips=forwarded_allow_ips,
         reload=_truthy(os.environ.get("RELOAD"))
         or bool(os.environ.get("RS_SERVER_URL")),
         log_level=os.environ.get("LOG_LEVEL") or "info",

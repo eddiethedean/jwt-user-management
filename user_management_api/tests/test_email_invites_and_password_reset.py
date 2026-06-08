@@ -159,14 +159,14 @@ def test_password_reset_api_updates_password_and_marks_token_used(tmp_path) -> N
         s.commit()
 
     client = TestClient(app, base_url="http://testserver")
-    r = client.post("/password/reset", json={"token": raw, "password": "newpassword"})
+    r = client.post("/password/reset", json={"token": raw, "password": "newpassword12"})
     assert r.status_code == 200
     assert r.json() == {"ok": True}
 
     with Session(db.engine) as s:
         u = s.exec(select(User).where(User.email == "user@example.com")).first()
         assert u
-        assert verify_password("newpassword", u.hashed_password)
+        assert verify_password("newpassword12", u.hashed_password)
         pr = s.exec(
             select(PasswordResetToken).where(
                 PasswordResetToken.token_hash == PasswordResetToken.hash_token(raw)
@@ -180,7 +180,7 @@ def test_password_reset_validation_and_unknown_token(app_client) -> None:
     r = app_client.post("/password/reset", json={"token": "", "password": ""})
     assert r.status_code == 422
     r2 = app_client.post(
-        "/password/reset", json={"token": "bad", "password": "longenough"}
+        "/password/reset", json={"token": "bad", "password": "longpassword1"}
     )
     assert r2.status_code == 404
 

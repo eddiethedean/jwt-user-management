@@ -15,9 +15,10 @@ from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
 from app.routes.deps import admin_from_bearer, bearer_scheme
-from app.routes.public_urls import email_browser_page_url
+from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email
 from app.services.email import send_invite_email
+from app.services.tokens import invalidate_unused_invite_tokens, try_consume_invite_token
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
@@ -29,7 +30,7 @@ def _norm_email(v: str) -> str:
 
 
 def _invite_url(request: Request, token: str) -> str:
-    return email_browser_page_url(request, page="Accept invite", token=token)
+    return external_accept_invite_url(request, token=token)
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -42,12 +43,6 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-async def _require_admin(
-    db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
-) -> User:
-    return await admin_from_bearer(db=db, creds=creds)
-
-
 @router.post("")
 async def create_invite(
     request: Request,
@@ -55,7 +50,7 @@ async def create_invite(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    await _require_admin(db, creds)
+    await admin_from_bearer(db=db, creds=creds)
     email = _norm_email(str(payload.get("email") or ""))
     grant_admin = bool(payload.get("grant_admin") or False)
     if not email:
@@ -67,9 +62,20 @@ async def create_invite(
             detail="email domain is not allowed for invites",
         )
 
+    if settings.directory_lookup_url and settings.directory_lookup_required:
+        try:
+            rec = lookup_email(email)
+        except Exception:
+            raise HTTPException(status_code=422, detail="directory lookup failed")
+        if not rec:
+            raise HTTPException(
+                status_code=422, detail="email not found in directory"
+            )
+
     raw = InviteToken.new_raw_token()
     token_hash = InviteToken.hash_token(raw)
     now = datetime.now(timezone.utc)
+    await invalidate_unused_invite_tokens(db, email=email, now=now)
     invite = InviteToken(
         email=email,
         token_hash=token_hash,
@@ -100,7 +106,7 @@ async def lookup_invite_email(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    await _require_admin(db, creds)
+    await admin_from_bearer(db=db, creds=creds)
     email = _norm_email(str(payload.get("email") or ""))
     if not email:
         raise HTTPException(status_code=422, detail="email is required")
@@ -160,42 +166,39 @@ async def _accept(
         raise HTTPException(status_code=400, detail="Invite already used")
     if _as_utc_aware(invite.expires_at) < now:
         raise HTTPException(status_code=400, detail="Invite expired")
+    if not invite_email_domain_allowed(invite.email):
+        raise HTTPException(status_code=400, detail="Email domain is not allowed")
 
-    user = (await db.exec(select(User).where(User.email == invite.email))).first()
-    if user:
-        user.hashed_password = hash_password(password)
-        user.is_admin = bool(user.is_admin or invite.grant_admin)
-        if full_name is not None:
-            fn = full_name.strip()
-            if fn:
-                user.full_name = fn
-        if settings.directory_lookup_url:
-            try:
-                rec = lookup_email(invite.email)
-            except Exception:
-                rec = None
-            if rec and rec.country and not user.country:
-                user.country = rec.country
-    else:
-        fn = (full_name or "").strip() or None
-        country = None
-        if settings.directory_lookup_url:
-            try:
-                rec = lookup_email(invite.email)
-            except Exception:
-                rec = None
-            if rec and rec.country:
-                country = rec.country
-        user = User(
-            email=invite.email,
-            full_name=fn,
-            country=country,
-            hashed_password=hash_password(password),
-            is_admin=bool(invite.grant_admin),
+    existing = (
+        await db.exec(select(User).where(User.email == invite.email))
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email already exists",
         )
-        db.add(user)
-    invite.used_at = now
-    db.add(invite)
+
+    consumed = await try_consume_invite_token(db, token_hash=token_hash, now=now)
+    if consumed != 1:
+        raise HTTPException(status_code=400, detail="Invite already used")
+
+    fn = (full_name or "").strip() or None
+    country = None
+    if settings.directory_lookup_url:
+        try:
+            rec = lookup_email(invite.email)
+        except Exception:
+            rec = None
+        if rec and rec.country:
+            country = rec.country
+    user = User(
+        email=invite.email,
+        full_name=fn,
+        country=country,
+        hashed_password=hash_password(password),
+        is_admin=bool(invite.grant_admin),
+    )
+    db.add(user)
     await db.commit()
 
 
