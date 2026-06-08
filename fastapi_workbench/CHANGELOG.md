@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.3 (2026-06-08)
+## 0.3.2 (2026-06-08)
 
 Security and correctness fixes from a full package audit (16 defects).
 
@@ -9,12 +9,6 @@ Security and correctness fixes from a full package audit (16 defects).
 - **URLs:** Gate `rstudio-connect-app-base-url` on Workbench scope; segment-based mount dedup; sanitize `..` in external paths; case-insensitive `/api` strip.
 - **Middleware:** Remove greedy partial `root_path` suffix stripping; percent-encode `raw_path`; expand debug log redaction.
 - **Runner:** `RUN_MIGRATIONS` is opt-in; validate `PORT`; reload requires explicit `RELOAD=true`.
-
-## 0.3.2 (2026-06-08)
-
-Patch release; no API changes.
-
-- Minor `runner.py` cleanup and ruff formatting in the monorepo check suite.
 
 ## 0.3.1 (2026-05-13)
 
