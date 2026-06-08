@@ -73,6 +73,8 @@ curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
 
 ## Environment
 
+See **[`CONFIG.md`](CONFIG.md)** for a full reference of every `config.py` and `.env` setting (branding, roles, seeds, cookies, rate limits, etc.).
+
 - **Tunables (no secrets):** `PUBLIC_BASE_URL`, `UI_PUBLIC_BASE_URL`, `INVITE_ALLOWED_EMAIL_DOMAINS`, `BASE_PATH`, cookie flags, `JWT_ALGORITHM`, `JWT_EXPIRES_MINUTES`, SMTP port/TLS defaults, directory timeout/required/verify flags — edit **`config.py`** in this directory (`user_management_api/config.py`) only. Do not duplicate these keys in **`.env`**.
 
 - **Secrets and deployment endpoints:** copy **`.env.example`** to **`.env`** and set **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials if you send mail, **`DIRECTORY_LOOKUP_URL`** / **`DIRECTORY_LOOKUP_CA_BUNDLE`** when you use directory lookup, and **`SEED_*`** if you customize seeding.
