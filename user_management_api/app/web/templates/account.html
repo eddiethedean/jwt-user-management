@@ -1,8 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Account{% endblock %}
+{% block title %}My account{% endblock %}
 {% block body %}
+  <p class="lead accountLead">
+    {% if user.is_admin %}
+      Your personal settings. Use <strong>Users</strong> or <strong>Admin</strong> in the menu to manage other accounts.
+    {% else %}
+      This is your home page. Update your name and password here.
+    {% endif %}
+  </p>
+
   <div class="card">
     <style>
+      .accountLead { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 52ch; }
+      .homeHero { margin-bottom: 6px; }
+      .homeHero h2 { margin-bottom: 6px; }
+
       .kvGrid {
         display: grid;
         grid-template-columns: 160px 1fr;
@@ -12,17 +24,33 @@
       }
       .kvKey { color: var(--muted); font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.02em; }
       .kvVal { min-width: 0; }
-      .acctForm { margin-top: 14px; }
+
+      .sectionCard {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel-strong) 55%, transparent);
+        border-radius: var(--radius);
+        padding: 14px;
+        margin-top: 14px;
+      }
+      .sectionCard h3 { margin: 0 0 10px; font-size: 15px; }
+
       .acctRow { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
       .acctRow > div { min-width: 240px; flex: 1; }
       .acctRow button { margin-top: 0; }
+
       @media (max-width: 700px) {
         .kvGrid { grid-template-columns: 1fr; }
       }
     </style>
 
-    <div class="row" style="justify-content: space-between; align-items: baseline;">
-      <h2 style="margin: 0;">Account</h2>
+    <div class="homeHero">
+      <h2>
+        {% if user.full_name %}
+          Welcome, {{ user.full_name }}
+        {% else %}
+          Welcome
+        {% endif %}
+      </h2>
     </div>
 
     {% if error %}
@@ -35,66 +63,70 @@
       <div class="ok">{{ success }}</div>
     {% endif %}
 
-    <h3>Your info</h3>
-    <div class="kvGrid" aria-label="Account details">
-      <div class="kvKey">ID</div>
-      <div class="kvVal"><code>{{ user.id }}</code></div>
+    <section class="sectionCard" aria-labelledby="profileHeading">
+      <h3 id="profileHeading">Profile</h3>
+      <div class="kvGrid" aria-label="Account details">
+        <div class="kvKey">Email</div>
+        <div class="kvVal"><code>{{ user.email }}</code></div>
 
-      <div class="kvKey">Email</div>
-      <div class="kvVal"><code>{{ user.email }}</code></div>
+        <div class="kvKey">Name</div>
+        <div class="kvVal">{{ user.full_name or '—' }}</div>
 
-      <div class="kvKey">Name</div>
-      <div class="kvVal">{{ user.full_name or '' }}</div>
+        {% if user.country %}
+        <div class="kvKey">Country</div>
+        <div class="kvVal">{{ user.country }}</div>
+        {% endif %}
 
-      <div class="kvKey">Country</div>
-      <div class="kvVal">{{ user.country or '' }}</div>
+        <div class="kvKey">Status</div>
+        <div class="kvVal">{{ 'Active' if user.is_active else 'Disabled' }}</div>
 
-      <div class="kvKey">Status</div>
-      <div class="kvVal">{{ 'Active' if user.is_active else 'Disabled' }}</div>
+        {% set _roles = user_role_list(user) %}
+        {% if _roles %}
+        <div class="kvKey">Roles</div>
+        <div class="kvVal">{{ _roles|join(', ') }}</div>
+        {% endif %}
 
-      <div class="kvKey">Role</div>
-      <div class="kvVal">{{ 'Admin' if user.is_admin else 'User' }}</div>
-
-      <div class="kvKey">Created</div>
-      <div class="kvVal">{{ user.created_at|fmt_date }}</div>
-    </div>
-
-    <h3 style="margin-top: 18px;">Edit</h3>
-    <form class="acctForm" method="post" action="{{ base_path }}/account">
-      {% if csrf_token %}
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      {% endif %}
-      <div class="acctRow">
-        <div>
-          <label for="full_name">Full name (optional)</label>
-          <input id="full_name" name="full_name" type="text" value="{{ user.full_name or '' }}" placeholder="e.g. Jane Doe" />
-        </div>
-        <button type="submit">Save</button>
+        <div class="kvKey">Member since</div>
+        <div class="kvVal">{{ user.created_at|fmt_date }}</div>
       </div>
-    </form>
 
-    <h3 style="margin-top: 18px;">Change password</h3>
-    <form class="acctForm" method="post" action="{{ base_path }}/account/password" autocomplete="off">
-      {% if csrf_token %}
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      {% endif %}
-      <div class="acctRow">
-        <div>
-          <label for="current_password">Current password</label>
-          <input id="current_password" name="current_password" type="password" placeholder="Current password" required />
+      <form method="post" action="{{ base_path }}/account" style="margin-top: 14px;">
+        {% if csrf_token %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        {% endif %}
+        <div class="acctRow">
+          <div>
+            <label for="full_name">Display name</label>
+            <input id="full_name" name="full_name" type="text" value="{{ user.full_name or '' }}" placeholder="e.g. Jane Doe" autocomplete="name" />
+          </div>
+          <button type="submit">Save name</button>
         </div>
-        <div>
-          <label for="new_password">New password</label>
-          <input id="new_password" name="new_password" type="password" placeholder="At least 8 characters" required />
+      </form>
+    </section>
+
+    <section class="sectionCard" aria-labelledby="passwordHeading">
+      <h3 id="passwordHeading">Password</h3>
+      <p class="muted" style="margin: 0 0 12px;">Change the password you use to sign in. You will stay signed in on this device after updating.</p>
+      <form method="post" action="{{ base_path }}/account/password" autocomplete="off">
+        {% if csrf_token %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        {% endif %}
+        <div class="acctRow">
+          <div>
+            <label for="current_password">Current password</label>
+            <input id="current_password" name="current_password" type="password" placeholder="Current password" required autocomplete="current-password" />
+          </div>
+          <div>
+            <label for="new_password">New password</label>
+            <input id="new_password" name="new_password" type="password" placeholder="At least 12 characters" required autocomplete="new-password" />
+          </div>
+          <div>
+            <label for="confirm_password">Confirm new password</label>
+            <input id="confirm_password" name="confirm_password" type="password" placeholder="Re-enter new password" required autocomplete="new-password" />
+          </div>
+          <button type="submit">Update password</button>
         </div>
-        <div>
-          <label for="confirm_password">Confirm new password</label>
-          <input id="confirm_password" name="confirm_password" type="password" placeholder="Re-enter new password" required />
-        </div>
-        <button type="submit">Update password</button>
-      </div>
-      <p class="muted" style="margin: 8px 0 0;">No email required — this updates your password immediately.</p>
-    </form>
+      </form>
+    </section>
   </div>
 {% endblock %}
-

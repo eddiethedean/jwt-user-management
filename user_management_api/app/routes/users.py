@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import base_path, safe_redirect
+from fastapi_workbench import safe_redirect
 from app.core.rate_limit import check_rate_limit
 from app.core.security import (
     bump_token_version,
@@ -17,12 +17,12 @@ from app.core.security import (
     validate_new_password,
     verify_password,
 )
+from app.core.config import settings
+from app.core.roles import display_user_roles
 from app.db import get_db
 from app.models import User
 from app.routes.deps import bearer_scheme, get_current_user, user_from_token
-from app.web.csrf import issue_csrf_token, set_csrf_cookie
 from app.web.session import get_auth_token
-from app.web.templates import templates
 
 
 router = APIRouter(tags=["users"])
@@ -37,6 +37,7 @@ async def me(current_user: User = Depends(get_current_user)) -> dict:
         "country": current_user.country,
         "is_active": current_user.is_active,
         "is_admin": current_user.is_admin,
+        "roles": display_user_roles(current_user, settings.user_roles),
         "created_at": current_user.created_at.isoformat(),
     }
 
@@ -92,29 +93,12 @@ async def users(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Response:
-    """Admin-only user directory (HTML cookie or JSON bearer)."""
-    bp = base_path(request)
-
+    """Admin-only user directory (JSON bearer). Browser sessions redirect elsewhere."""
     cookie_token = get_auth_token(request)
     if cookie_token:
-        user = await user_from_token(db=db, token=cookie_token, require_admin=True)
-        all_users = (await db.exec(select(User).order_by(text("id")))).all()
-        csrf = issue_csrf_token(request)
-        resp = templates.TemplateResponse(
-            request,
-            "users.html",
-            {
-                "request": request,
-                "users": all_users,
-                "email": user.email,
-                "session_email": user.email,
-                "is_admin": True,
-                "base_path": bp,
-                "csrf_token": csrf,
-            },
-        )
-        set_csrf_cookie(resp, request=request)
-        return resp
+        user = await user_from_token(db=db, token=cookie_token)
+        dest = "/admin" if getattr(user, "is_admin", False) else "/account"
+        return safe_redirect(request, dest, status_code=303)
 
     if not creds:
         accept = (request.headers.get("accept") or "").lower()
@@ -122,7 +106,7 @@ async def users(
         if wants_html:
             return safe_redirect(
                 request,
-                "/login?msg=Please%20log%20in%20to%20view%20Users.&next=/users",
+                "/login?msg=Please%20log%20in.&next=/admin",
                 status_code=303,
             )
         raise HTTPException(
@@ -139,6 +123,7 @@ async def users(
                 "country": u.country,
                 "is_active": u.is_active,
                 "is_admin": u.is_admin,
+                "roles": display_user_roles(u, settings.user_roles),
                 "created_at": u.created_at.isoformat(),
             }
             for u in all_users

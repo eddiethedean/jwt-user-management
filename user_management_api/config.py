@@ -56,3 +56,21 @@ DIRECTORY_LOOKUP_VERIFY_SSL: bool = True
 
 # --- Invite / self-registration email domains (suffix after ``@``) ---
 INVITE_ALLOWED_EMAIL_DOMAINS: tuple[str, ...] = ("socom.mil", "soc.mil")
+
+# --- User roles (optional multi-assign on admin edit user page) ---
+USER_ROLES: tuple[str, ...] = ("Admin", "User", "Super")
+# Subset of USER_ROLES that grant admin UI/API access.
+ADMIN_ROLES: tuple[str, ...] = ("Admin", "Super")
+
+# --- HTML UI branding ---
+APP_TITLE: str = "User Management"
+BRAND_TAG: str = "Demo"
+BRAND_TAG_TITLE: str = "Demo app"
+BRAND_STACK: tuple[str, ...] = (
+    "FastAPI",
+    "SQLModel",
+    "JWT",
+    "HTML",
+    "CSS",
+    "JS",
+)

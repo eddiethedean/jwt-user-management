@@ -313,6 +313,32 @@ def test_non_admin_admin_page_does_not_list_users(app_client, db_engine) -> None
     assert "other@example.com" not in (r.text or "")
 
 
+def test_non_admin_users_route_redirects_to_account(app_client, db_engine) -> None:
+    seed_user(db_engine=db_engine, email="user@example.com", password="longpassword1")
+    _login_cookie(app_client, email="user@example.com", password="longpassword1")
+    r = app_client.get("/users", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    assert "/account" in (r.headers.get("location") or "")
+
+
+def test_admin_users_route_redirects_to_admin(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    _login_cookie(app_client, email="admin@example.com", password="admin123")
+    r = app_client.get("/users", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    assert "/admin" in (r.headers.get("location") or "")
+
+
+def test_non_admin_nav_hides_admin_links(app_client, db_engine) -> None:
+    seed_user(db_engine=db_engine, email="user@example.com", password="longpassword1")
+    _login_cookie(app_client, email="user@example.com", password="longpassword1")
+    r = app_client.get("/account")
+    assert r.status_code == 200
+    assert "Account" in r.text
+    assert 'href="' not in r.text or "/admin" not in r.text.split("Account")[0]
+    assert "/users" not in r.text
+
+
 def test_non_admin_login_redirects_to_account(app_client, db_engine) -> None:
     seed_user(db_engine=db_engine, email="user@example.com", password="longpassword1")
     csrf, _ = _csrf_from_login_page(app_client)
@@ -381,6 +407,28 @@ def test_logout_invalidates_bearer_token(app_client, db_engine) -> None:
 
     me2 = app_client.get("/users/me", headers=h)
     assert me2.status_code == 401
+
+
+def test_seed_user_migration_skips_without_credentials() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "alembic"
+        / "versions"
+        / "0003_seed_user.py"
+    )
+    spec = importlib.util.spec_from_file_location("seed_user_mod", path)
+    assert spec and spec.loader
+    seed_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed_mod)
+
+    import os
+
+    os.environ.pop("SEED_USER_EMAIL", None)
+    os.environ.pop("SEED_USER_PASSWORD", None)
+    assert seed_mod._seed_credentials() is None
 
 
 def test_seed_migration_requires_opt_in_and_strong_password() -> None:

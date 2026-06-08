@@ -192,6 +192,34 @@ def test_admin_patch_user_success(app_client, db_engine) -> None:
     assert admin_id != target_id
 
 
+def test_admin_patch_user_roles(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    target_id = seed_user(
+        db_engine=db_engine,
+        email="roles@example.com",
+        password="pw",
+    )
+    h = bearer_for(app_client, email="admin@example.com", password="admin123")
+    r = app_client.patch(
+        f"/admin/users/{target_id}",
+        headers=h,
+        json={"roles": ["User", "Super"]},
+    )
+    assert r.status_code == 200
+    body = r.json()["user"]
+    assert body["roles"] == ["User", "Super"]
+    assert body["is_admin"] is True
+
+    r2 = app_client.patch(
+        f"/admin/users/{target_id}",
+        headers=h,
+        json={"roles": ["User"]},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["user"]["roles"] == ["User"]
+    assert r2.json()["user"]["is_admin"] is False
+
+
 def test_admin_cannot_modify_own_role(app_client, db_engine) -> None:
     admin_id = seed_admin(db_engine=db_engine)
     h = bearer_for(app_client, email="admin@example.com", password="admin123")

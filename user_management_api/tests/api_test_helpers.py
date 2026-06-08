@@ -155,11 +155,13 @@ def seed_user(
     from app.models import User
 
     with Session(db_engine) as s:
+        roles = "Admin" if is_admin else "User"
         u = User(
             email=email,
             hashed_password=hash_password(password),
             is_admin=is_admin,
             is_active=is_active,
+            roles=roles,
             created_at=datetime.now(timezone.utc),
         )
         s.add(u)

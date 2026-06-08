@@ -100,6 +100,12 @@ class Settings:
         "directory_lookup_timeout_s",
         "directory_lookup_required",
         "directory_lookup_verify_ssl",
+        "brand_stack",
+        "app_title",
+        "brand_tag",
+        "brand_tag_title",
+        "user_roles",
+        "admin_roles",
     )
 
     def __init__(self) -> None:
@@ -162,6 +168,36 @@ class Settings:
         self.directory_lookup_verify_ssl = bool(
             getattr(d, "DIRECTORY_LOOKUP_VERIFY_SSL", True)
         )
+
+        self.app_title = (
+            str(getattr(d, "APP_TITLE", "") or "User Management").strip()
+            or "User Management"
+        )
+        self.brand_tag = str(getattr(d, "BRAND_TAG", "") or "").strip()
+        self.brand_tag_title = str(getattr(d, "BRAND_TAG_TITLE", "") or "").strip()
+        self.brand_stack = tuple(
+            str(x).strip()
+            for x in getattr(d, "BRAND_STACK", ()) or ()
+            if str(x).strip()
+        )
+
+        self.user_roles = tuple(
+            str(x).strip()
+            for x in getattr(d, "USER_ROLES", ()) or ()
+            if str(x).strip()
+        )
+        admin_roles = tuple(
+            str(x).strip()
+            for x in getattr(d, "ADMIN_ROLES", ()) or ()
+            if str(x).strip()
+        )
+        unknown_admin = [r for r in admin_roles if r not in self.user_roles]
+        if unknown_admin:
+            raise ValueError(
+                "ADMIN_ROLES must be a subset of USER_ROLES; "
+                f"unknown: {', '.join(unknown_admin)}"
+            )
+        self.admin_roles = admin_roles
 
     def normalized_invite_email_domains(self) -> frozenset[str]:
         return frozenset(

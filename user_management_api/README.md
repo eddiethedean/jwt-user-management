@@ -118,6 +118,15 @@ Optional overrides:
 - `SEED_ADMIN_EMAIL` (default `admin@example.com`)
 - `SEED_ADMIN_PASSWORD` (required when seeding; min 12 characters; weak defaults rejected)
 
+### Seed a normal user (optional)
+
+Revision `0003_seed_user` creates a **non-admin** account when both variables are set in `.env` (or the environment) at migrate time:
+
+- `SEED_USER_EMAIL`
+- `SEED_USER_PASSWORD` (min 12 characters; weak defaults rejected)
+
+If either is missing, the migration is a no-op. The insert is idempotent (skips when the email already exists).
+
 ## Run tests
 
 In some environments, globally installed pytest plugins can break test runs. Use:

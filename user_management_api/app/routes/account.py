@@ -50,6 +50,7 @@ async def account_page(
             "request": request,
             "base_path": bp,
             "session_email": user.email,
+            "is_admin": bool(getattr(user, "is_admin", False)),
             "user": user,
             "info": info,
             "csrf_token": csrf,
@@ -90,6 +91,7 @@ async def account_update(
             "request": request,
             "base_path": bp,
             "session_email": user.email,
+            "is_admin": bool(getattr(user, "is_admin", False)),
             "user": user,
             "success": "Saved.",
             "csrf_token": csrf,
@@ -124,6 +126,7 @@ async def account_change_password(
         "request": request,
         "base_path": bp,
         "session_email": user.email,
+        "is_admin": bool(getattr(user, "is_admin", False)),
         "user": user,
         "csrf_token": csrf,
     }

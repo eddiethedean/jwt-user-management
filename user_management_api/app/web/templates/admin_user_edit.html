@@ -42,13 +42,26 @@
         value="{{ user.full_name or '' }}"
       />
 
-      <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
-        <input type="checkbox" name="is_admin" value="1" style="width:auto; margin-top: 3px;" {% if user.is_admin %}checked{% endif %} />
-        <span>
-          Admin
-          <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
-        </span>
-      </label>
+      {% set _assigned = user_role_list(user) %}
+      {% if configured_user_roles() %}
+      <div style="margin-top: 0;">
+        <div class="muted" style="margin-bottom: 8px;">Roles (optional)</div>
+        <div style="display: grid; gap: 10px;">
+          {% for role in configured_user_roles() %}
+          <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
+            <input
+              type="checkbox"
+              name="roles"
+              value="{{ role }}"
+              style="width:auto; margin-top: 3px;"
+              {% if role in _assigned %}checked{% endif %}
+            />
+            <span>{{ role }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
 
       <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 10px; font-weight: 650;">
         <input type="checkbox" name="is_active" value="1" style="width:auto; margin-top: 3px;" {% if user.is_active %}checked{% endif %} />

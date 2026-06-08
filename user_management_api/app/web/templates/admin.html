@@ -244,7 +244,7 @@
               <th>Name</th>
               <th>Country</th>
               <th class="colCenter">Status</th>
-              <th class="colCenter">Role</th>
+              <th class="colCenter">Roles</th>
               <th>Created</th>
             </tr>
           </thead>
@@ -270,10 +270,16 @@
                   {% endif %}
                 </td>
                 <td class="colCenter">
-                  {% if u.is_admin %}
-                    <span class="badge"><span class="dot dot--accent" aria-hidden="true"></span>Admin</span>
+                  {% set _roles = user_role_list(u) %}
+                  {% if _roles %}
+                    {% for role in _roles %}
+                    <span class="badge" style="margin: 0 4px 4px 0;">
+                      <span class="dot {% if role in ('Admin', 'Super') %}dot--accent{% endif %}" aria-hidden="true"></span>
+                      {{ role }}
+                    </span>
+                    {% endfor %}
                   {% else %}
-                    <span class="badge"><span class="dot" aria-hidden="true"></span>User</span>
+                    <span class="muted">—</span>
                   {% endif %}
                 </td>
                 <td>{{ u.created_at|fmt_date }}</td>

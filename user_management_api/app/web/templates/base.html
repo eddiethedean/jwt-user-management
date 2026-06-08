@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}User Management{% endblock %}</title>
+    <title>{% block title %}{{ app_title() }}{% endblock %}</title>
     {% block head_extra %}{% endblock %}
     <style>
       :root {
@@ -258,21 +258,6 @@
         border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
         background: color-mix(in srgb, var(--accent) 12%, transparent);
       }
-      .sessionPill__link {
-        display: inline-flex;
-        align-items: center;
-        padding: 8px 12px;
-        border-left: 1px solid var(--border);
-        font-size: 13px;
-        font-weight: 750;
-        text-decoration: none;
-        color: inherit;
-      }
-      .sessionPill__link:hover {
-        border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-        background: color-mix(in srgb, var(--accent) 12%, transparent);
-        text-decoration: none;
-      }
 
       .pillRow a { text-decoration: none; }
       .pillRow a:hover { text-decoration: none; }
@@ -374,20 +359,29 @@
       <div class="topbar">
         <div class="brand">
           <div class="brandTop">
-            <div class="brandTitle">User Management</div>
-            <div class="brandTag" title="Demo app">
+            <div class="brandTitle">{{ app_title() }}</div>
+            {% if brand_tag() %}
+            <div class="brandTag"{% if brand_tag_title() %} title="{{ brand_tag_title() }}"{% endif %}>
               <span class="brandTagDot" aria-hidden="true"></span>
-              Demo
+              {{ brand_tag() }}
             </div>
+            {% endif %}
           </div>
-          <div class="brandSub">A minimal, browser-friendly user system with login, invites, and admin tools.</div>
+          {% set _nav_email = session_email|default(request.state.session_email|default(none, true), true) %}
+          {% set _nav_admin = is_admin|default(request.state.is_admin|default(false, true), true) %}
+          <div class="brandSub">
+            {% if _nav_email and _nav_admin %}
+              Manage users, invites, and organization settings.
+            {% elif _nav_email %}
+              View and update your profile and password.
+            {% else %}
+              Sign in or register to access your account.
+            {% endif %}
+          </div>
           <div class="brandStack" aria-label="Stack">
-            <span class="stackPill">FastAPI</span>
-            <span class="stackPill">SQLModel</span>
-            <span class="stackPill">JWT</span>
-            <span class="stackPill">HTML</span>
-            <span class="stackPill">CSS</span>
-            <span class="stackPill">JS</span>
+            {% for label in brand_stack() %}
+            <span class="stackPill">{{ label }}</span>
+            {% endfor %}
           </div>
         </div>
         <div class="nav">
@@ -402,33 +396,40 @@
             {% set _rel = '/' ~ _rel %}
           {% endif %}
           <div class="navGroup" role="navigation" aria-label="Primary">
-            <a class="navLink {% if _rel == '/register' %}navLink--active{% endif %}" href="{{ base_path }}/register">
-              <span class="navDot" aria-hidden="true"></span>
-              Register
-            </a>
-            <a class="navLink {% if _rel == '/login' or _rel.startswith('/password/') or _rel.startswith('/invites/') %}navLink--active{% endif %}" href="{{ base_path }}/login">
-              <span class="navDot" aria-hidden="true"></span>
-              Login
-            </a>
-            <a class="navLink {% if _rel == '/users' %}navLink--active{% endif %}" href="{{ base_path }}/users">
-              <span class="navDot" aria-hidden="true"></span>
-              Users
-            </a>
-            <a class="navLink {% if _rel == '/admin' or _rel.startswith('/admin/') %}navLink--active{% endif %}" href="{{ base_path }}/admin">
-              <span class="navDot" aria-hidden="true"></span>
-              Admin
-            </a>
+            {% if _nav_email and _nav_admin %}
+              <a class="navLink {% if _rel == '/admin' or _rel.startswith('/admin/') %}navLink--active{% endif %}" href="{{ base_path }}/admin">
+                <span class="navDot" aria-hidden="true"></span>
+                Admin
+              </a>
+              <a class="navLink {% if _rel == '/account' %}navLink--active{% endif %}" href="{{ base_path }}/account">
+                <span class="navDot" aria-hidden="true"></span>
+                Account
+              </a>
+            {% elif _nav_email %}
+              <a class="navLink {% if _rel == '/account' %}navLink--active{% endif %}" href="{{ base_path }}/account">
+                <span class="navDot" aria-hidden="true"></span>
+                Account
+              </a>
+            {% else %}
+              <a class="navLink {% if _rel == '/register' %}navLink--active{% endif %}" href="{{ base_path }}/register">
+                <span class="navDot" aria-hidden="true"></span>
+                Register
+              </a>
+              <a class="navLink {% if _rel == '/login' or _rel.startswith('/password/') or _rel.startswith('/invites/') %}navLink--active{% endif %}" href="{{ base_path }}/login">
+                <span class="navDot" aria-hidden="true"></span>
+                Sign in
+              </a>
+            {% endif %}
           </div>
         </div>
       </div>
-      {% if session_email %}
+      {% if _nav_email %}
         <div class="sessionRow" aria-label="Session">
           <div class="sessionPill" title="Current session">
             <div class="sessionPill__label">
               <span class="sessionPill__dot" aria-hidden="true"></span>
-              <span>Signed in as <code>{{ session_email }}</code></span>
+              <span>Signed in as <code>{{ _nav_email }}</code></span>
             </div>
-            <a class="sessionPill__link" href="{{ base_path }}/account" title="Account">Account</a>
             <form method="post" action="{{ base_path }}/logout" style="margin: 0;">
               {% if csrf_token %}
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />

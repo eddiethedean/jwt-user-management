@@ -40,6 +40,16 @@ app.mount(
 
 
 @app.middleware("http")
+async def html_nav_context_middleware(request: Request, call_next):
+    from app.db import AsyncSessionLocal
+    from app.web.nav_context import attach_nav_context
+
+    async with AsyncSessionLocal() as db:
+        await attach_nav_context(request, db)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def cookie_debug_middleware(request: Request, call_next):
     from app.core.config import settings
 

@@ -243,12 +243,14 @@ async def _accept(
             rec = None
         if rec and rec.country:
             country = rec.country
+    grant_admin = bool(invite.grant_admin)
     user = User(
         email=invite.email,
         full_name=fn,
         country=country,
         hashed_password=hash_password(password),
-        is_admin=bool(invite.grant_admin),
+        is_admin=grant_admin,
+        roles="Admin" if grant_admin else "User",
     )
     db.add(user)
     try:

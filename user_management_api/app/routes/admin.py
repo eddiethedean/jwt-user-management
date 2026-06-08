@@ -17,6 +17,12 @@ from fastapi_workbench import (
 )
 from app.core.config import settings
 from app.core.email_validation import validate_email_format
+from app.core.roles import (
+    apply_user_roles,
+    display_user_roles,
+    effective_user_roles,
+    normalize_selected_roles,
+)
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
 from app.models import User
@@ -112,6 +118,8 @@ async def admin_api_update_user(
 
     fields_set = payload.model_fields_set
 
+    current_roles = effective_user_roles(user, settings.user_roles)
+
     if user.id == admin.id:
         if "is_active" in fields_set and payload.is_active != bool(user.is_active):
             raise HTTPException(
@@ -123,13 +131,29 @@ async def admin_api_update_user(
                 status_code=400,
                 detail="You can’t modify your own role/status here",
             )
+        if "roles" in fields_set:
+            next_roles = normalize_selected_roles(
+                payload.roles or [], settings.user_roles
+            )
+            if next_roles != current_roles:
+                raise HTTPException(
+                    status_code=400,
+                    detail="You can’t modify your own role/status here",
+                )
 
     if "full_name" in fields_set:
         fn = str(payload.full_name or "").strip() or None
         user.full_name = fn
     if "is_active" in fields_set and payload.is_active is not None:
         user.is_active = payload.is_active
-    if "is_admin" in fields_set and payload.is_admin is not None:
+    if "roles" in fields_set:
+        apply_user_roles(
+            user,
+            payload.roles or [],
+            allowed_roles=settings.user_roles,
+            admin_roles=settings.admin_roles,
+        )
+    elif "is_admin" in fields_set and payload.is_admin is not None:
         user.is_admin = payload.is_admin
 
     db.add(user)
@@ -144,6 +168,7 @@ async def admin_api_update_user(
             "country": user.country,
             "is_active": user.is_active,
             "is_admin": user.is_admin,
+            "roles": display_user_roles(user, settings.user_roles),
             "created_at": user.created_at.isoformat(),
         },
     }
@@ -510,7 +535,7 @@ async def admin_user_update(
     request: Request,
     user_id: int = Path(..., ge=1),
     full_name: Optional[str] = Form(default=None),
-    is_admin: Optional[str] = Form(default=None),
+    roles: list[str] = Form(default=[]),
     is_active: Optional[str] = Form(default=None),
     csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
@@ -526,17 +551,23 @@ async def admin_user_update(
         raise HTTPException(status_code=404, detail="User not found")
 
     new_active = _form_checkbox(is_active)
-    new_admin = _form_checkbox(is_admin)
+    current_roles = effective_user_roles(user, settings.user_roles)
+    next_roles = normalize_selected_roles(roles, settings.user_roles)
     if user.id == admin.id:
-        if new_active != bool(user.is_active) or new_admin != bool(user.is_admin):
+        if new_active != bool(user.is_active) or next_roles != current_roles:
             raise HTTPException(
                 status_code=400,
                 detail="You can’t modify your own role/status here",
             )
 
     user.full_name = (full_name or "").strip() or None
-    user.is_admin = new_admin
     user.is_active = new_active
+    apply_user_roles(
+        user,
+        roles,
+        allowed_roles=settings.user_roles,
+        admin_roles=settings.admin_roles,
+    )
     db.add(user)
     await db.commit()
 
