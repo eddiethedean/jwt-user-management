@@ -80,3 +80,17 @@ def test_workbench_proxy_root_path_contains_proxy_port_but_forwarded_path_does_n
     assert r2.status_code == 200
     s = r2.json()
     assert s["root_path"] == prefix
+
+
+def test_middleware_on_mode_does_not_partial_strip_suffix() -> None:
+    app = FastAPI()
+
+    @app.get("/api/ping")
+    def api_ping() -> dict:
+        return {"ok": True}
+
+    wrapped = workbenchify(app, mode="on")
+    client = TestClient(wrapped, root_path="/content/abc/api")
+    r = client.get("/api/ping")
+    assert r.status_code == 200
+    assert r.json() == {"ok": True}

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import os
+import re
 
 from starlette.requests import Request
 from starlette.types import Scope
+
+_PROXY_ROOT = re.compile(r"^/proxy/\d+(?P<rest>/.*)$")
 
 
 def _truthy(v: str | None) -> bool:
@@ -24,14 +27,22 @@ def is_workbench_env() -> bool:
     return False
 
 
+def is_workbench_forced() -> bool:
+    """Explicit local override (``WORKBENCH_FORCE``); not implied by ``RS_SERVER_URL``."""
+    return _truthy(os.environ.get("WORKBENCH_FORCE"))
+
+
+def _path_has_encoded_absolute_url(path: str) -> bool:
+    candidate = path.lstrip("/").lower()
+    return candidate.startswith(("http%3a", "https%3a", "http://", "https://"))
+
+
 def is_workbench_scope(scope: Scope) -> bool:
     """
     Scope-level heuristic for whether Workbench-like path normalization is needed.
     """
     path = str(scope.get("path") or "")
-
-    candidate = path.lstrip("/").lower()
-    if candidate.startswith(("http%3a", "https%3a", "http://", "https://")):
+    if _path_has_encoded_absolute_url(path):
         return True
 
     root_path = str(scope.get("root_path") or "").rstrip("/")
@@ -39,18 +50,17 @@ def is_workbench_scope(scope: Scope) -> bool:
         return False
     if path == root_path or path.startswith(root_path + "/"):
         return True
-
-    rp_parts = [p for p in root_path.split("/") if p]
-    for i in range(len(rp_parts)):
-        suffix = "/" + "/".join(rp_parts[i:])
-        if path == suffix or path.startswith(suffix + "/"):
+    m = _PROXY_ROOT.match(root_path)
+    if m:
+        rest = (m.group("rest") or "").rstrip("/")
+        if rest and (path == rest or path.startswith(rest + "/")):
             return True
     return False
 
 
 def is_workbench_request(request: Request) -> bool:
-    root_path = str(request.scope.get("root_path") or "").rstrip("/")
-    return bool(root_path) or is_workbench_scope(request.scope) or is_workbench_env()
+    """Per-request Workbench signals only (not bare mount or global env)."""
+    return is_workbench_scope(request.scope) or is_workbench_forced()
 
 
 def workbench_mode(mode: str) -> str:

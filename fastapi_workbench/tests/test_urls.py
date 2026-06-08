@@ -136,6 +136,45 @@ def test_external_ui_url_no_duplicate_mount(
     assert "/prefix/app/prefix/app" not in r.json()["url"]
 
 
+def test_browser_app_mount_path_strips_api_case_insensitive(app: FastAPI) -> None:
+    @app.get("/mc")
+    def mc(request: Request) -> dict:
+        return {"m": browser_app_mount_path(request)}
+
+    c = TestClient(app, root_path="/content/API")
+    r = c.get("/mc")
+    assert r.json()["m"] == "/content"
+
+
+def test_external_url_rejects_traversal_in_path(app: FastAPI) -> None:
+    from fastapi_workbench import external_url
+
+    @app.get("/trav")
+    def trav(request: Request) -> dict:
+        return {"url": external_url(request, "/../admin")}
+
+    c = TestClient(app, root_path="/prefix")
+    r = c.get("/trav")
+    assert r.json()["url"].endswith("/prefix/")
+    assert "/../" not in r.json()["url"]
+
+
+def test_public_base_includes_mount_segment_dedup(app: FastAPI) -> None:
+    @app.get("/dedup")
+    def dedup(request: Request) -> dict:
+        return {
+            "url": external_workbench_url(
+                request,
+                "/x",
+                public_base_url="https://workbench.example/prefix/app",
+            )
+        }
+
+    c = TestClient(app, root_path="/prefix/app")
+    r = c.get("/dedup")
+    assert r.json()["url"] == "https://workbench.example/prefix/app/x"
+
+
 def test_package_version_matches_release() -> None:
     import tomllib
     from pathlib import Path

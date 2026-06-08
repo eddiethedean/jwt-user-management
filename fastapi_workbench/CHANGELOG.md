@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.3 (2026-06-08)
+
+Security and correctness fixes from a full package audit (16 defects).
+
+- **Redirects:** Fix empty `Location` for `/` in Workbench mode; depth-aware relative redirects; reject `..` unless `allow_parent_segments=True`; wire `public_base_url` to absolute redirects.
+- **Detection:** `is_workbench_request` uses scope signals / `WORKBENCH_FORCE` only (not `RS_SERVER_URL` or bare `root_path`).
+- **URLs:** Gate `rstudio-connect-app-base-url` on Workbench scope; segment-based mount dedup; sanitize `..` in external paths; case-insensitive `/api` strip.
+- **Middleware:** Remove greedy partial `root_path` suffix stripping; percent-encode `raw_path`; expand debug log redaction.
+- **Runner:** `RUN_MIGRATIONS` is opt-in; validate `PORT`; reload requires explicit `RELOAD=true`.
+
+## 0.3.2 (2026-06-08)
+
+Patch release; no API changes.
+
+- Minor `runner.py` cleanup and ruff formatting in the monorepo check suite.
+
 ## 0.3.1 (2026-05-13)
 
 Packaging and metadata polish for PyPI.

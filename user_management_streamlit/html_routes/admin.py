@@ -250,7 +250,9 @@ async def open_admin_from_page(
     user = await _require_user(db=db, token=token)
     if getattr(user, "is_admin", False):
         # We are at /admin/open, so use a relative redirect.
-        return safe_redirect(request, "../admin", status_code=303)
+        return safe_redirect(
+            request, "../admin", status_code=303, allow_parent_segments=True
+        )
 
     msg = "You don’t have admin privileges for this app."
     if return_to == "token":
@@ -503,7 +505,12 @@ async def admin_user_update(
     await db.commit()
 
     # We are at /admin/users/<id>/update so redirect back relatively.
-    return safe_redirect(request, "../" + str(user_id), status_code=303)
+    return safe_redirect(
+        request,
+        "../" + str(user_id),
+        status_code=303,
+        allow_parent_segments=True,
+    )
 
 
 @router.post(

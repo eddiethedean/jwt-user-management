@@ -47,12 +47,9 @@ def test_meta_endpoint_includes_external_base_and_prefix(
     _ensure_this_package_app_first()
     from app.asgi import app
 
-    client = TestClient(app, base_url="http://testserver")
+    client = TestClient(app, base_url="http://testserver", root_path="/prefix/app")
 
-    r = client.get(
-        "/__meta",
-        headers={"rstudio-connect-app-base-url": "https://example.com/prefix/app/"},
-    )
+    r = client.get("/__meta")
     assert r.status_code == 200
     j = r.json()
     assert j["ok"] is True

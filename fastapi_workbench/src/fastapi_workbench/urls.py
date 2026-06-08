@@ -5,6 +5,14 @@ from urllib.parse import urlparse
 
 from starlette.requests import Request
 
+from .detect import is_workbench_forced, is_workbench_scope
+from .path_safety import (
+    join_public_base_and_mount,
+    path_segments,
+    public_base_includes_mount,
+    safe_url_path,
+)
+
 
 def base_path(request: Request) -> str:
     """
@@ -17,9 +25,9 @@ def base_path(request: Request) -> str:
     if rp:
         return rp
 
-    # Posit Connect: Connect provides the application base URL via this header.
-    # Example value: "https://connect.example.com/content/<guid>/".
-    # We derive the mount prefix from the path component.
+    if not is_workbench_scope(request.scope) and not is_workbench_forced():
+        return ""
+
     base = (request.headers.get("rstudio-connect-app-base-url") or "").strip()
     if base:
         try:
@@ -27,7 +35,12 @@ def base_path(request: Request) -> str:
         except Exception:
             p = None
         if p and p.path:
-            return str(p.path).rstrip("/")
+            header_path = str(p.path).rstrip("/")
+            if p.netloc:
+                req_base = urlparse(str(request.base_url))
+                if req_base.netloc and p.netloc != req_base.netloc:
+                    return ""
+            return header_path
 
     return ""
 
@@ -72,19 +85,13 @@ def browser_app_mount_path(request: Request) -> str:
     present so UI links are not built under ``.../api/...``.
     """
     rp = base_path(request).rstrip("/")
-    if rp.endswith("/api"):
-        return rp[: -len("/api")].rstrip("/")
+    if not rp:
+        return ""
+    parts = path_segments(rp)
+    if parts and parts[-1].lower() == "api":
+        parent = "/" + "/".join(parts[:-1]) if len(parts) > 1 else ""
+        return parent.rstrip("/")
     return rp
-
-
-def _join_public_base_and_mount(base: str, mount: str) -> str:
-    b = base.rstrip("/")
-    m = (mount or "").strip().rstrip("/")
-    if not m:
-        return b
-    if b.endswith(m):
-        return b
-    return f"{b}{m}" if m.startswith("/") else f"{b}/{m}"
 
 
 def merge_public_base_with_mount(
@@ -95,7 +102,7 @@ def merge_public_base_with_mount(
     mount segment (e.g. when ``PUBLIC_BASE_URL`` already includes the Workbench prefix).
     """
     pub = workbench_browser_base(request, public_base_url=public_base_url)
-    return _join_public_base_and_mount(pub, base_path(request)).rstrip("/")
+    return join_public_base_and_mount(pub, base_path(request)).rstrip("/")
 
 
 def external_workbench_url(
@@ -115,8 +122,7 @@ def external_workbench_url(
     wb = workbench_browser_base(request, public_base_url=public_base_url)
     if include_root_path is None:
         bp = base_path(request).rstrip("/")
-        wbn = wb.rstrip("/")
-        inc = not (bool(bp) and wbn.endswith(bp))
+        inc = not public_base_includes_mount(wb, bp)
     else:
         inc = include_root_path
     return external_url(request, path, public_base_url=wb, include_root_path=inc)
@@ -134,12 +140,10 @@ def external_ui_url(
     Combines :func:`workbench_browser_base`, :func:`browser_app_mount_path`, and
     ``path`` (which should start with ``/`` and may include a query string).
     """
-    p = (path or "").strip()
-    if not p.startswith("/"):
-        p = "/" + p
+    p = safe_url_path(path)
     eb = workbench_browser_base(request, public_base_url=public_base_url)
     mount = browser_app_mount_path(request)
-    root = _join_public_base_and_mount(eb, mount)
+    root = join_public_base_and_mount(eb, mount)
     return root.rstrip("/") + p
 
 
@@ -151,9 +155,7 @@ def external_url(
     public_base_url: str | None = None,
 ) -> str:
     root_path = base_path(request) if include_root_path else ""
-    p = (path or "").strip()
-    if not p.startswith("/"):
-        p = "/" + p
+    p = safe_url_path(path)
     return external_base(request, public_base_url=public_base_url) + (
         root_path + p if root_path else p
     )

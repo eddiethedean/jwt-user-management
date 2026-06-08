@@ -260,7 +260,9 @@ async def open_admin_from_page(
 
     user = await user_from_token(db=db, token=token)
     if getattr(user, "is_admin", False):
-        return safe_redirect(request, "../admin", status_code=303)
+        return safe_redirect(
+            request, "../admin", status_code=303, allow_parent_segments=True
+        )
 
     msg = "You don’t have admin privileges for this app."
     if return_to == "token":
@@ -606,7 +608,12 @@ async def admin_user_update(
     db.add(user)
     await db.commit()
 
-    return safe_redirect(request, "../" + str(user_id), status_code=303)
+    return safe_redirect(
+        request,
+        "../" + str(user_id),
+        status_code=303,
+        allow_parent_segments=True,
+    )
 
 
 @router.post(

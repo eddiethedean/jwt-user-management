@@ -22,6 +22,21 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
+def _parse_port(value: str | None) -> int | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        port = int(raw)
+    except ValueError:
+        print(f"Invalid PORT={raw!r}; using a free port instead.")
+        return None
+    if port < 1 or port > 65535:
+        print(f"PORT={port} out of range; using a free port instead.")
+        return None
+    return port
+
+
 def _get_root_path_for_workbench(port: int) -> str:
     proc: subprocess.CompletedProcess[str] = subprocess.run(
         ["/usr/lib/rstudio-server/bin/rserver-url", "-l", str(port)],
@@ -33,8 +48,7 @@ def _get_root_path_for_workbench(port: int) -> str:
 
 
 def _run_migrations_if_enabled(*, cwd: str | None = None) -> None:
-    val: str = (os.environ.get("RUN_MIGRATIONS") or "").strip()
-    if val and not _truthy(val):
+    if not _truthy(os.environ.get("RUN_MIGRATIONS")):
         return
     try:
         subprocess.check_call(
@@ -57,7 +71,8 @@ def start_app(
     migrations_cwd: str | None = None,
 ) -> None:
     host = host or os.environ.get("HOST") or "127.0.0.1"
-    port = port or int(os.environ.get("PORT") or str(_free_port()))
+    if port is None:
+        port = _parse_port(os.environ.get("PORT")) or _free_port()
 
     explicit_base_path: str = (os.environ.get("BASE_PATH") or "").strip()
     root_path: str = explicit_base_path
@@ -99,8 +114,6 @@ def start_app(
     if external_host_url and not (os.environ.get("PUBLIC_BASE_URL") or "").strip():
         os.environ["PUBLIC_BASE_URL"] = external_host_url
 
-    # Expose the chosen host/port and inferred prefix to child code (e.g. a UI
-    # mounted inside this process) so it can build same-process URLs.
     os.environ["HOST"] = host
     os.environ["PORT"] = str(port)
     if root_path and not explicit_base_path:
@@ -131,7 +144,6 @@ def start_app(
         root_path=root_path,
         proxy_headers=True,
         forwarded_allow_ips=forwarded_allow_ips,
-        reload=_truthy(os.environ.get("RELOAD"))
-        or bool(os.environ.get("RS_SERVER_URL")),
+        reload=_truthy(os.environ.get("RELOAD")),
         log_level=os.environ.get("LOG_LEVEL") or "info",
     )

@@ -24,7 +24,7 @@ def test_start_app_local_uses_free_port_and_no_root_path(monkeypatch) -> None:
     run_workbench.start_app(open_with_browser=True)
 
     web_open.assert_called_once_with("http://127.0.0.1:12345/docs")
-    check_call.assert_called_once()
+    check_call.assert_not_called()
     uvicorn_run.assert_called_once()
     _, kwargs = uvicorn_run.call_args
     assert kwargs["host"] == "127.0.0.1"
@@ -60,11 +60,12 @@ def test_start_app_workbench_full_url_sets_root_path_and_docs_url(monkeypatch) -
     assert (
         run_workbench.os.environ.get("PUBLIC_BASE_URL") == "https://workbench.socom.mil"
     )
-    check_call.assert_called_once()
+    check_call.assert_not_called()
     uvicorn_run.assert_called_once()
     _, kwargs = uvicorn_run.call_args
     assert kwargs["port"] == 23456
     assert kwargs["root_path"] == "/s/x/p/y"
+    assert kwargs["reload"] is False
 
 
 def test_start_app_workbench_prefix_only(monkeypatch) -> None:
@@ -91,9 +92,10 @@ def test_start_app_workbench_prefix_only(monkeypatch) -> None:
 
     # When rserver-url returns only a prefix, we fall back to the internal base URL.
     web_open.assert_called_once_with("http://127.0.0.1:34567/s/a/p/b/docs")
-    check_call.assert_called_once()
+    check_call.assert_not_called()
     _, kwargs = uvicorn_run.call_args
     assert kwargs["root_path"] == "/s/a/p/b"
+    assert kwargs["reload"] is False
 
 
 def test_start_app_prefers_explicit_base_path(monkeypatch) -> None:
@@ -115,13 +117,30 @@ def test_start_app_prefers_explicit_base_path(monkeypatch) -> None:
     run_workbench.start_app(open_with_browser=False)
 
     get_root.assert_not_called()
-    check_call.assert_called_once()
+    check_call.assert_not_called()
     assert run_workbench.os.environ.get("PUBLIC_BASE_URL") == "https://example.com"
     _, kwargs = uvicorn_run.call_args
     assert kwargs["root_path"] == "/explicit/prefix"
 
 
-def test_start_app_can_disable_migrations(monkeypatch) -> None:
+def test_start_app_runs_migrations_when_enabled(monkeypatch) -> None:
+    uvicorn_run = Mock()
+    check_call = Mock()
+
+    monkeypatch.setattr(run_workbench, "_free_port", lambda: 56789)
+    monkeypatch.setattr(run_workbench.uvicorn, "run", uvicorn_run)
+    monkeypatch.setattr(run_workbench.subprocess, "check_call", check_call)
+
+    monkeypatch.setenv("RUN_MIGRATIONS", "true")
+    monkeypatch.delenv("RS_SERVER_URL", raising=False)
+    monkeypatch.delenv("BASE_PATH", raising=False)
+
+    run_workbench.start_app(open_with_browser=False)
+
+    check_call.assert_called_once()
+
+
+def test_start_app_skips_migrations_by_default(monkeypatch) -> None:
     uvicorn_run = Mock()
     check_call = Mock()
 
