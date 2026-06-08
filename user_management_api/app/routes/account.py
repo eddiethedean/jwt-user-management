@@ -8,12 +8,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, safe_redirect
 from app.core.rate_limit import check_rate_limit
-from app.core.security import hash_password, validate_new_password, verify_password
+from app.core.security import (
+    bump_token_version,
+    create_access_token,
+    hash_password,
+    token_extra_claims,
+    validate_new_password,
+    verify_password,
+)
 from app.db import get_db
 from app.models import User
 from app.routes.deps import user_from_token
 from app.web.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
-from app.web.session import get_auth_token
+from app.web.session import get_auth_token, set_auth_cookie
 from app.web.templates import templates
 
 
@@ -165,14 +172,16 @@ async def account_change_password(
         set_csrf_cookie(resp, request=request)
         return resp
 
-    from app.core.security import bump_token_version
-
     user.hashed_password = hash_password(new_password)
     bump_token_version(user)
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
+    access_token = create_access_token(
+        subject=str(user.id),
+        extra_claims=token_extra_claims(user),
+    )
     resp = templates.TemplateResponse(
         request,
         "account.html",
@@ -180,10 +189,12 @@ async def account_change_password(
             "request": request,
             "base_path": bp,
             "session_email": user.email,
+            "is_admin": bool(getattr(user, "is_admin", False)),
             "user": user,
             "success": "Password updated.",
             "csrf_token": csrf,
         },
     )
     set_csrf_cookie(resp, request=request)
+    set_auth_cookie(resp, request=request, token=access_token)
     return resp

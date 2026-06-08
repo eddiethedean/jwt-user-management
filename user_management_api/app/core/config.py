@@ -150,7 +150,7 @@ class Settings:
         self.auth_cookie_partitioned = bool(
             getattr(d, "AUTH_COOKIE_PARTITIONED", False)
         )
-        self.auth_cookie_legacy = bool(getattr(d, "AUTH_COOKIE_LEGACY", True))
+        self.auth_cookie_legacy = bool(getattr(d, "AUTH_COOKIE_LEGACY", False))
 
         self.smtp_port = int(getattr(d, "SMTP_PORT", 25))
         self.smtp_use_tls = bool(getattr(d, "SMTP_USE_TLS", False))

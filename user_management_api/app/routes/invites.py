@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, safe_external_redirect
 from app.core.config import settings
+from app.core.roles import apply_user_roles, roles_for_admin_flag
 from app.core.email_validation import validate_email_format
 from app.core.rate_limit import check_rate_limit
 from app.core.security import validate_new_password
@@ -84,10 +85,14 @@ async def create_invite(
     )
 
     invite_url = external_accept_invite_url(request, token=raw)
+    email_sent = False
     try:
         send_invite_email(to_email=email, invite_url=invite_url)
+        email_sent = True
     except Exception:
         log.exception("invite_email_send_failed")
+    if not email_sent:
+        raise HTTPException(status_code=503, detail="Could not send invite email")
 
     invite_row = (
         await db.exec(
@@ -245,8 +250,18 @@ async def _accept(
         full_name=fn,
         country=country,
         hashed_password=hash_password(password),
-        is_admin=grant_admin,
-        roles="Admin" if grant_admin else "User",
+        is_admin=False,
+        roles=None,
+    )
+    apply_user_roles(
+        user,
+        roles_for_admin_flag(
+            grant_admin,
+            allowed_roles=settings.user_roles,
+            admin_roles=settings.admin_roles,
+        ),
+        allowed_roles=settings.user_roles,
+        admin_roles=settings.admin_roles,
     )
     db.add(user)
     try:

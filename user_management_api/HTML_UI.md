@@ -1,6 +1,14 @@
 # HTML UI
 
-Server-rendered pages ship **in this API process** (same port as `/docs`). Templates and static assets:
+Server-rendered pages ship **in this API process** (same port as `/docs`).
+
+| Doc | Purpose |
+|-----|---------|
+| [`README.md`](README.md) | Quickstart and doc map |
+| [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) | First-login tutorial |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Cookie and CSRF hardening |
+
+Templates and static assets:
 
 - **Templates:** `app/web/templates/`
 - **Static:** `app/web/static/` → `/static`
@@ -60,11 +68,15 @@ Jinja globals registered in `app/web/templates.py`: `app_title()`, `brand_stack(
 ## Security (HTML)
 
 - Auth cookie set on `POST /login`; cleared on `POST /logout` (bumps `token_version`)
+- Password change on `/account/password` re-issues the auth cookie with a new `tv` claim
 - CSRF tokens on forms (`csrf_token` hidden field + cookie)
 - Admin-only routes redirect non-admins (no user list leak on `/admin`)
 - Rate limits on login, register, password change (`config.py`)
+- Password minimum length: **12 characters** (accept invite, reset, account change)
 
 Cookie behavior: `AUTH_COOKIE_*` settings in `config.py`. Use `AUTH_COOKIE_DEPLOYMENT = "connect"` on Posit Connect.
+
+Production checklist: [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ---
 

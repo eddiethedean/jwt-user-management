@@ -132,7 +132,7 @@ In-process limits apply per worker; use proxy-level limits for multi-worker depl
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DIRECTORY_LOOKUP_TIMEOUT_S` | `5` | HTTP timeout in seconds |
-| `DIRECTORY_LOOKUP_REQUIRED` | `False` | Reject invites when directory has no match |
+| `DIRECTORY_LOOKUP_REQUIRED` | `False` | When `True`, reject **invite creation**, **self-registration**, and **admin HTML invites** if directory lookup fails or returns no match. Does **not** block invite **accept** (country enrichment remains best-effort). See [per-endpoint behavior](../USER_GUIDE.md#directory-ldap-lookup). |
 | `DIRECTORY_LOOKUP_VERIFY_SSL` | `True` | Verify TLS certificates |
 
 ### Self-registration
@@ -163,6 +163,8 @@ Roles appear as optional checkboxes on the admin **Edit user** page. Users can h
 | `ADMIN_ROLES` | `("Admin", "Super")` | Subset of `USER_ROLES` that grant admin UI/API access |
 
 `ADMIN_ROLES` must be a subset of `USER_ROLES` (startup fails otherwise).
+
+**API PATCH:** Prefer `roles` in `PATCH /admin/users/{id}`. Legacy `is_admin` is a shorthand that maps to all `ADMIN_ROLES` (true) or `User` (false) via `apply_user_roles`. See [`docs/API.md`](docs/API.md).
 
 **Example — admin only via `Admin` role:**
 
@@ -206,34 +208,22 @@ BRAND_STACK: tuple[str, ...] = ("FastAPI", "PostgreSQL")
 
 ---
 
-## Quick start checklist
+## Quick start
 
-1. `cp .env.example .env` and set `JWT_SECRET` (and `DATABASE_URL` if not SQLite).
-2. Edit `config.py` for your org: `INVITE_ALLOWED_EMAIL_DOMAINS`, branding, roles, `SELF_REGISTRATION_ENABLED`.
-3. `alembic upgrade head` (optionally with `SEED_*` env vars).
-4. `JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001` for local dev.
-5. Open http://127.0.0.1:8001/login — customize appearance via `APP_TITLE`, `BRAND_*`, `BRAND_STACK`.
+See [`README.md`](README.md#quickstart-local) and the step-by-step [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) tutorial.
 
-## Development checks
+Checklist highlights:
 
-From `user_management_api/`:
-
-```bash
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/pytest -q tests
-```
-
-From repository root:
-
-```bash
-ruff format --check user_management_api
-ruff check user_management_api
-ty check user_management_api
-```
-
-Typecheck uses `user_management_api/.venv/bin/python` (see root `pyproject.toml`).
+1. `cp .env.example .env` and set `JWT_SECRET`
+2. Edit `config.py`: `INVITE_ALLOWED_EMAIL_DOMAINS`, branding, roles
+3. Seed admin: `SEED_ADMIN_ENABLED=1 SEED_ADMIN_PASSWORD='...' alembic upgrade head`
+4. Start uvicorn (see README)
 
 ## Related docs
 
-- [`README.md`](README.md) — quickstart, API summary, seeding
+- [`README.md`](README.md) — quickstart, first login, API summary
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — 10-minute tutorial
+- [`docs/API.md`](docs/API.md) — JSON API and error codes
+- [`docs/SECURITY.md`](docs/SECURITY.md) — production checklist
 - [`USER_GUIDE.md`](USER_GUIDE.md) — HTML flows, deployment, troubleshooting
 - [`HTML_UI.md`](HTML_UI.md) — pages, navigation, HTML security

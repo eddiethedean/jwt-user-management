@@ -20,7 +20,6 @@ from app.core.rate_limit import check_rate_limit
 from app.core.security import (
     bump_token_version,
     create_access_token,
-    decode_token,
     token_extra_claims,
     verify_password,
 )
@@ -50,6 +49,27 @@ def _post_login_dest(user: User) -> str:
     if bool(getattr(user, "is_admin", False)):
         return "/admin"
     return "/account"
+
+
+def _login_redirect_dest(user: User, next_path: str) -> str:
+    n = (next_path or "").strip()
+    if n.startswith("/") and not n.startswith("//"):
+        return n
+    return _post_login_dest(user)
+
+
+async def _display_session_email(
+    request: Request, db: AsyncSession
+) -> tuple[Optional[str], bool]:
+    """Return nav email for public pages; second value means clear a stale cookie."""
+    cookie_token = get_auth_token(request)
+    if not cookie_token:
+        return None, False
+    try:
+        user = await user_from_token(db=db, token=cookie_token)
+        return user.email, False
+    except HTTPException:
+        return None, True
 
 
 def _self_registration_enabled() -> bool:
@@ -118,7 +138,13 @@ async def _register_user(
     except Exception:
         log.exception("self_registration_email_send_failed")
 
-    return True, email_sent, None
+    if not email_sent:
+        return (
+            False,
+            False,
+            "Could not send registration email. Please try again later.",
+        )
+    return True, True, None
 
 
 @router.get("/register", response_class=HTMLResponse, include_in_schema=False)
@@ -130,16 +156,7 @@ async def register_page(
         return _self_registration_disabled_redirect(request)
     bp = base_path(request)
     csrf = issue_csrf_token(request)
-    session_email = None
-    cookie_token = get_auth_token(request)
-    if cookie_token:
-        try:
-            payload = decode_token(cookie_token)
-            user_id = int(payload.get("sub") or 0)
-            user = (await db.exec(select(User).where(User.id == user_id))).first()
-            session_email = user.email if user else None
-        except Exception:
-            session_email = None
+    session_email, clear_cookie = await _display_session_email(request, db)
     resp = templates.TemplateResponse(
         request,
         "register.html",
@@ -151,6 +168,8 @@ async def register_page(
         },
     )
     set_csrf_cookie(resp, request=request)
+    if clear_cookie:
+        clear_auth_cookie(resp, request=request)
     return resp
 
 
@@ -192,7 +211,11 @@ async def register_submit(
     ok, _email_sent, err = await _register_user(request=request, email_n=email_n, db=db)
 
     if err:
-        status = 503 if "not configured" in err.lower() else 400
+        status = (
+            503
+            if "not configured" in err.lower() or "could not send" in err.lower()
+            else 400
+        )
         if wants_html:
             csrf = issue_csrf_token(request)
             resp = templates.TemplateResponse(
@@ -236,16 +259,7 @@ async def login_page(
     csrf = issue_csrf_token(request)
     info = (request.query_params.get("msg") or "").strip()
     next_path = (request.query_params.get("next") or "").strip()
-    session_email = None
-    cookie_token = get_auth_token(request)
-    if cookie_token:
-        try:
-            payload = decode_token(cookie_token)
-            user_id = int(payload.get("sub") or 0)
-            user = (await db.exec(select(User).where(User.id == user_id))).first()
-            session_email = user.email if user else None
-        except Exception:
-            session_email = None
+    session_email, clear_cookie = await _display_session_email(request, db)
     resp = templates.TemplateResponse(
         request,
         "login.html",
@@ -259,6 +273,8 @@ async def login_page(
         },
     )
     set_csrf_cookie(resp, request=request)
+    if clear_cookie:
+        clear_auth_cookie(resp, request=request)
     return resp
 
 
@@ -267,6 +283,7 @@ async def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next_path: Optional[str] = Form(default=None),
     csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -329,7 +346,7 @@ async def login_submit(
         subject=str(user.id),
         extra_claims=token_extra_claims(user),
     )
-    dest = _post_login_dest(user)
+    dest = _login_redirect_dest(user, next_path or "")
     if bool(getattr(settings, "cookie_debug", False)):
         resp = HTMLResponse(content="", status_code=200)
         set_auth_cookie(resp, request=request, token=token)

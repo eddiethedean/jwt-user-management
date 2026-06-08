@@ -25,6 +25,9 @@
       {% if csrf_token %}
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       {% endif %}
+      {% if next %}
+      <input type="hidden" name="next_path" value="{{ next }}" />
+      {% endif %}
       <label for="email">Email</label>
       <input
         id="email"

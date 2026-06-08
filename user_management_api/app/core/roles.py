@@ -46,6 +46,20 @@ def grants_admin(roles: frozenset[str], admin_roles: tuple[str, ...]) -> bool:
     return bool(roles & frozenset(admin_roles))
 
 
+def roles_for_admin_flag(
+    is_admin: bool,
+    *,
+    allowed_roles: tuple[str, ...],
+    admin_roles: tuple[str, ...],
+) -> list[str]:
+    """Map legacy ``is_admin`` updates to configured role labels."""
+    if is_admin:
+        return [r for r in admin_roles if r in allowed_roles]
+    if "User" in allowed_roles:
+        return ["User"]
+    return []
+
+
 def apply_user_roles(
     user: User,
     selected: Iterable[str],

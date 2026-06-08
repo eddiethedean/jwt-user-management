@@ -49,11 +49,13 @@ def _apply_test_invite_config(
     config_mod: Any,
     *,
     invite_allowed_email_domains: tuple[str, ...] | None,
+    directory_lookup_required: bool = False,
 ) -> None:
     if invite_allowed_email_domains is not None:
         config_mod._defaults.INVITE_ALLOWED_EMAIL_DOMAINS = invite_allowed_email_domains
     else:
         config_mod._defaults.INVITE_ALLOWED_EMAIL_DOMAINS = DEFAULT_TEST_INVITE_DOMAINS
+    config_mod._defaults.DIRECTORY_LOOKUP_REQUIRED = directory_lookup_required
     config_mod.refresh_settings()
 
 
@@ -75,6 +77,7 @@ def load_wrapped_app(
     *,
     db_url: str,
     enable_directory: bool = False,
+    directory_lookup_required: bool | None = None,
     invite_allowed_email_domains: tuple[str, ...] | None = None,
 ) -> ASGIApp:
     """Load the backend ASGI app (app.asgi:app) with a fresh SQLite DB and settings."""
@@ -110,7 +113,9 @@ def load_wrapped_app(
 
     importlib.reload(config)
     _apply_test_invite_config(
-        config, invite_allowed_email_domains=invite_allowed_email_domains
+        config,
+        invite_allowed_email_domains=invite_allowed_email_domains,
+        directory_lookup_required=bool(directory_lookup_required),
     )
 
     for mod_name in (

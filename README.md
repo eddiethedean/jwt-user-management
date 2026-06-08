@@ -71,7 +71,7 @@ cp .env.example .env
 
 Leave the rest of `.env` commented unless you need SMTP or directory lookup ([optional features](#optional-directory-lookup-and-smtp)).
 
-#### Step A3 — Create database tables and seed admin
+#### Step A3 — Create database tables (and optionally seed admin)
 
 Still inside `user_management_api/` with the venv activated:
 
@@ -81,20 +81,25 @@ alembic upgrade head
 
 To migrate **both** the API and FluxLit databases in one step (from repo root): `./scripts/migrate_databases.sh`.
 
-This applies migrations and creates a default admin user unless you set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env`.
+This applies migrations only. **No admin user is created by default.** To seed an admin at migrate time (opt-in):
 
-**Default admin (if you did not override seed env vars):**
+```bash
+SEED_ADMIN_ENABLED=1 SEED_ADMIN_PASSWORD='YourStrongPassword12' alembic upgrade head
+```
 
-- Email: **`admin@example.com`**
-- Password: **`admin123`**
+Default seeded email is **`admin@example.com`** (override with `SEED_ADMIN_EMAIL` in `.env`). Password must be at least 12 characters and not a known weak default.
+
+See [`user_management_api/README.md`](user_management_api/README.md#first-login-required) for other first-login options.
 
 #### Step A4 — Start the API (keep this terminal open)
 
 ```bash
 cd user_management_api
 source .venv/bin/activate
-uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
+JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
 ```
+
+Use `JWT_ALLOW_WEAK_SECRET=1` only for local dev when `.env` still has a placeholder `JWT_SECRET`.
 
 - **OpenAPI docs:** `http://127.0.0.1:8001/docs`
 - **Health check:** open `/docs` or call any documented route.

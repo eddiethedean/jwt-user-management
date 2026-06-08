@@ -22,6 +22,7 @@ from app.core.roles import (
     display_user_roles,
     effective_user_roles,
     normalize_selected_roles,
+    roles_for_admin_flag,
 )
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
@@ -154,7 +155,16 @@ async def admin_api_update_user(
             admin_roles=settings.admin_roles,
         )
     elif "is_admin" in fields_set and payload.is_admin is not None:
-        user.is_admin = payload.is_admin
+        apply_user_roles(
+            user,
+            roles_for_admin_flag(
+                payload.is_admin,
+                allowed_roles=settings.user_roles,
+                admin_roles=settings.admin_roles,
+            ),
+            allowed_roles=settings.user_roles,
+            admin_roles=settings.admin_roles,
+        )
 
     db.add(user)
     await db.commit()
@@ -435,10 +445,39 @@ async def admin_invite_submit(
     raw = await create_invite_token_atomic(db, email=email_n, grant_admin=make_admin)
 
     invite_url = external_accept_invite_url(request, token=raw)
+    email_sent = False
     try:
         send_invite_email(to_email=email_n, invite_url=invite_url)
+        email_sent = True
     except Exception:
         log.exception("invite_email_send_failed")
+
+    if not email_sent:
+        err = "Could not send invite email. Please try again later."
+        if wants_json:
+            return JSONResponse({"ok": False, "error": err}, status_code=503)
+        users = (await db.exec(select(User).order_by(text("id")))).all()
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
+            request,
+            "admin.html",
+            {
+                "request": request,
+                "users": users,
+                "email": admin_user.email,
+                "session_email": admin_user.email,
+                "token": active_token,
+                "base_path": bp,
+                "invite_sent": False,
+                "invite_error": err,
+                "invite_email": email_n,
+                "invite_grant_admin": make_admin,
+                "csrf_token": csrf,
+            },
+            status_code=503,
+        )
+        set_csrf_cookie(resp, request=request)
+        return resp
 
     if wants_json:
         return JSONResponse({"ok": True})
