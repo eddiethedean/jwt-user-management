@@ -39,17 +39,24 @@ def _norm_email(v: str) -> str:
     return (v or "").strip().lower()
 
 
+def _form_checkbox(value: Optional[str]) -> bool:
+    """Parse HTML checkbox values; never use bool() on form strings."""
+    return (value or "").strip().lower() in ("1", "on", "true")
+
+
 @router.post("/admin/invite/lookup", response_class=Response, include_in_schema=False)
 async def admin_invite_lookup(
     request: Request,
     token: Optional[str] = Form(default=None),
     email: str = Form(default=""),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     wants_json = "application/json" in (request.headers.get("accept") or "").lower()
     if not wants_json:
         return safe_redirect(request, "/admin", status_code=303)
 
+    validate_csrf(request, form_token=csrf_token)
     cookie_token = get_auth_token(request)
     active_token = cookie_token or token
     if not active_token:
@@ -174,20 +181,10 @@ async def admin_page(
         )
     user = await user_from_token(db=db, token=token)
     if not getattr(user, "is_admin", False):
-        users = (await db.exec(select(User).order_by(text("id")))).all()
-        return templates.TemplateResponse(
+        return safe_redirect(
             request,
-            "users.html",
-            {
-                "request": request,
-                "users": users,
-                "email": user.email,
-                "session_email": user.email,
-                "is_admin": False,
-                "admin_error": "You don’t have admin privileges for this app.",
-                "base_path": bp,
-            },
-            status_code=403,
+            "/account?msg=You%20don%E2%80%99t%20have%20admin%20privileges%20for%20this%20app.",
+            status_code=303,
         )
 
     users = (await db.exec(select(User).order_by(text("id")))).all()
@@ -202,7 +199,7 @@ async def admin_page(
             "session_email": user.email,
             "token": token,
             "base_path": bp,
-            "invite_url": None,
+            "invite_sent": False,
             "invite_error": None,
             "invite_email": "",
             "invite_grant_admin": False,
@@ -217,8 +214,10 @@ async def admin_page(
 async def open_admin_from_page(
     request: Request,
     return_to: str = Form(...),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
     token = get_auth_token(request)
     if not token:
@@ -245,19 +244,10 @@ async def open_admin_from_page(
             status_code=403,
         )
 
-    users = (await db.exec(select(User).order_by(text("id")))).all()
-    return templates.TemplateResponse(
+    return safe_redirect(
         request,
-        "users.html",
-        {
-            "request": request,
-            "users": users,
-            "email": user.email,
-            "is_admin": False,
-            "admin_error": msg,
-            "base_path": bp,
-        },
-        status_code=403,
+        "/account?msg=You%20don%E2%80%99t%20have%20admin%20privileges%20for%20this%20app.",
+        status_code=303,
     )
 
 
@@ -267,11 +257,14 @@ async def admin_invite_submit(
     token: Optional[str] = Form(default=None),
     email: str = Form(default=""),
     grant_admin: Optional[str] = Form(default=None),
+    csrf_token: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
     wants_json = "application/json" in (request.headers.get("accept") or "").lower()
     cookie_token = get_auth_token(request)
+    make_admin = _form_checkbox(grant_admin)
     active_token = cookie_token or token
     if not active_token:
         if wants_json:
@@ -304,10 +297,10 @@ async def admin_invite_submit(
                 "session_email": admin_user.email,
                 "token": active_token,
                 "base_path": bp,
-                "invite_url": None,
+                "invite_sent": False,
                 "invite_error": err,
                 "invite_email": "",
-                "invite_grant_admin": bool(grant_admin),
+                "invite_grant_admin": make_admin,
                 "csrf_token": csrf,
             },
             status_code=400,
@@ -330,10 +323,10 @@ async def admin_invite_submit(
                 "session_email": admin_user.email,
                 "token": active_token,
                 "base_path": bp,
-                "invite_url": None,
+                "invite_sent": False,
                 "invite_error": err,
                 "invite_email": "",
-                "invite_grant_admin": bool(grant_admin),
+                "invite_grant_admin": make_admin,
             },
             status_code=400,
         )
@@ -353,10 +346,10 @@ async def admin_invite_submit(
                 "session_email": admin_user.email,
                 "token": active_token,
                 "base_path": bp,
-                "invite_url": None,
+                "invite_sent": False,
                 "invite_error": err,
                 "invite_email": email_n,
-                "invite_grant_admin": bool(grant_admin),
+                "invite_grant_admin": make_admin,
             },
             status_code=422,
         )
@@ -379,10 +372,10 @@ async def admin_invite_submit(
                 "session_email": admin_user.email,
                 "token": active_token,
                 "base_path": bp,
-                "invite_url": None,
+                "invite_sent": False,
                 "invite_error": err,
                 "invite_email": email_n,
-                "invite_grant_admin": bool(grant_admin),
+                "invite_grant_admin": make_admin,
             },
             status_code=409,
         )
@@ -408,15 +401,14 @@ async def admin_invite_submit(
                     "session_email": admin_user.email,
                     "token": active_token,
                     "base_path": bp,
-                    "invite_url": None,
+                    "invite_sent": False,
                     "invite_error": err,
                     "invite_email": email_n,
-                    "invite_grant_admin": bool(grant_admin),
+                    "invite_grant_admin": make_admin,
                 },
                 status_code=400,
             )
 
-    make_admin = bool(grant_admin)
     raw = await create_invite_token_atomic(
         db, email=email_n, grant_admin=make_admin
     )
@@ -428,7 +420,7 @@ async def admin_invite_submit(
         log.exception("invite_email_send_failed")
 
     if wants_json:
-        return JSONResponse({"ok": True, "invite_url": invite_url})
+        return JSONResponse({"ok": True})
 
     users = (await db.exec(select(User).order_by(text("id")))).all()
     csrf = issue_csrf_token(request)
@@ -441,7 +433,7 @@ async def admin_invite_submit(
             "email": admin_user.email,
             "token": active_token,
             "base_path": bp,
-            "invite_url": invite_url,
+            "invite_sent": True,
             "invite_error": None,
             "invite_email": email_n,
             "invite_grant_admin": make_admin,
@@ -533,9 +525,9 @@ async def admin_user_update(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    new_active = _form_checkbox(is_active)
+    new_admin = _form_checkbox(is_admin)
     if user.id == admin.id:
-        new_active = bool(is_active)
-        new_admin = bool(is_admin)
         if new_active != bool(user.is_active) or new_admin != bool(user.is_admin):
             raise HTTPException(
                 status_code=400,
@@ -543,8 +535,8 @@ async def admin_user_update(
             )
 
     user.full_name = (full_name or "").strip() or None
-    user.is_admin = bool(is_admin)
-    user.is_active = bool(is_active)
+    user.is_admin = new_admin
+    user.is_active = new_active
     db.add(user)
     await db.commit()
 

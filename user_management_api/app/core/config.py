@@ -96,6 +96,7 @@ class Settings:
         "smtp_allow_legacy_port25_fallback",
         "rate_limit_enabled",
         "rate_limit_auth_per_minute",
+        "rate_limit_trusted_proxies",
         "directory_lookup_timeout_s",
         "directory_lookup_required",
         "directory_lookup_verify_ssl",
@@ -147,6 +148,11 @@ class Settings:
         self.rate_limit_enabled = bool(getattr(d, "RATE_LIMIT_ENABLED", True))
         self.rate_limit_auth_per_minute = int(
             getattr(d, "RATE_LIMIT_AUTH_PER_MINUTE", 20)
+        )
+        self.rate_limit_trusted_proxies = frozenset(
+            str(x).strip()
+            for x in getattr(d, "RATE_LIMIT_TRUSTED_PROXIES", ()) or ()
+            if str(x).strip()
         )
 
         self.directory_lookup_timeout_s = int(getattr(d, "DIRECTORY_LOOKUP_TIMEOUT_S", 5))

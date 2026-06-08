@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.email_validation import validate_email_format
 from app.core.rate_limit import check_rate_limit
 from app.core.security import (
+    bump_token_version,
     create_access_token,
     decode_token,
     token_extra_claims,
@@ -26,6 +27,7 @@ from app.core.security import (
 from app.db import get_db
 from app.invite_email_domains import invite_email_domain_allowed
 from app.models import User
+from app.routes.deps import user_from_token
 from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email_async
 from app.services.email import send_self_registration_email
@@ -42,6 +44,12 @@ log = logging.getLogger("uvicorn.error")
 def _wants_html(request: Request) -> bool:
     accept = (request.headers.get("accept") or "").lower()
     return "text/html" in accept
+
+
+def _post_login_dest(user: User) -> str:
+    if bool(getattr(user, "is_admin", False)):
+        return "/admin"
+    return "/account"
 
 
 async def _register_user(
@@ -245,7 +253,21 @@ async def login_submit(
     try:
         email_n = validate_email_format(email)
     except ValueError:
-        email_n = (email or "").strip().lower()
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "request": request,
+                "error": "Invalid email or password",
+                "base_path": bp,
+                "email": (email or "").strip(),
+                "csrf_token": csrf,
+            },
+            status_code=400,
+        )
+        set_csrf_cookie(resp, request=request)
+        return resp
     check_rate_limit(request, scope="auth_login", email=email_n)
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == email_n))
@@ -272,12 +294,12 @@ async def login_submit(
             "login.html",
             {
                 "request": request,
-                "error": "Your account has been disabled. Contact your admin.",
+                "error": "Invalid email or password",
                 "base_path": bp,
                 "email": email_n,
                 "csrf_token": csrf,
             },
-            status_code=403,
+            status_code=400,
         )
         set_csrf_cookie(resp, request=request)
         return resp
@@ -285,7 +307,7 @@ async def login_submit(
         subject=str(user.id),
         extra_claims=token_extra_claims(user),
     )
-    dest = "/admin" if bool(getattr(user, "is_admin", False)) else "/users"
+    dest = _post_login_dest(user)
     if bool(getattr(settings, "cookie_debug", False)):
         resp = HTMLResponse(content="", status_code=200)
         set_auth_cookie(resp, request=request, token=token)
@@ -314,8 +336,18 @@ async def login_submit(
 async def logout(
     request: Request,
     csrf_token: Optional[str] = Form(default=None),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     validate_csrf(request, form_token=csrf_token)
+    cookie_token = get_auth_token(request)
+    if cookie_token:
+        try:
+            user = await user_from_token(db=db, token=cookie_token)
+            bump_token_version(user)
+            db.add(user)
+            await db.commit()
+        except HTTPException:
+            pass
     resp = safe_external_redirect(request, "/login", status_code=303)
     clear_auth_cookie(resp, request=request)
     return resp
@@ -330,7 +362,7 @@ async def token(
     try:
         username = validate_email_format(form.username)
     except ValueError:
-        username = (form.username or "").strip().lower()
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
     check_rate_limit(request, scope="auth_token", email=username)
     user: Optional[User] = (
         await db.exec(select(User).where(User.email == username))

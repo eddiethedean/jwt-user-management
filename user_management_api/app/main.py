@@ -147,8 +147,9 @@ async def root(
         token = get_auth_token(request)
         if token:
             try:
-                await user_from_token(db=db, token=token)
-                return safe_redirect(request, "/users", status_code=302)
+                user = await user_from_token(db=db, token=token)
+                dest = "/admin" if getattr(user, "is_admin", False) else "/account"
+                return safe_redirect(request, dest, status_code=302)
             except HTTPException:
                 pass
         return safe_redirect(request, "/login", status_code=302)

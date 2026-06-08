@@ -103,21 +103,20 @@ The admin **`POST /invites/lookup`** preview returns directory **country** (and 
 
 Set **`SMTP_HOST`** and **`SMTP_FROM_EMAIL`** (and port, TLS, credentials as needed) so the API can send **invite**, **self-registration setup**, and **password reset** emails. If SMTP is not configured, invite and reset flows still create tokens and return URLs in API responses; email calls are skipped where implemented as no-ops. When SMTP is configured but sending fails, the server logs an error (without changing the non-enumerating JSON responses for forgot-password).
 
-### Seed an initial admin user (optional)
+### Seed an initial admin user (optional, opt-in)
 
-On `alembic upgrade head`, a default admin account is created if it doesn't exist:
+Revision `0002_seed_admin` does **not** create an admin unless you explicitly enable seeding at migrate time:
 
-- Email: `admin@example.com`
-- Password: `admin123`
+```bash
+SEED_ADMIN_ENABLED=1 \
+SEED_ADMIN_PASSWORD='your-strong-password-here' \
+alembic upgrade head
+```
 
-You can override these with:
+Optional overrides:
 
-- `SEED_ADMIN_EMAIL`
-- `SEED_ADMIN_PASSWORD`
-
-For production, set strong `SEED_ADMIN_*` values before running migrations.
-Revision `0002_seed_admin` seeds the default admin unless `SEED_ADMIN_ENABLED=0`
-(or `false` / `no` / `off`) is set in the environment at migrate time.
+- `SEED_ADMIN_EMAIL` (default `admin@example.com`)
+- `SEED_ADMIN_PASSWORD` (required when seeding; min 12 characters; weak defaults rejected)
 
 ## Run tests
 

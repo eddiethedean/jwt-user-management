@@ -43,8 +43,11 @@ SMTP_ALLOW_LEGACY_PORT25_FALLBACK: bool = False
 RATE_LIMIT_ENABLED: bool = True
 RATE_LIMIT_AUTH_PER_MINUTE: int = 20
 
-# --- Alembic seed admin (set SEED_ADMIN_ENABLED=1 in env at migrate time to seed) ---
-SEED_ADMIN_ENABLED: bool = True
+# --- Alembic seed admin (opt-in: set SEED_ADMIN_ENABLED=1 + SEED_ADMIN_PASSWORD in env at migrate time) ---
+SEED_ADMIN_ENABLED: bool = False
+
+# Comma-separated proxy IPs that may set X-Forwarded-For (empty = never trust XFF).
+RATE_LIMIT_TRUSTED_PROXIES: tuple[str, ...] = ()
 
 # --- Directory client (service URL → ``.env`` only) ---
 DIRECTORY_LOOKUP_TIMEOUT_S: int = 5

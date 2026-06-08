@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from fastapi_workbench import base_path, safe_redirect
+from app.core.rate_limit import check_rate_limit
 from app.core.security import hash_password, validate_new_password, verify_password
 from app.db import get_db
 from app.models import User
@@ -41,6 +42,7 @@ async def account_page(
             status_code=303,
         )
     csrf = issue_csrf_token(request)
+    info = (request.query_params.get("msg") or "").strip() or None
     resp = templates.TemplateResponse(
         request,
         "account.html",
@@ -49,6 +51,7 @@ async def account_page(
             "base_path": bp,
             "session_email": user.email,
             "user": user,
+            "info": info,
             "csrf_token": csrf,
         },
     )
@@ -124,6 +127,8 @@ async def account_change_password(
         "user": user,
         "csrf_token": csrf,
     }
+
+    check_rate_limit(request, scope="password_change", email=user.email)
 
     if not verify_password(current_password, user.hashed_password):
         resp = templates.TemplateResponse(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -63,13 +64,29 @@ async def forgot_password_form(
 ) -> Response:
     validate_csrf(request, form_token=csrf_token)
     bp = base_path(request)
+    raw_email = (email or "").strip()
     try:
         email_n = validate_email_format(email)
     except ValueError:
-        email_n = ""
-    check_rate_limit(request, scope="password_forgot", email=email_n or None)
-    if email_n:
-        await _issue_reset_token(request, db=db, email_n=email_n)
+        rate_key = (
+            hashlib.sha256(raw_email.encode("utf-8")).hexdigest() if raw_email else None
+        )
+        check_rate_limit(request, scope="password_forgot", email=rate_key)
+        csrf = issue_csrf_token(request)
+        resp = templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "request": request,
+                "base_path": bp,
+                "success": "If the account exists, a reset link has been sent.",
+                "csrf_token": csrf,
+            },
+        )
+        set_csrf_cookie(resp, request=request)
+        return resp
+    check_rate_limit(request, scope="password_forgot", email=email_n)
+    await _issue_reset_token(request, db=db, email_n=email_n)
 
     csrf = issue_csrf_token(request)
     resp = templates.TemplateResponse(
@@ -156,17 +173,19 @@ async def reset_api(
     if _as_utc_aware(rec.expires_at) < now:
         raise HTTPException(status_code=400, detail="Reset link expired")
 
+    user: Optional[User] = (
+        await db.exec(select(User).where(User.email == rec.email))
+    ).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Reset link invalid or expired")
+
     consumed = await try_consume_reset_token(db, token_hash=token_hash, now=now)
     if consumed != 1:
         raise HTTPException(status_code=400, detail="Reset link already used")
 
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.email == rec.email))
-    ).first()
-    if user:
-        user.hashed_password = hash_password(payload.password)
-        bump_token_version(user)
-        db.add(user)
+    user.hashed_password = hash_password(payload.password)
+    bump_token_version(user)
+    db.add(user)
     await db.commit()
     return {"ok": True}
 

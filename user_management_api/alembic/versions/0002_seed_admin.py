@@ -4,9 +4,9 @@ Revision ID: 0002_seed_admin
 Revises: 0001_initial_schema
 Create Date: 2026-06-08
 
-Idempotent admin seed. Skipped when ``SEED_ADMIN_ENABLED`` is set to a falsey
-value (``0``, ``false``, ``no``, ``off``) in the environment at migrate time.
-Otherwise creates the default admin if missing.
+Idempotent admin seed. Runs only when ``SEED_ADMIN_ENABLED`` is explicitly set to a
+truthy value (``1``, ``true``, ``yes``, ``on``) in the environment at migrate time.
+Requires ``SEED_ADMIN_PASSWORD`` (min 12 chars, not a known weak default).
 """
 
 from __future__ import annotations
@@ -22,6 +22,18 @@ down_revision = "0001_initial_schema"
 branch_labels = None
 depends_on = None
 
+_MIN_PASSWORD_LEN = 12
+_WEAK_PASSWORDS = frozenset(
+    {
+        "admin123",
+        "password",
+        "changeme",
+        "secret",
+        "dev-secret",
+        "passwordpassword",
+    }
+)
+
 
 def _env(name: str) -> str:
     return (os.getenv(name) or "").strip()
@@ -29,9 +41,20 @@ def _env(name: str) -> str:
 
 def _seed_enabled() -> bool:
     flag = _env("SEED_ADMIN_ENABLED").lower()
-    if flag in {"0", "false", "no", "off"}:
-        return False
-    return True
+    return flag in {"1", "true", "yes", "on"}
+
+
+def _validate_seed_password(password: str) -> None:
+    if len(password) < _MIN_PASSWORD_LEN:
+        raise RuntimeError(
+            f"SEED_ADMIN_PASSWORD must be at least {_MIN_PASSWORD_LEN} characters "
+            "when SEED_ADMIN_ENABLED is set"
+        )
+    if password.lower() in _WEAK_PASSWORDS:
+        raise RuntimeError(
+            "SEED_ADMIN_PASSWORD is too weak; choose a strong password "
+            "when SEED_ADMIN_ENABLED is set"
+        )
 
 
 def upgrade() -> None:
@@ -39,7 +62,12 @@ def upgrade() -> None:
         return
 
     email = _env("SEED_ADMIN_EMAIL") or "admin@example.com"
-    password = _env("SEED_ADMIN_PASSWORD") or "admin123"
+    password = _env("SEED_ADMIN_PASSWORD")
+    if not password:
+        raise RuntimeError(
+            "SEED_ADMIN_PASSWORD must be set when SEED_ADMIN_ENABLED is enabled"
+        )
+    _validate_seed_password(password)
 
     from app.core.security import hash_password
 

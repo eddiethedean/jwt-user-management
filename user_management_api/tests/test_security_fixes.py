@@ -235,6 +235,207 @@ def test_csrf_blocks_post_without_token(app_client) -> None:
     assert r.status_code == 403
 
 
+def _csrf_from_admin_page(client: TestClient) -> tuple[str, str]:
+    r = client.get("/admin")
+    assert r.status_code == 200
+    cookie = client.cookies.get("um_csrf_token", "")
+    assert cookie
+    import re
+
+    m = re.search(r'name="csrf_token" value="([^"]+)"', r.text)
+    assert m
+    return m.group(1), cookie
+
+
+def _login_cookie(client: TestClient, *, email: str, password: str) -> None:
+    csrf, _ = _csrf_from_login_page(client)
+    r = client.post(
+        "/login",
+        data={"email": email, "password": password, "csrf_token": csrf},
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 302, 200), r.text
+
+
+def test_admin_invite_requires_csrf(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    _login_cookie(app_client, email="admin@example.com", password="admin123")
+    r = app_client.post(
+        "/admin/invite",
+        data={"email": "new@example.com", "grant_admin": "1"},
+        headers={"Accept": "application/json"},
+    )
+    assert r.status_code == 403
+
+
+def test_admin_invite_lookup_requires_csrf(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    _login_cookie(app_client, email="admin@example.com", password="admin123")
+    r = app_client.post(
+        "/admin/invite/lookup",
+        data={"email": "new@example.com"},
+        headers={"Accept": "application/json"},
+    )
+    assert r.status_code == 403
+
+
+def test_admin_invite_form_grant_admin_false_not_admin(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    _login_cookie(app_client, email="admin@example.com", password="admin123")
+    csrf, _ = _csrf_from_admin_page(app_client)
+    r = app_client.post(
+        "/admin/invite",
+        data={
+            "email": "new@example.com",
+            "grant_admin": "false",
+            "csrf_token": csrf,
+        },
+        headers={"Accept": "application/json"},
+    )
+    assert r.status_code == 200
+    assert r.json() == {"ok": True}
+    from app.models import InviteToken
+
+    with Session(db_engine) as s:
+        inv = s.exec(
+            select(InviteToken).where(InviteToken.email == "new@example.com")
+        ).first()
+        assert inv is not None
+        assert inv.grant_admin is False
+
+
+def test_non_admin_admin_page_does_not_list_users(app_client, db_engine) -> None:
+    seed_user(db_engine=db_engine, email="user@example.com", password="longpassword1")
+    seed_user(db_engine=db_engine, email="other@example.com", password="longpassword1")
+    _login_cookie(app_client, email="user@example.com", password="longpassword1")
+    r = app_client.get("/admin", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    assert "other@example.com" not in (r.text or "")
+
+
+def test_non_admin_login_redirects_to_account(app_client, db_engine) -> None:
+    seed_user(db_engine=db_engine, email="user@example.com", password="longpassword1")
+    csrf, _ = _csrf_from_login_page(app_client)
+    r = app_client.post(
+        "/login",
+        data={
+            "email": "user@example.com",
+            "password": "longpassword1",
+            "csrf_token": csrf,
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "/account" in (r.headers.get("location") or "")
+
+
+def test_reset_does_not_consume_token_when_user_deleted(app_client, db_engine) -> None:
+    from app.models import PasswordResetToken, User
+
+    from datetime import timedelta
+
+    uid = seed_user(db_engine=db_engine, email="gone@example.com", password="longpassword1")
+
+    raw_token = PasswordResetToken.new_raw_token()
+    now = datetime.now(timezone.utc)
+    rec = PasswordResetToken(
+        email="gone@example.com",
+        token_hash=PasswordResetToken.hash_token(raw_token),
+        created_at=now,
+        expires_at=now + timedelta(hours=2),
+        used_at=None,
+    )
+    with Session(db_engine) as s:
+        s.add(rec)
+        u = s.get(User, uid)
+        assert u
+        s.delete(u)
+        s.commit()
+
+    r = app_client.post(
+        "/password/reset",
+        json={"token": raw_token, "password": "anotherlongpass"},
+    )
+    assert r.status_code == 400
+    with Session(db_engine) as s:
+        row = s.exec(
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == PasswordResetToken.hash_token(raw_token)
+            )
+        ).first()
+        assert row is not None
+        assert row.used_at is None
+
+
+def test_logout_invalidates_bearer_token(app_client, db_engine) -> None:
+    seed_user(db_engine=db_engine, email="user@example.com", password="longpassword1")
+    h = bearer_for(app_client, email="user@example.com", password="longpassword1")
+    me = app_client.get("/users/me", headers=h)
+    assert me.status_code == 200
+
+    csrf, _ = _csrf_from_login_page(app_client)
+    _login_cookie(app_client, email="user@example.com", password="longpassword1")
+    csrf, _ = _csrf_from_login_page(app_client)
+    out = app_client.post("/logout", data={"csrf_token": csrf}, follow_redirects=False)
+    assert out.status_code == 303
+
+    me2 = app_client.get("/users/me", headers=h)
+    assert me2.status_code == 401
+
+
+def test_seed_migration_requires_opt_in_and_strong_password() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "alembic"
+        / "versions"
+        / "0002_seed_admin.py"
+    )
+    spec = importlib.util.spec_from_file_location("seed_mod", path)
+    assert spec and spec.loader
+    seed_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed_mod)
+
+    import os
+
+    os.environ.pop("SEED_ADMIN_ENABLED", None)
+    assert seed_mod._seed_enabled() is False
+
+    os.environ["SEED_ADMIN_ENABLED"] = "1"
+    os.environ.pop("SEED_ADMIN_PASSWORD", None)
+    try:
+        with pytest.raises(RuntimeError, match="SEED_ADMIN_PASSWORD"):
+            seed_mod.upgrade()
+    finally:
+        os.environ.pop("SEED_ADMIN_ENABLED", None)
+
+    try:
+        with pytest.raises(RuntimeError, match="too weak"):
+            seed_mod._validate_seed_password("passwordpassword")
+    finally:
+        os.environ.pop("SEED_ADMIN_ENABLED", None)
+        os.environ.pop("SEED_ADMIN_PASSWORD", None)
+
+
+def test_admin_invite_html_does_not_contain_token(app_client, db_engine) -> None:
+    seed_admin(db_engine=db_engine)
+    _login_cookie(app_client, email="admin@example.com", password="admin123")
+    csrf, _ = _csrf_from_admin_page(app_client)
+    r = app_client.post(
+        "/admin/invite",
+        data={
+            "email": "html@example.com",
+            "csrf_token": csrf,
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert "/invites/accept?token=" not in r.text
+    assert "Invite email sent" in r.text
+
+
 def test_smtp_no_fallback_without_flag(monkeypatch) -> None:
     import app.core.config as config
     from app.services import email as email_mod

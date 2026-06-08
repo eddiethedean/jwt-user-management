@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import HTTPException, Request
 
 from app.core.config import settings
+from app.web.session import auth_cookie_path, auth_cookie_secure
 
 CSRF_FORM_FIELD = "csrf_token"
 CSRF_COOKIE_NAME = "um_csrf_token"
@@ -52,8 +53,9 @@ def set_csrf_cookie(response, *, request: Request) -> None:
         key=CSRF_COOKIE_NAME,
         value=signed,
         httponly=True,
+        secure=auth_cookie_secure(request),
         samesite="lax",
-        path="/",
+        path=auth_cookie_path(request),
     )
 
 
