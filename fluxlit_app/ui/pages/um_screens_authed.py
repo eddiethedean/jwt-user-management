@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 from fluxlit.client import ApiClient
 
-from ui.auth_state import AuthState
+from ui.auth_state import AuthState, SESSION_KEY, login_success
 from ui.branding import configured_user_roles, render_session_pill
 from ui.http import (
     fluxlit_api_client_kwargs,
@@ -37,6 +37,11 @@ def _fmt_dt(val: Any) -> str:
 def _get_page() -> AuthedPage:
     p = st.session_state.get("_page")
     return p if p in ("Admin", "Account") else "Account"
+
+
+def _bump_admin_users_table(st: Any) -> None:
+    key = "_admin_users_table_gen"
+    st.session_state[key] = int(st.session_state.get(key, 0)) + 1
 
 
 def _role_labels(raw: Any) -> list[str]:
@@ -70,7 +75,6 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
         elif not roles:
             roles = ["User"]
 
-        uid = html.escape(str(me.get("id", "")))
         em = html.escape(str(me.get("email", "")))
         fn_disp = html.escape(str(me.get("full_name") or ""))
         country_e = html.escape(str(me.get("country") or ""))
@@ -81,9 +85,7 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
         st.markdown("#### Profile")
         kv_extra = ""
         if country_e:
-            kv_extra = (
-                f"<div class='um-kvKey'>Country</div><div class='um-kvVal'>{country_e}</div>"
-            )
+            kv_extra = f"<div class='um-kvKey'>Country</div><div class='um-kvVal'>{country_e}</div>"
         st.markdown(
             f"""
 <div class="um-kvGrid" aria-label="Account details">
@@ -130,7 +132,9 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
         )
         with st.form("acct_pw"):
             cur = st.text_input("Current password", type="password")
-            new = st.text_input("New password", type="password", placeholder="At least 12 characters")
+            new = st.text_input(
+                "New password", type="password", placeholder="At least 12 characters"
+            )
             cfm = st.text_input("Confirm new password", type="password")
             ok = st.form_submit_button("Update password")
         if ok:
@@ -150,7 +154,17 @@ def _render_account(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
                 st.error("Backend request failed (is it running?)")
                 st.stop()
             if response_ok(resp):
+                data = safe_json(resp)
+                new_token = str(data.get("access_token") or "")
+                if new_token:
+                    login_success(
+                        access_token=new_token,
+                        email=str(auth.email or ""),
+                        session_key=SESSION_KEY,
+                    )
+                    st.session_state.pop("_me", None)
                 st.success("Password updated")
+                st.rerun()
             else:
                 show_http_error("Password update failed", resp)
 
@@ -308,6 +322,7 @@ def _render_admin_edit(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
     if st.button("← Back to user list", key="admin_edit_back"):
         st.session_state["_admin_view"] = "list"
         st.session_state.pop("_edit_user_id", None)
+        _bump_admin_users_table(st)
         st.rerun()
 
     users = _load_users(auth)
@@ -355,7 +370,14 @@ def _render_admin_edit(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
         )
         save_u = st.form_submit_button("Save changes")
     if save_u:
-        payload: dict[str, Any] = {"full_name": fn, "is_active": active, "roles": selected_roles}
+        if is_self:
+            payload = {"full_name": fn}
+        else:
+            payload = {
+                "full_name": fn,
+                "is_active": active,
+                "roles": selected_roles,
+            }
         with ApiClient.for_fluxlit(
             bearer_token=auth.access_token, **fluxlit_api_client_kwargs()
         ) as api:
@@ -364,6 +386,7 @@ def _render_admin_edit(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
             st.session_state["_admin_flash"] = "Saved"
             st.session_state["_admin_view"] = "list"
             st.session_state.pop("_edit_user_id", None)
+            _bump_admin_users_table(st)
             st.rerun()
         else:
             show_http_error("Save failed", rr)
@@ -374,16 +397,19 @@ def _render_admin_edit(st: Any, auth: AuthState, me: dict[str, Any]) -> None:
         st.info("You can't delete your own account.")
     else:
         st.warning("Deleting a user is permanent.")
-        del_confirm = st.checkbox("I understand this will permanently delete the account")
+        del_confirm = st.checkbox(
+            "I understand this will permanently delete the account"
+        )
         if st.button("Delete user", disabled=not del_confirm):
             with ApiClient.for_fluxlit(
                 bearer_token=auth.access_token, **fluxlit_api_client_kwargs()
             ) as api:
                 resp_del = api.delete(f"/admin/users/{user_id}")
-            if resp_del.status_code < 300:
+            if response_ok(resp_del):
                 st.session_state["_admin_flash"] = "Deleted"
                 st.session_state["_admin_view"] = "list"
                 st.session_state.pop("_edit_user_id", None)
+                _bump_admin_users_table(st)
                 st.rerun()
             else:
                 show_http_error("Delete failed", resp_del)

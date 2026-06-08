@@ -51,7 +51,9 @@ def test_forgot_password_shows_non_enumerating_message(monkeypatch):
         return FakeHttpxResponse(ok=False, status_code=500, text="unexpected")
 
     monkeypatch.setattr(httpx, "post", fake_post)
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={}))
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={})
+    )
 
     at = new_app_test().run()
     set_public_page(at, "Reset password")
@@ -69,7 +71,9 @@ def test_login_backend_request_exception_is_shown(monkeypatch):
         raise httpx.TimeoutException("nope")
 
     monkeypatch.setattr(httpx, "post", boom)
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={}))
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={})
+    )
 
     at = new_app_test().run()
     text_input_by_key(at, "login_email").input("user@test.local")

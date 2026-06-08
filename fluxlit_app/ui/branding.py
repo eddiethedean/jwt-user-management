@@ -5,8 +5,6 @@ from __future__ import annotations
 import html
 from typing import Any
 
-import streamlit as st
-
 
 def _ui_settings() -> Any:
     from app.core.config import settings
@@ -16,10 +14,14 @@ def _ui_settings() -> Any:
 
 def render_brand(st: Any) -> None:
     s = _ui_settings()
-    title = html.escape(str(getattr(s, "app_title", "User Management") or "User Management"))
+    title = html.escape(
+        str(getattr(s, "app_title", "User Management") or "User Management")
+    )
     tag = html.escape(str(getattr(s, "brand_tag", "") or "").strip())
     tag_title = html.escape(
-        str(getattr(s, "brand_tag_title", "") or getattr(s, "brand_tag", "") or "").strip()
+        str(
+            getattr(s, "brand_tag_title", "") or getattr(s, "brand_tag", "") or ""
+        ).strip()
     )
     stack = getattr(s, "brand_stack", ()) or ()
     pills = "".join(

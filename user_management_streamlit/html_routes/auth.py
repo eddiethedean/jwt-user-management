@@ -25,7 +25,11 @@ from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
-from user_management_streamlit.web.session import clear_auth_cookie, get_auth_token, set_auth_cookie
+from user_management_streamlit.web.session import (
+    clear_auth_cookie,
+    get_auth_token,
+    set_auth_cookie,
+)
 from user_management_streamlit.web.templates import templates
 
 
@@ -246,9 +250,7 @@ async def login_submit(
         logs = getattr(request.state, "cookie_debug_logs", None)
         if not isinstance(logs, list):
             logs = []
-        logs.append(
-            "cookie:set_cookie_header | value=<redacted>"
-        )
+        logs.append("cookie:set_cookie_header | value=<redacted>")
         body = templates.get_template("debug_redirect.html").render(
             {
                 "request": request,

@@ -122,9 +122,7 @@ def start_app(
 
     _run_migrations_if_enabled(cwd=migrations_cwd)
 
-    forwarded_allow_ips = (
-        os.environ.get("FORWARDED_ALLOW_IPS") or "127.0.0.1"
-    )
+    forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS") or "127.0.0.1"
 
     uvicorn.run(
         f"{app_module_name}:{app_variable_name}",

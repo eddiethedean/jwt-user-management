@@ -97,7 +97,9 @@ def render_login(
             password = str(password or "")
             resp = _require_resp(
                 st,
-                post_form("/auth/token", data={"username": username, "password": password}),
+                post_form(
+                    "/auth/token", data={"username": username, "password": password}
+                ),
             )
             if response_ok(resp):
                 data = safe_json(resp)
@@ -197,7 +199,9 @@ def render_accept_invite(
         invite_name = st.text_input(
             "Full name (optional)", key="invite_full_name", placeholder="Jane Doe"
         )
-        invite_password = st.text_input("Password", type="password", key="invite_password")
+        invite_password = st.text_input(
+            "Password", type="password", key="invite_password"
+        )
         if st.button("Set password", key="invite_submit"):
             resp = _require_resp(
                 st,

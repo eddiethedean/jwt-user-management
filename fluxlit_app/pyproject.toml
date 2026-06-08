@@ -1,6 +1,6 @@
 # Scoped typecheck: from repo root, ``ty check --project fluxlit_app`` (uses ``fluxlit_app/.venv``).
 [tool.ty.environment]
-root = ["."]
+root = [".", "../fastapi_workbench/src"]
 python = ".venv/bin/python"
 
 [tool.ty.src]

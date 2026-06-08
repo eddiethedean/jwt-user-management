@@ -149,6 +149,11 @@ async def inspect_invite_token(
     ).first()
     if not invite:
         raise HTTPException(status_code=404, detail="Invite not found")
+    now = datetime.now(timezone.utc)
+    if invite.used_at is not None:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    if _as_utc_aware(invite.expires_at) < now:
+        raise HTTPException(status_code=404, detail="Invite not found")
     return {
         "ok": True,
         "email": invite.email,

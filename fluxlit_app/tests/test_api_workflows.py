@@ -302,7 +302,9 @@ def test_password_forgot_is_non_enumerating_for_unknown_email(tc) -> None:
     assert r.json() == {"ok": True}
 
 
-def test_password_reset_api_updates_password_and_marks_token_used(tc, db_engine) -> None:
+def test_password_reset_api_updates_password_and_marks_token_used(
+    tc, db_engine
+) -> None:
     from app.core.security import verify_password
     from app.models import PasswordResetToken, User
 

@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import os
 import logging
-from typing import Any, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
@@ -19,7 +19,6 @@ from fastapi_workbench import (
     safe_redirect,
 )
 from app.core.config import settings
-from app.core.security import decode_token
 from app.db import get_db
 from app.models import InviteToken, User
 from app.services.directory import lookup_email
@@ -178,9 +177,7 @@ async def _require_admin_bearer(
 ) -> User:
     if not creds:
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    return await user_from_token(
-        db=db, token=creds.credentials, require_admin=True
-    )
+    return await user_from_token(db=db, token=creds.credentials, require_admin=True)
 
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)

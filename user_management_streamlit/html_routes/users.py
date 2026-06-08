@@ -9,7 +9,12 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import bump_token_version, hash_password, validate_new_password, verify_password
+from app.core.security import (
+    bump_token_version,
+    hash_password,
+    validate_new_password,
+    verify_password,
+)
 from app.db import get_db
 from app.models import User
 from fastapi_workbench import base_path, safe_redirect

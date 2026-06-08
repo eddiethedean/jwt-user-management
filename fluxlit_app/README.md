@@ -22,7 +22,9 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env (at least DATABASE_URL, JWT_SECRET); tune PUBLIC_BASE_URL in config.py
+# Edit .env (at least DATABASE_URL, JWT_SECRET). For local dev, keep JWT_ALLOW_WEAK_SECRET=1
+# with the example secret, or use a secret of at least 16 characters.
+# Tune PUBLIC_BASE_URL and other non-secret settings in config.py.
 alembic upgrade head
 fluxlit dev
 ```
@@ -158,7 +160,7 @@ This matches the standalone **`user_management_api`** behavior (see that package
 
 2. Expect JSON with **`attributes`**: **`mail`** or **`userPrincipalName`** for identity; optional **`displayName`** / **`cn`**; optional country from **`c`** or **`co`** (values like `C=US` are stored as `US`).
 
-3. **`DIRECTORY_LOOKUP_REQUIRED`**: when `true`, directory transport/parse failures can cause **`lookup_email`** to raise at the HTTP client layer. **Invites and self-registration are not blocked** when the directory has no match; directory data is used to set **`user.country`** when a user **accepts** an invite when a record exists.
+3. **`DIRECTORY_LOOKUP_REQUIRED`** (in **`config.py`**, not `.env`): when `true`, **admin invite create** and **self-registration** return an error if the email is not found in the directory. **Accept invite** still only uses directory data to set **`user.country`** (no match does not block acceptance).
 
 4. Tune **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`** in **`config.py`**. Set **`DIRECTORY_LOOKUP_CA_BUNDLE`** in **`.env`** when you need a custom CA file path.
 
@@ -170,7 +172,7 @@ JSON routes live under **`/api`** (for example **`POST /api/invites/lookup`**).
 
 ### Optional: SMTP (invites, self-registration, password reset)
 
-Configure **`SMTP_HOST`**, **`SMTP_FROM_EMAIL`**, and related variables from [`.env.example`](.env.example) so the API can send email. If SMTP is unset, token creation and invite URLs still work; sending is skipped.
+Configure **`SMTP_HOST`**, **`SMTP_FROM_EMAIL`**, and related variables from [`.env.example`](.env.example) so the API can send email. If SMTP is unset, **admin invite** responses still include **`invite_url`** in the JSON body; email is skipped. **Self-registration** and **password forgot** for known users require SMTP to send mail (forgot returns the same `{"ok": true}` as unknown emails when SMTP is unset, without creating a reset token).
 
 ### FluxLit gateway (`FLUXLIT_*`)
 
@@ -183,7 +185,7 @@ After **`alembic upgrade head`**, a default admin exists if migrations created o
 - Email: `admin@example.com`
 - Password: `admin123`
 
-Override with **`SEED_ADMIN_EMAIL`** and **`SEED_ADMIN_PASSWORD`** in `.env`.
+Initial admin credentials are set by Alembic seed migrations (`admin@example.com` / `admin123`). Change the password after first login in production.
 
 ## Run tests
 

@@ -14,7 +14,9 @@ from app.core.rate_limit import check_rate_limit
 from app.core.roles import display_user_roles
 from app.core.security import (
     bump_token_version,
+    create_access_token,
     hash_password,
+    token_extra_claims,
     validate_new_password,
     verify_password,
 )
@@ -76,11 +78,21 @@ async def change_my_password(
         validate_new_password(new)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    if verify_password(new, current_user.hashed_password):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different from your current password",
+        )
     current_user.hashed_password = hash_password(new)
     bump_token_version(current_user)
     db.add(current_user)
     await db.commit()
-    return {"ok": True}
+    await db.refresh(current_user)
+    access_token = create_access_token(
+        subject=str(current_user.id),
+        extra_claims=token_extra_claims(current_user),
+    )
+    return {"ok": True, "access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/users")

@@ -99,6 +99,17 @@ def register(app: FluxLit) -> None:
             logout(session_key=SESSION_KEY)
             st.rerun()
 
+        if st.session_state.pop("_auth_invalid", False):
+            logout(session_key=SESSION_KEY)
+            st.warning("Your session expired. Please sign in again.")
+            st.rerun()
+
+        if st.session_state.pop("_deep_link_sign_out", False):
+            if url_session_enabled():
+                clear_url_session(st, url_store, param=url_session_param)
+            logout(session_key=SESSION_KEY)
+            st.rerun()
+
         if "_external_api_base" not in st.session_state:
             try:
                 r_meta = client.get("/__meta")
@@ -153,7 +164,17 @@ def register(app: FluxLit) -> None:
 
         docs_link = api_docs_link(public_api_base)
 
-        if auth.is_authenticated:
+        deep_page = _apply_public_link_params(st)
+
+        if auth.is_authenticated and deep_page:
+            st.info(
+                "Sign out to complete this invite or password-reset flow, "
+                "or open the link in a private browser window."
+            )
+            if st.button("Sign out and continue", key="deep_link_sign_out_btn"):
+                st.session_state["_deep_link_sign_out"] = True
+                st.rerun()
+        elif auth.is_authenticated:
             me = load_me(st, auth.access_token)
             render_authenticated(
                 st,
@@ -164,8 +185,6 @@ def register(app: FluxLit) -> None:
                 docs_href=docs_link,
             )
         else:
-            deep_page = _apply_public_link_params(st)
-
             if deep_page == "Accept invite":
                 st.sidebar.caption("Invite link")
                 st.sidebar.link_button("API docs", docs_link, use_container_width=True)
@@ -209,7 +228,9 @@ def register(app: FluxLit) -> None:
                         post_form=_post_form,
                         post_json_pub=_post_json_pub,
                         load_me_fn=_load_me_for_login,
-                        on_register=_go_register if self_registration_enabled() else None,
+                        on_register=_go_register
+                        if self_registration_enabled()
+                        else None,
                     )
                 else:
                     render_register(st, post_form=_post_form)

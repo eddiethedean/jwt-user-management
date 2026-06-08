@@ -35,6 +35,26 @@ def login_success(
     return state
 
 
+def clear_navigation_state() -> None:
+    """Drop page/admin/deep-link markers so a new session starts clean."""
+    for key in (
+        "_page",
+        "_admin_view",
+        "_edit_user_id",
+        "_admin_users_table_gen",
+        "_invite_inspect_marker",
+        "_invite_info",
+        "_reset_inspect_marker",
+        "_reset_info",
+        "_public_link_marker",
+        "invite_token",
+        "reset_token",
+        "authed_nav_radio",
+        "public_page_nav",
+    ):
+        st.session_state.pop(key, None)
+
+
 def logout(*, session_key: str = "auth") -> None:
     state = get_auth_state(session_key=session_key)
     state.access_token = ""
@@ -43,6 +63,7 @@ def logout(*, session_key: str = "auth") -> None:
     st.session_state.pop("access_token", None)
     st.session_state.pop("username", None)
     st.session_state.pop("_me", None)
+    clear_navigation_state()
 
 
 SESSION_KEY = "user_auth"

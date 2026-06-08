@@ -480,7 +480,9 @@ def _render_register() -> None:
             if resp.is_success:
                 data = safe_json(resp)
                 if data.get("email_sent"):
-                    st.success("If your email is allowed, a setup link was sent. Check your inbox.")
+                    st.success(
+                        "If your email is allowed, a setup link was sent. Check your inbox."
+                    )
                 else:
                     st.success(
                         "If your email is allowed and not already registered, "
@@ -721,7 +723,9 @@ if auth.is_authenticated:
                 if r2 is None:
                     st.stop()
                 if r2.is_success:
-                    st.success("Invite created. If email is configured, the invite was sent.")
+                    st.success(
+                        "Invite created. If email is configured, the invite was sent."
+                    )
                 else:
                     show_http_error("Invite failed", r2)
 

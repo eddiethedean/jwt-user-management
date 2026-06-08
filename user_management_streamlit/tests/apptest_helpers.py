@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import httpx
 from streamlit.testing.v1 import AppTest
 
 from app_paths import USER_APP_PY

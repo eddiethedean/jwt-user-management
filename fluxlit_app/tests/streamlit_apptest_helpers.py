@@ -51,7 +51,9 @@ def text_input_by_key(at: AppTest, key: str):
     return matches[0]
 
 
-def click_button(at: AppTest, *, label: str | None = None, key: str | None = None) -> None:
+def click_button(
+    at: AppTest, *, label: str | None = None, key: str | None = None
+) -> None:
     if label is None and key is None:
         raise ValueError("click_button requires label or key")
     for b in at.button:

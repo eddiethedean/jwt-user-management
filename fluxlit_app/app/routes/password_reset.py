@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.email_validation import validate_email_format
 from app.core.rate_limit import check_rate_limit
 from app.core.security import bump_token_version, hash_password, validate_new_password
@@ -35,16 +36,24 @@ def _as_utc_aware(dt: datetime) -> datetime:
 
 async def _issue_reset_token(
     request: Request, *, db: AsyncSession, email_n: str
-) -> None:
+) -> bool:
+    """
+    Return True when no email is needed (unknown address) or reset mail was sent.
+    Return False when the user exists but the reset email could not be sent.
+    """
     user = (await db.exec(select(User).where(User.email == email_n))).first()
     if not user:
-        return
+        return True
+    if not (settings.smtp_host and settings.smtp_from_email):
+        return True
     raw = await create_reset_token_atomic(db, email=email_n)
     reset_url = external_password_reset_url(request, token=raw)
     try:
         send_password_reset_email(to_email=email_n, reset_url=reset_url)
     except Exception:
         log.exception("password_reset_email_send_failed")
+        return False
+    return True
 
 
 @router.post("/forgot")
@@ -58,7 +67,13 @@ async def forgot_password_api(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     check_rate_limit(request, scope="password_forgot", email=email_n)
-    await _issue_reset_token(request, db=db, email_n=email_n)
+    user = (await db.exec(select(User).where(User.email == email_n))).first()
+    sent = await _issue_reset_token(request, db=db, email_n=email_n)
+    if user and not sent:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not send reset email. Please try again later.",
+        )
     return {"ok": True}
 
 
@@ -82,6 +97,11 @@ async def inspect_reset_token(
         )
     ).first()
     if not rec:
+        raise HTTPException(status_code=404, detail="Reset link not found")
+    now = datetime.now(timezone.utc)
+    if rec.used_at is not None:
+        raise HTTPException(status_code=404, detail="Reset link not found")
+    if _as_utc_aware(rec.expires_at) < now:
         raise HTTPException(status_code=404, detail="Reset link not found")
     return {
         "ok": True,

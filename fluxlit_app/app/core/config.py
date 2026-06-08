@@ -50,17 +50,12 @@ class Secrets(BaseSettings):
         if not v:
             raise ValueError("JWT_SECRET must be set")
         weak = {"dev-secret", "secret", "changeme", "password", "jwt-secret"}
-        if v.lower() in weak and not (
-            os.getenv("JWT_ALLOW_WEAK_SECRET", "").strip().lower()
-            in {"1", "true", "yes", "on"}
-        ):
+        allow_weak = os.getenv("JWT_ALLOW_WEAK_SECRET", "").strip().lower()
+        if v.lower() in weak and allow_weak not in {"1", "true", "yes", "on"}:
             raise ValueError(
                 "JWT_SECRET is too weak; set a strong secret or JWT_ALLOW_WEAK_SECRET=1 for local dev"
             )
-        if len(v) < 16 and not (
-            os.getenv("JWT_ALLOW_WEAK_SECRET", "").strip().lower()
-            in {"1", "true", "yes", "on"}
-        ):
+        if len(v) < 16 and allow_weak not in {"1", "true", "yes", "on"}:
             raise ValueError(
                 "JWT_SECRET must be at least 16 characters, or set JWT_ALLOW_WEAK_SECRET=1 for local dev"
             )
@@ -114,8 +109,8 @@ class Settings:
 
         d = _defaults
         self.base_path = _normalize_base_path(str(getattr(d, "BASE_PATH", "") or ""))
-        self.public_base_url = (str(getattr(d, "PUBLIC_BASE_URL", "") or "")).strip().rstrip(
-            "/"
+        self.public_base_url = (
+            (str(getattr(d, "PUBLIC_BASE_URL", "") or "")).strip().rstrip("/")
         )
         self.jwt_algorithm = (str(getattr(d, "JWT_ALGORITHM", "") or "HS256")).strip()
         self.jwt_expires_minutes = int(getattr(d, "JWT_EXPIRES_MINUTES", 60))
@@ -136,7 +131,9 @@ class Settings:
             if str(x).strip()
         )
 
-        self.directory_lookup_timeout_s = int(getattr(d, "DIRECTORY_LOOKUP_TIMEOUT_S", 5))
+        self.directory_lookup_timeout_s = int(
+            getattr(d, "DIRECTORY_LOOKUP_TIMEOUT_S", 5)
+        )
         self.directory_lookup_required = bool(
             getattr(d, "DIRECTORY_LOOKUP_REQUIRED", False)
         )

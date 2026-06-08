@@ -28,7 +28,7 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
         if method == "GET" and "/__meta" in p:
             return httpx.Response(200, json={"ok": True, "external_api_base": ""})
         if method == "POST" and "/auth/token" in p:
-            return httpx.Response(401, json={"detail": "Invalid credentials"})
+            return httpx.Response(400, json={"detail": "Incorrect email or password"})
         return httpx.Response(200, json={})
 
     monkeypatch.setattr(ApiClient, "request", fake_request)
@@ -47,7 +47,7 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
     assert len(at.error) == 1
     assert (
         at.error[0].value
-        == "Invalid email or password: 401 (Invalid credentials)"
+        == "Invalid email or password: 400 (Incorrect email or password)"
     )
 
 

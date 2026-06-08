@@ -20,7 +20,9 @@ def test_login_invalid_credentials_shows_error(monkeypatch):
         return FakeHttpxResponse(ok=True, json_data={"ok": True})
 
     monkeypatch.setattr(httpx, "post", fake_post)
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={}))
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={})
+    )
 
     at = new_app_test().run()
     text_input_by_key(at, "login_email").input("bad@test.local")
@@ -44,7 +46,9 @@ def test_sign_out_clears_auth_state(monkeypatch):
         return FakeHttpxResponse(ok=True, json_data={"ok": True})
 
     monkeypatch.setattr(httpx, "post", fake_post)
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={}))
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={})
+    )
 
     at = new_app_test().run()
     text_input_by_key(at, "login_email").input("user@test.local")
@@ -70,7 +74,9 @@ def test_forgot_password_shows_error_when_backend_fails(monkeypatch):
         return FakeHttpxResponse(ok=True, json_data={"ok": True})
 
     monkeypatch.setattr(httpx, "post", fake_post)
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={}))
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: FakeHttpxResponse(ok=True, json_data={})
+    )
 
     at = new_app_test().run()
     set_public_page(at, "Reset password")

@@ -12,7 +12,6 @@ an empty element tree.
 
 from __future__ import annotations
 
-import pytest
 from fluxlit.client import ApiClient
 from fluxlit.testing import FluxLitTestClient
 from starlette.testclient import TestClient
