@@ -164,7 +164,7 @@ This matches the standalone **`user_management_api`** behavior (see that package
 
 4. Tune **`DIRECTORY_LOOKUP_TIMEOUT_S`**, **`DIRECTORY_LOOKUP_VERIFY_SSL`** in **`config.py`**. Set **`DIRECTORY_LOOKUP_CA_BUNDLE`** in **`.env`** when you need a custom CA file path.
 
-5. **Invite / registration domains:** edit the **`INVITE_ALLOWED_EMAIL_DOMAINS`** tuple in **`config.py`** (defaults **`socom.mil`**, **`soc.mil`**).
+5. **Invite / registration domains:** edit the **`INVITE_ALLOWED_EMAIL_DOMAINS`** tuple in **`config.py`** (defaults **`example.com`**, **`example.org`**).
 
 The Streamlit **Admin** flow calls **`POST /api/invites/lookup`** for a **preview** of directory email, name, and country when the service responds; failures return empty fields without blocking **`POST /api/invites`**.
 

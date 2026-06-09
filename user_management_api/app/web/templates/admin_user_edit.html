@@ -29,9 +29,7 @@
 
     <h3>Access</h3>
     <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/update" style="margin-top: 10px;">
-      {% if csrf_token %}
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      {% endif %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token }}" />
       <label for="full_name" style="margin-top: 0;">Full name (optional)</label>
       <input
         id="full_name"
@@ -42,29 +40,35 @@
         value="{{ user.full_name or '' }}"
       />
 
-      {% set _assigned = user_role_list(user) %}
-      {% if configured_user_roles() %}
-      <div style="margin-top: 0;">
-        <div class="muted" style="margin-bottom: 8px;">Roles (optional)</div>
-        <div style="display: grid; gap: 10px;">
-          {% for role in configured_user_roles() %}
-          <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
-            <input
-              type="checkbox"
-              name="roles"
-              value="{{ role }}"
-              style="width:auto; margin-top: 3px;"
-              {% if role in _assigned %}checked{% endif %}
-            />
-            <span>{{ role }}</span>
-          </label>
-          {% endfor %}
-        </div>
-      </div>
+      <label for="country">Country (optional)</label>
+      <input
+        id="country"
+        name="country"
+        type="text"
+        placeholder="US or Other"
+        value="{{ user.country or '' }}"
+      />
+
+      {% if show_command_field|default(false) %}
+      <label for="command">Command (optional)</label>
+      <input
+        id="command"
+        name="command"
+        type="text"
+        value="{{ user.command or '' }}"
+      />
       {% endif %}
 
+      <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
+        <input type="checkbox" name="is_admin" value="1" style="width:auto; margin-top: 3px;" {% if user.is_admin %}checked{% endif %}{% if is_self|default(false) %} disabled{% endif %} />
+        <span>
+          Admin
+          <div class="muted" style="margin-top: 2px;">Allows access to the Admin page.</div>
+        </span>
+      </label>
+
       <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 10px; font-weight: 650;">
-        <input type="checkbox" name="is_active" value="1" style="width:auto; margin-top: 3px;" {% if user.is_active %}checked{% endif %} />
+        <input type="checkbox" name="is_active" value="1" style="width:auto; margin-top: 3px;" {% if user.is_active %}checked{% endif %}{% if is_self|default(false) %} disabled{% endif %} />
         <span>
           Active
           <div class="muted" style="margin-top: 2px;">Inactive users can’t sign in.</div>
@@ -80,9 +84,6 @@
         You can’t delete your own account.
       </div>
       <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/delete" style="margin-top: 10px;">
-        {% if csrf_token %}
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        {% endif %}
         <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650; opacity: 0.65;">
           <input type="checkbox" name="confirm" value="1" style="width:auto; margin-top: 3px;" disabled />
           <span>
@@ -96,9 +97,7 @@
         Deleting a user is permanent.
       </div>
       <form method="post" action="{{ base_path }}/admin/users/{{ user.id }}/delete" style="margin-top: 10px;">
-        {% if csrf_token %}
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        {% endif %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token }}" />
         <label style="display:flex; gap:10px; align-items:flex-start; margin-top: 0; font-weight: 650;">
           <input type="checkbox" name="confirm" value="1" style="width:auto; margin-top: 3px;" />
           <span>

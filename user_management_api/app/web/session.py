@@ -6,7 +6,7 @@ from typing import Literal, cast
 from fastapi import Request, Response
 
 from fastapi_workbench import base_path
-from app.core.config import settings
+import app.core.config as app_config
 from app.web.debug_panel import add_cookie_debug
 
 
@@ -15,15 +15,15 @@ AUTH_COOKIE_LEGACY_NAME = "um_access_token-legacy"
 
 
 def auth_cookie_connect_mode() -> bool:
-    return getattr(settings, "auth_cookie_deployment", "local") == "connect"
+    return getattr(app_config.settings, "auth_cookie_deployment", "local") == "connect"
 
 
 def auth_cookie_secure(request: Request) -> bool:
     """Resolve Secure flag: fixed True in Connect mode, else config or HTTPS."""
     if auth_cookie_connect_mode():
         return True
-    if settings.auth_cookie_secure is not None:
-        return bool(settings.auth_cookie_secure)
+    if app_config.settings.auth_cookie_secure is not None:
+        return bool(app_config.settings.auth_cookie_secure)
     return _is_https(request)
 
 
@@ -114,7 +114,11 @@ def cookie_path(request: Request) -> str:
 def get_auth_token(request: Request) -> str | None:
     tok = request.cookies.get(AUTH_COOKIE_NAME)
     legacy = request.cookies.get(AUTH_COOKIE_LEGACY_NAME)
-    if not tok and legacy and bool(getattr(settings, "auth_cookie_legacy", True)):
+    if (
+        not tok
+        and legacy
+        and bool(getattr(app_config.settings, "auth_cookie_legacy", True))
+    ):
         tok = legacy
     # Never log token contents; only presence and length.
     add_cookie_debug(
@@ -132,9 +136,9 @@ def get_auth_token(request: Request) -> str | None:
 def set_auth_cookie(response: Response, *, request: Request, token: str) -> None:
     samesite = cast(
         Literal["lax", "strict", "none"],
-        (settings.auth_cookie_samesite or "lax").lower(),
+        (app_config.settings.auth_cookie_samesite or "lax").lower(),
     )
-    domain = settings.auth_cookie_domain or None
+    domain = app_config.settings.auth_cookie_domain or None
 
     if auth_cookie_connect_mode():
         add_cookie_debug(
@@ -161,9 +165,11 @@ def set_auth_cookie(response: Response, *, request: Request, token: str) -> None
 
     secure = auth_cookie_secure(request)
     path = auth_cookie_path(request)
-    wants_partitioned = bool(getattr(settings, "auth_cookie_partitioned", False))
+    wants_partitioned = bool(
+        getattr(app_config.settings, "auth_cookie_partitioned", False)
+    )
     partitioned_supported = sys.version_info >= (3, 14)
-    wants_legacy = bool(getattr(settings, "auth_cookie_legacy", True))
+    wants_legacy = bool(getattr(app_config.settings, "auth_cookie_legacy", True))
 
     # Modern browsers require Secure when SameSite=None. Enforce to avoid silent drops.
     if samesite == "none" and not secure:
@@ -265,7 +271,7 @@ def clear_auth_cookie(response: Response, *, request: Request) -> None:
         url=str(request.url),
     )
     response.delete_cookie(key=AUTH_COOKIE_NAME, path=path)
-    if bool(getattr(settings, "auth_cookie_legacy", True)):
+    if bool(getattr(app_config.settings, "auth_cookie_legacy", True)):
         response.delete_cookie(key=AUTH_COOKIE_LEGACY_NAME, path=path)
         add_cookie_debug(
             request, "cookie:clear legacy", name=AUTH_COOKIE_LEGACY_NAME, path=path

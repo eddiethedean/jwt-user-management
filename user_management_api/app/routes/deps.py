@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import decode_token
+from app.auth.jwt_principal import (
+    JwtPrincipal,
+    load_user_by_id,
+    principal_from_bearer,
+    require_admin_principal,
+)
 from app.db import get_db
 from app.models import User
 
@@ -16,49 +19,31 @@ from app.models import User
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _validate_token_version(payload: dict[str, Any], user: User) -> None:
-    expected = int(getattr(user, "token_version", 0) or 0)
-    if "tv" in payload:
-        if int(payload.get("tv") or 0) != expected:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    elif expected != 0:
-        raise HTTPException(status_code=401, detail="Invalid token")
+def principal_from_bearer_creds(
+    creds: Optional[HTTPAuthorizationCredentials],
+) -> JwtPrincipal:
+    return principal_from_bearer(creds)
+
+
+def admin_principal_from_bearer(
+    creds: Optional[HTTPAuthorizationCredentials],
+) -> JwtPrincipal:
+    return require_admin_principal(principal_from_bearer(creds))
 
 
 async def user_from_bearer(
     *, db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
 ) -> User:
-    if not creds:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    try:
-        payload: dict[str, Any] = decode_token(creds.credentials)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    sub = payload.get("sub")
-    if not sub:
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    try:
-        user_id = int(sub)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token subject")
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.id == user_id))
-    ).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    _validate_token_version(payload, user)
-    if not getattr(user, "is_active", True):
-        raise HTTPException(status_code=403, detail="User is inactive")
-    return user
+    """Load User row for endpoints that need DB fields (password hash, profile)."""
+    principal = principal_from_bearer(creds)
+    return await load_user_by_id(db=db, user_id=principal.user_id)
 
 
 async def admin_from_bearer(
     *, db: AsyncSession, creds: Optional[HTTPAuthorizationCredentials]
 ) -> User:
-    user = await user_from_bearer(db=db, creds=creds)
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+    principal = admin_principal_from_bearer(creds)
+    return await load_user_by_id(db=db, user_id=principal.user_id)
 
 
 async def get_current_user(
@@ -68,23 +53,7 @@ async def get_current_user(
     return await user_from_bearer(db=db, creds=creds)
 
 
-async def user_from_token(
-    *, db: AsyncSession, token: str, require_admin: bool = False
-) -> User:
-    try:
-        payload: dict[str, Any] = decode_token(token)
-        user_id = int(payload.get("sub") or 0)
-    except (JWTError, TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user: Optional[User] = (
-        await db.exec(select(User).where(User.id == user_id))
-    ).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    _validate_token_version(payload, user)
-    if not getattr(user, "is_active", True):
-        raise HTTPException(status_code=403, detail="User is inactive")
-    if require_admin and not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+async def get_current_principal(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> JwtPrincipal:
+    return principal_from_bearer(creds)

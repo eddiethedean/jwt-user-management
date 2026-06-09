@@ -1,24 +1,18 @@
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
-from sqlmodel.ext.asyncio.session import AsyncSession
-from fastapi.staticfiles import StaticFiles
 from fastapi_workbench import (
     base_path as wb_base_path,
     merge_public_base_with_mount,
     safe_redirect,
     workbench_browser_base,
 )
-from app.routes.account import router as account_router
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.password_reset import router as password_reset_router
 from app.routes.invites import router as invites_router
 from app.routes.users import router as users_router
-from app.db import get_db
-from app.routes.deps import user_from_token
-from app.web.session import get_auth_token
 
 from typing import Literal, cast
 
@@ -26,26 +20,19 @@ from app.web.debug_panel import (
     COOKIE_DEBUG_LOG_COOKIE,
     cookie_debug_payload,
     init_cookie_debug,
-    redact_set_cookie_header,
 )
+from app.web.ui import include_html_ui
 
 app = FastAPI(title="User Management API")
 
 _APP_ROOT = Path(__file__).resolve().parent
-app.mount(
-    "/static",
-    StaticFiles(directory=str(_APP_ROOT / "web" / "static")),
-    name="static",
-)
 
 
 @app.middleware("http")
-async def html_nav_context_middleware(request: Request, call_next):
-    from app.db import AsyncSessionLocal
-    from app.web.nav_context import attach_nav_context
+async def csrf_prepare_middleware(request: Request, call_next):
+    from app.web.csrf import ensure_csrf_token
 
-    async with AsyncSessionLocal() as db:
-        await attach_nav_context(request, db)
+    ensure_csrf_token(request)
     return await call_next(request)
 
 
@@ -83,11 +70,14 @@ async def cookie_debug_middleware(request: Request, call_next):
     if enabled:
         from app.web.debug_panel import add_cookie_debug
 
+        set_cookie_hdr = resp.headers.get("set-cookie")
+        redacted = "<redacted>" if set_cookie_hdr else None
         add_cookie_debug(
             request,
             "cookie:resp",
             status_code=getattr(resp, "status_code", None),
-            set_cookie_header=redact_set_cookie_header(resp.headers.get("set-cookie")),
+            set_cookie_present=bool(set_cookie_hdr),
+            set_cookie_redacted=redacted,
         )
         # Persist per-request debug logs through redirects by storing them in a cookie.
         payload = cookie_debug_payload(request)
@@ -116,16 +106,17 @@ async def cookie_debug_middleware(request: Request, call_next):
 
 app.include_router(auth_router)
 app.include_router(admin_router)
-app.include_router(account_router)
 app.include_router(invites_router)
 app.include_router(password_reset_router)
 app.include_router(users_router)
+
+include_html_ui(app)
 
 
 @app.get("/__meta", include_in_schema=False)
 async def meta(request: Request) -> JSONResponse:
     """
-    Metadata for HTTP clients (e.g. the Streamlit app in ``user_management_streamlit/``).
+    Metadata for HTTP clients (base path and external URL helpers).
 
     Returns the externally-visible base URL (via fastapi_workbench proxy
     detection) and the normalized base path so UIs can build correct URLs.
@@ -149,16 +140,9 @@ async def meta(request: Request) -> JSONResponse:
 
 
 @app.get("/", include_in_schema=False)
-async def root(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
-    accept = (request.headers.get("accept") or "").lower()
-    if "text/html" in accept or "*/*" in accept:
-        token = get_auth_token(request)
-        if token:
-            try:
-                user = await user_from_token(db=db, token=token)
-                dest = "/admin" if getattr(user, "is_admin", False) else "/account"
-                return safe_redirect(request, dest, status_code=302)
-            except HTTPException:
-                pass
-        return safe_redirect(request, "/login", status_code=302)
+async def root(request: Request) -> Response:
+    from app.core.config import settings
+
+    if settings.html_ui_enabled:
+        return safe_redirect(request, "/register", status_code=303)
     return JSONResponse({"ok": True, "service": "user_management_api", "docs": "/docs"})

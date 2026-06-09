@@ -9,20 +9,21 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi_workbench import safe_redirect
-from app.core.rate_limit import check_rate_limit
-from app.core.security import (
-    bump_token_version,
-    hash_password,
-    validate_new_password,
-    verify_password,
+import app.core.config as app_config
+from app.auth.jwt_principal import (
+    principal_from_bearer,
+    require_admin_principal,
+    require_cookie_principal,
 )
-from app.core.config import settings
-from app.core.roles import display_user_roles
+from app.core.security import hash_password, validate_new_password, verify_password
 from app.db import get_db
 from app.models import User
-from app.routes.deps import bearer_scheme, get_current_user, user_from_token
+from app.routes.deps import bearer_scheme, get_current_user
+from app.user_profile import user_to_api_dict
+
+from app.web.html_urls import html_ctx, html_redirect
 from app.web.session import get_auth_token
+from app.web.templates import templates
 
 
 router = APIRouter(tags=["users"])
@@ -30,16 +31,7 @@ router = APIRouter(tags=["users"])
 
 @router.get("/users/me")
 async def me(current_user: User = Depends(get_current_user)) -> dict:
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "full_name": current_user.full_name,
-        "country": current_user.country,
-        "is_active": current_user.is_active,
-        "is_admin": current_user.is_admin,
-        "roles": display_user_roles(current_user, settings.user_roles),
-        "created_at": current_user.created_at.isoformat(),
-    }
+    return user_to_api_dict(current_user)
 
 
 @router.patch("/users/me")
@@ -59,12 +51,10 @@ async def update_me(
 
 @router.post("/users/me/password")
 async def change_my_password(
-    request: Request,
     payload: dict = Body(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    check_rate_limit(request, scope="password_change", email=current_user.email)
     cur = str(payload.get("current_password") or "")
     new = str(payload.get("new_password") or "")
     confirm = str(payload.get("confirm_password") or "")
@@ -79,51 +69,75 @@ async def change_my_password(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     current_user.hashed_password = hash_password(new)
-    bump_token_version(current_user)
     db.add(current_user)
     await db.commit()
     return {"ok": True}
 
 
-@router.get("/users", response_class=Response)
+@router.get("/users")
 async def users(
     request: Request,
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Response:
-    """Admin-only user directory (JSON bearer). Browser sessions redirect elsewhere."""
+    if app_config.settings.html_ui_enabled:
+        return await _users_html_or_json(request=request, db=db, creds=creds)
+
+    if not creds:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    require_admin_principal(principal_from_bearer(creds))
+    all_users = (await db.exec(select(User).order_by(text("id")))).all()
+    return JSONResponse(content=[user_to_api_dict(u) for u in all_users])
+
+
+async def _users_html_or_json(
+    *,
+    request: Request,
+    db: AsyncSession,
+    creds: Optional[HTTPAuthorizationCredentials],
+) -> Response:
     cookie_token = get_auth_token(request)
     if cookie_token:
-        user = await user_from_token(db=db, token=cookie_token)
-        dest = "/admin" if getattr(user, "is_admin", False) else "/account"
-        return safe_redirect(request, dest, status_code=303)
+        principal = require_cookie_principal(request)
+        if not principal.is_admin:
+            return templates.TemplateResponse(
+                request,
+                "users.html",
+                html_ctx(
+                    request,
+                    users=[],
+                    email=principal.email or "",
+                    session_email=principal.email or "",
+                    is_admin=False,
+                    admin_error="Admin access required to list users.",
+                ),
+                status_code=403,
+            )
+        all_users = (await db.exec(select(User).order_by(text("id")))).all()
+        return templates.TemplateResponse(
+            request,
+            "users.html",
+            html_ctx(
+                request,
+                users=all_users,
+                email=principal.email or "",
+                session_email=principal.email or "",
+                is_admin=True,
+            ),
+        )
 
     if not creds:
         accept = (request.headers.get("accept") or "").lower()
         wants_html = ("text/html" in accept) or ("*/*" in accept) or not accept
         if wants_html:
-            return safe_redirect(
+            return html_redirect(
                 request,
-                "/login?msg=Please%20log%20in.&next=/admin",
+                "/login?msg=Please%20log%20in%20to%20view%20Users.&next=/users",
                 status_code=303,
             )
         raise HTTPException(
             status_code=401, detail="Provide Authorization: Bearer <token>"
         )
-    _ = await user_from_token(db=db, token=creds.credentials, require_admin=True)
+    require_admin_principal(principal_from_bearer(creds))
     all_users = (await db.exec(select(User).order_by(text("id")))).all()
-    return JSONResponse(
-        content=[
-            {
-                "id": u.id,
-                "email": u.email,
-                "full_name": u.full_name,
-                "country": u.country,
-                "is_active": u.is_active,
-                "is_admin": u.is_admin,
-                "roles": display_user_roles(u, settings.user_roles),
-                "created_at": u.created_at.isoformat(),
-            }
-            for u in all_users
-        ]
-    )
+    return JSONResponse(content=[user_to_api_dict(u) for u in all_users])

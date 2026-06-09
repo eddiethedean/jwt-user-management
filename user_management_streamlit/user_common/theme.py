@@ -1,11 +1,11 @@
-"""Visual theme aligned with ``user_management_api`` archived HTML UI (``base.html``)."""
+"""Visual theme aligned with ``user_management_api`` HTML UI (``base.html``)."""
 
 from __future__ import annotations
 
 import streamlit as st
 
 # Design tokens and Streamlit overrides derived from
-# ``user_management_api/app/web/archive/templates/base.html``.
+# ``user_management_api/app/web/templates/base.html``.
 UM_THEME_CSS = """
 <style>
   :root {

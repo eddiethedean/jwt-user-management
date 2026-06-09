@@ -25,8 +25,8 @@ def _ensure_this_package_app_first() -> None:
     sys.path.insert(0, api_root)
 
 
-def test_asgi_is_api_only_no_streamlit_mount() -> None:
-    """The backend ASGI app must not embed Streamlit; UI runs as ``user_management_streamlit``."""
+def test_asgi_does_not_mount_streamlit_at_app_path() -> None:
+    """ASGI app serves this API only (no embedded Streamlit mount at ``/app``)."""
     _ensure_this_package_app_first()
     from app.asgi import app as asgi_app
 

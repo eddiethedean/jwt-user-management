@@ -2,8 +2,8 @@
 
 This repo contains:
 
-- **`user_management_api/`** — FastAPI + SQLModel + Alembic backend with JWT auth (JSON API and server-rendered HTML UI on the same process).
-- **`user_management_streamlit/`** — Streamlit UI (`BACKEND_URL`) plus optional standalone HTML UI (`html_app.py`, cookie auth).
+- **`user_management_api/`** — FastAPI + SQLModel + Alembic backend with JWT auth (API-only).
+- **`user_management_streamlit/`** — Optional Streamlit demo UI (`BACKEND_URL` → API).
 - **`fluxlit_app/`** — Single-process [FluxLit](https://fluxlit.readthedocs.io/en/stable/) app: FastAPI mounted at **`/api`** plus Streamlit in one ASGI app.
 - **`e2e/`** — Playwright browser tests.
 - **`fastapi_workbench/`** — Helpers for Posit Workbench / RStudio Server path prefixes (used by the standalone API).
@@ -61,7 +61,7 @@ cp .env.example .env
 ```
 
 1. Edit **`user_management_api/.env`** and set **`JWT_SECRET`** (required in production; the example file includes a dev placeholder).
-2. Non-sensitive tunables (cookie flags, SMTP port/TLS, directory timeouts, `BASE_PATH`, `PUBLIC_BASE_URL`, `UI_PUBLIC_BASE_URL`, JWT algorithm/lifetime, invite email domains, etc.) live only in **`user_management_api/config.py`**. Use **`.env`** for secrets and deployment endpoints: **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials, **`DIRECTORY_LOOKUP_URL`**, optional **`DIRECTORY_LOOKUP_CA_BUNDLE`**, and **`SEED_*`** if you customize seeding.
+2. Non-sensitive tunables (cookie flags, SMTP port/TLS, directory timeouts, `BASE_PATH`, `PUBLIC_BASE_URL`, `HTML_UI_ENABLED`, JWT algorithm/lifetime, invite email domains, etc.) live only in **`user_management_api/config.py`**. Use **`.env`** for secrets and deployment endpoints: **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials, **`DIRECTORY_LOOKUP_URL`**, optional **`DIRECTORY_LOOKUP_CA_BUNDLE`**, and **`SEED_*`** if you customize seeding.
 
 | Override (`.env`) | When you need it |
 |---------------------|------------------|
@@ -71,7 +71,7 @@ cp .env.example .env
 
 Leave the rest of `.env` commented unless you need SMTP or directory lookup ([optional features](#optional-directory-lookup-and-smtp)).
 
-#### Step A3 — Create database tables (and optionally seed admin)
+#### Step A3 — Create database tables and seed admin
 
 Still inside `user_management_api/` with the venv activated:
 
@@ -81,25 +81,20 @@ alembic upgrade head
 
 To migrate **both** the API and FluxLit databases in one step (from repo root): `./scripts/migrate_databases.sh`.
 
-This applies migrations only. **No admin user is created by default.** To seed an admin at migrate time (opt-in):
+This applies migrations and creates a default admin user unless you set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env`.
 
-```bash
-SEED_ADMIN_ENABLED=1 SEED_ADMIN_PASSWORD='YourStrongPassword12' alembic upgrade head
-```
+**Default admin (if you did not override seed env vars):**
 
-Default seeded email is **`admin@example.com`** (override with `SEED_ADMIN_EMAIL` in `.env`). Password must be at least 12 characters and not a known weak default.
-
-See [`user_management_api/README.md`](user_management_api/README.md#first-login-required) for other first-login options.
+- Email: **`admin@example.com`**
+- Password: **`admin123`**
 
 #### Step A4 — Start the API (keep this terminal open)
 
 ```bash
 cd user_management_api
 source .venv/bin/activate
-JWT_ALLOW_WEAK_SECRET=1 uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
+uvicorn app.asgi:app --reload --host 127.0.0.1 --port 8001
 ```
-
-Use `JWT_ALLOW_WEAK_SECRET=1` only for local dev when `.env` still has a placeholder `JWT_SECRET`.
 
 - **OpenAPI docs:** `http://127.0.0.1:8001/docs`
 - **Health check:** open `/docs` or call any documented route.
@@ -130,7 +125,7 @@ BACKEND_URL=http://127.0.0.1:8001
 
 Use the same host and port as Step A4. The Streamlit **server** must be able to reach this URL (not only your browser). Fallback pieces for local dev when `BACKEND_URL` is unset (`PORT`, `BASE_PATH`) and the default for **`DEBUG`** are defined in **`user_management_streamlit/config.py`**.
 
-For **invite and password-reset emails** to open the Streamlit app directly, set **`UI_PUBLIC_BASE_URL`** in **`user_management_api/config.py`** to the public Streamlit origin (for example `http://127.0.0.1:8502`). The API then emails links of the form `.../?page=Accept+invite&token=...` and `.../?page=Reset+password&token=...`, which the UI reads on load. If you leave it empty, links keep the older API-style paths (`/invites/accept?token=...`, `/password/reset?token=...`).
+Invite and password-reset emails use **`PUBLIC_BASE_URL`** in **`user_management_api/config.py`** with API HTML paths (`/invites/accept?token=...`, `/password/reset?token=...`). Enable the built-in HTML UI with **`HTML_UI_ENABLED`** (default `true`).
 
 #### Step A7 — Start the Streamlit app
 
@@ -213,7 +208,7 @@ Both **`user_management_api`** and **`fluxlit_app`** can:
 1. Copy the relevant package `.env.example` to `.env` (you should already have `.env` from the steps above).
 2. Set **`DIRECTORY_LOOKUP_URL`** in `.env` to your lookup service base URL (not in `config.py` — deployment-specific).
 3. Optional tuning such as **`DIRECTORY_LOOKUP_TIMEOUT_S`** and **`DIRECTORY_LOOKUP_REQUIRED`** is defined in each package’s **`config.py`**. **`DIRECTORY_LOOKUP_REQUIRED`** only affects whether directory HTTP failures can raise inside the low-level client—not whether invites are allowed.
-4. Edit **`INVITE_ALLOWED_EMAIL_DOMAINS`** in **`config.py`** if you need domains beyond the defaults (**`socom.mil`** and **`soc.mil`**).
+4. Edit **`INVITE_ALLOWED_EMAIL_DOMAINS`** in each package’s **`config.py`** for your organization’s email domains.
 5. Set SMTP variables in `.env` as needed.
 
 Full variable lists and behavior: [`user_management_api/README.md`](user_management_api/README.md) and [`fluxlit_app/README.md`](fluxlit_app/README.md).

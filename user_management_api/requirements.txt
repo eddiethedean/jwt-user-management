@@ -13,3 +13,5 @@ python-multipart
 pytest
 fastapi-workbench @ git+https://github.com/eddiethedean/jwt-user-management.git@main#subdirectory=fastapi_workbench
 httpx
+asyncpg
+psycopg2-binary

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ssl
 from collections.abc import AsyncGenerator, Generator
 
 import sqlite3
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from sqlmodel import Session, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+import app.core.config as app_config
 
 # SQLAlchemy's SQLite base dialect expects the DBAPI module to expose sqlite_version_info.
 # rapsqlite's dialect module doesn't provide it, so we bridge it from stdlib sqlite3.
@@ -21,28 +22,69 @@ if not hasattr(rapsqlalchemy._RapsqliteDialectModule, "sqlite_version"):
     rapsqlalchemy._RapsqliteDialectModule.sqlite_version = sqlite3.sqlite_version  # type: ignore[attr-defined]
 
 
+def _is_postgres_url(url: str) -> bool:
+    return url.startswith("postgresql://") or url.startswith("postgres://")
+
+
 connect_args: dict = {}
-if settings.database_url.startswith("sqlite"):
+if app_config.settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
-engine = create_engine(settings.database_url, echo=False, connect_args=connect_args)
+engine = create_engine(
+    app_config.settings.database_url, echo=False, connect_args=connect_args
+)
 
 
 def _async_db_url(url: str) -> str:
     """
     Keep DATABASE_URL as a sync URL for Alembic/tests (sqlite:///...),
-    but use rapsqlite for the async app engine.
+    but use rapsqlite or asyncpg for the async app engine.
     """
     if url.startswith("sqlite://") and "+rapsqlite" not in url:
         return url.replace("sqlite://", "sqlite+rapsqlite://", 1)
+    if _is_postgres_url(url):
+        if not app_config.settings.postgres_async_enabled:
+            raise RuntimeError(
+                "POSTGRES_ASYNC_ENABLED is False but DATABASE_URL is PostgreSQL; "
+                "the app requires asyncpg. Set POSTGRES_ASYNC_ENABLED=True or use SQLite."
+            )
+        if url.startswith("postgresql://") and "+asyncpg" not in url:
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgres://") and "+asyncpg" not in url:
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
     return url
 
 
-async_engine: AsyncEngine = create_async_engine(
-    _async_db_url(settings.database_url),
-    echo=False,
-    connect_args={},  # async sqlite drivers don't use check_same_thread
-)
+def _async_connect_args(url: str) -> dict:
+    if url.startswith("sqlite"):
+        return {}
+    if not (_is_postgres_url(url) and app_config.settings.postgres_async_enabled):
+        return {}
+    if app_config.settings.postgres_ssl_relaxed and "sslmode=require" in url:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        return {"ssl": ssl_ctx}
+    return {}
+
+
+def _clean_async_postgres_url(url: str) -> str:
+    if not app_config.settings.postgres_ssl_relaxed:
+        return url
+    return url.replace("?sslmode=require", "").replace("&sslmode=require", "")
+
+
+def _build_async_engine() -> AsyncEngine:
+    url = app_config.settings.database_url
+    async_url = _clean_async_postgres_url(_async_db_url(url))
+    return create_async_engine(
+        async_url,
+        echo=False,
+        connect_args=_async_connect_args(url),
+    )
+
+
+async_engine: AsyncEngine = _build_async_engine()
 AsyncSessionLocal = async_sessionmaker(
     bind=async_engine,
     class_=AsyncSession,

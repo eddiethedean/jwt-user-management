@@ -1,225 +1,220 @@
 # User guide: `user_management_api`
 
-How to **run**, **use**, and **deploy** the FastAPI backend and its built-in HTML UI.
+This guide explains how to **run**, **use**, and **deploy** the FastAPI backend in `user_management_api/`.
 
-| Doc | When to read |
-|-----|----------------|
-| [`README.md`](README.md) | Quickstart, first login, API summary |
-| [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) | 10-minute tutorial |
-| [`CONFIG.md`](CONFIG.md) | All settings (`config.py` + `.env`) |
-| [`docs/API.md`](docs/API.md) | Full JSON API, errors, JWT |
-| [`docs/SECURITY.md`](docs/SECURITY.md) | Production hardening |
-| [`HTML_UI.md`](HTML_UI.md) | Pages, nav, branding |
+## What this service does
 
-**Install and first login:** [`README.md`](README.md#quickstart-local) or [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
+- **User management** (create/update/deactivate users)
+- **JWT authentication** (`/auth/token` issues bearer tokens)
+- **Invites** (admin generates invite links; users accept invites)
+- **Password resets** (request reset link; set a new password)
 
----
+The browser UI is **built into this service** (login, register, admin, invites, password reset). Set **`HTML_UI_ENABLED`** in **`config.py`** (on by default).
 
-## What this service provides
+## Prerequisites
 
-- **JWT API** — bearer tokens via `POST /auth/token`
-- **HTML UI** — login, account, admin (same process as the API)
-- **Invites** — admins invite users; accept via link or API
-- **Self-registration** — optional (`SELF_REGISTRATION_ENABLED` in `config.py`)
-- **Password reset** — forgot/reset email flow
-- **Configurable roles** — multi-role assignment on admin edit user (`USER_ROLES` / `ADMIN_ROLES`)
-- **Directory enrichment** — optional HTTP lookup for email/country
+- Python **3.10+**
+- A virtual environment tool (built-in `venv` is fine)
 
-**Alternate UI:** Streamlit in [`../user_management_streamlit/`](../user_management_streamlit/) with `BACKEND_URL` set to this API.
+## Quickstart (local, SQLite)
 
----
+From repo root:
 
-## Using the HTML UI
+```bash
+cd user_management_api
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.asgi:app --reload --port 8001
+```
 
-### Guests
+- **HTML UI**: `http://127.0.0.1:8001/` (redirects to `/register`)
+- **API docs**: `http://127.0.0.1:8001/docs`
 
-- **Sign in** — `/login`
-- **Register** — `/register` when `SELF_REGISTRATION_ENABLED` is `True` (sends setup email; requires SMTP)
-- **Accept invite** — link from email → `/invites/accept?token=...`
-- **Reset password** — `/password/reset?token=...` or forgot-password form on login page
+## Configuration (`.env` and `config.py`)
 
-Passwords must be at least **12 characters** on accept and reset forms.
+Copy **`.env.example`** to **`.env`** for secrets and deployment endpoints (**`DATABASE_URL`**, **`JWT_SECRET`**, SMTP, **`DIRECTORY_LOOKUP_URL`**, etc.).
 
-### Non-admin users
+### Tunables in `config.py`
 
-- After login → **`/account`** (profile + password)
-- Nav: **Account** only
+- **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://127.0.0.1:8001`)
+- **`BASE_PATH`**: optional external path prefix when behind a reverse proxy (e.g. `/connect/app`)
+- **`HTML_UI_ENABLED`**: serve built-in HTML pages and static assets (default `true`)
 
-### Admins
+### Core settings (`.env`)
 
-- After login → **`/admin`** (user list, invites)
-- Edit user → `/admin/users/{id}` (roles, active flag, delete)
-- Nav: **Admin**, **Account**
-- Cannot change own admin/active status or delete self
+- **`DATABASE_URL`**: default `sqlite:///./app.db`
 
-### Root `/`
+### Secrets (required for real deployments)
 
-- Signed-in → `/admin` or `/account` by role
-- Guest → `/login`
+- **`JWT_SECRET`**: JWT signing key (use a strong secret outside `ENVIRONMENT=dev`)
+- **`SESSION_SECRET`**: admin web session cookie signing secret (use a strong secret outside `ENVIRONMENT=dev`)
 
----
+### Optional email sending
 
-## Configuration
+- **`SMTP_*`**: send invite/reset emails
 
-**Do not duplicate settings.** Use two files:
+### Optional Azure AD validation
 
-1. **`config.py`** — committed tunables (see [`CONFIG.md`](CONFIG.md))
-2. **`.env`** — secrets (`DATABASE_URL`, `JWT_SECRET`, SMTP, directory URL, seed vars at migrate time)
+- **`AZURE_*`**: if set, invite acceptance and invite creation can validate emails against your tenant
 
-Restart uvicorn after editing `config.py`.
+### Airgapped / offline mode
 
----
+If deployed on an airgapped intranet with no internet access, set:
 
-## API usage
+- **`OFFLINE_MODE=true`**
 
-Full reference: [`docs/API.md`](docs/API.md).
+This disables outbound SaaS integrations (notably Azure AD / Microsoft Graph validation), while keeping intranet integrations like SMTP available.
 
-### 1) Get a JWT
+## How to use the API
+
+### 1) Obtain a JWT
+
+`POST /auth/token` uses **form data** (OAuth2 password flow shape):
 
 ```bash
 curl -sS -X POST "http://127.0.0.1:8001/auth/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=admin@example.com&password=your-password"
+  -d "username=user@example.com&password=your-password"
 ```
 
-Returns `access_token` and `token_type: bearer`. Tokens include a `tv` claim; stale tokens return 401 after logout or password change.
+Response:
 
-### 2) Authenticated calls
+- `access_token`: JWT string
+- `token_type`: `bearer`
+
+### 2) Call authenticated endpoints
+
+Example: get current user:
 
 ```bash
+TOKEN="...jwt..."
 curl -sS "http://127.0.0.1:8001/users/me" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Response includes `roles` (from `USER_ROLES` in `config.py`).
+### 3) Admin endpoints
 
-### 3) Admin API
+Admin routes require a JWT whose claims include **`is_admin: true`** (set at login/token issuance). Listing all users: `GET /users` (admin only).
 
-Requires a user with `is_admin=true` (any role in `ADMIN_ROLES`).
+### JWT session model
 
-```bash
-curl -sS "http://127.0.0.1:8001/users" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+- Cookie and Bearer auth validate the JWT signature and expiry **without a database round-trip**.
+- **`is_active`** and **`is_admin`** in the database apply when **issuing** a new token (login). Changes after login take effect on the next login, or when the JWT expires.
+- Shorten **`JWT_EXPIRES_MINUTES`** in **`config.py`** if you need faster effective revocation.
 
-curl -sS -X PATCH "http://127.0.0.1:8001/admin/users/2" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"roles": ["User", "Super"]}'
-```
+## HTML UI
 
-**Roles vs `is_admin`:** Prefer `roles` in PATCH bodies. Legacy `is_admin: true` assigns all `ADMIN_ROLES`; `is_admin: false` assigns `User`. Both update the stored `roles` column and `is_admin` flag together.
+With **`HTML_UI_ENABLED`** (default), open `/login`, `/register`, `/users`, `/admin`, and related pages on the same origin as the API. Emailed invite and reset links use **`PUBLIC_BASE_URL`** with paths such as `/invites/accept?token=...`.
 
-HTML admin actions use cookie auth + CSRF on form posts (`/admin/invite`, `/admin/users/{id}/update`, etc.).
+On **Posit Connect**, set **`AUTH_COOKIE_DEPLOYMENT = "connect"`** in **`config.py`** so auth cookies work in embedded contexts.
 
----
+Set **`HTML_UI_ENABLED = False`** for JSON API only (no `/login` or static files).
+
+### Seeding an initial admin user (optional)
+
+When running `alembic upgrade head`, you can seed an initial admin user by setting:
+
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`
+- `SEED_ADMIN_FULL_NAME` (optional)
+
+If the email already exists, the migration does nothing.
 
 ## Invites
 
-1. Admin creates invite (HTML **Admin** page or `POST /invites` with Bearer).
-2. Email contains link to `/invites/accept?token=...` (built from `PUBLIC_BASE_URL` + `BASE_PATH`).
-3. User sets password (**min 12 characters**); account is created. `grant_admin` on the invite assigns configured admin roles when accepted.
+### Admin creates an invite
 
-Domain allowlist: `INVITE_ALLOWED_EMAIL_DOMAINS` in `config.py` — **change this for local dev** (defaults are org-specific).
+`POST /invites` (admin-only). The response includes an `invite_url`.
 
-If SMTP fails after the invite row is created, the API returns **503** — see [Troubleshooting](#troubleshooting).
+### User accepts the invite
 
----
-
-## Self-registration
-
-When `SELF_REGISTRATION_ENABLED = True` (default):
-
-- Guest submits email on `/register`
-- Setup email sent (SMTP required)
-- Same accept flow as invites
-
-Set `SELF_REGISTRATION_ENABLED = False` for **invite-only** deployments (nav and routes disabled).
-
-SMTP failure returns **503** with an error message (invite token may exist in DB).
-
----
+- API: `POST /invites/accept`
 
 ## Password reset
 
-- **Request:** login page → forgot password, or `POST /password/forgot`
-- **Complete:** email link → `/password/reset`, or `POST /password/reset`
-- Responses are non-enumerating (always `ok` on forgot)
-- New password: **minimum 12 characters**; resets invalidate existing JWTs (`token_version` bump)
+### Request a reset link
 
----
+`POST /password/forgot` always returns `ok=true` (to avoid account enumeration).
 
-## Directory (LDAP) lookup
+### Reset password
 
-Optional enrichment and gating:
+- API: `POST /password/reset`
 
-1. Set `DIRECTORY_LOOKUP_URL` in `.env` — backend calls `GET <url>?query=<email>`
-2. JSON `attributes.mail` / `userPrincipalName`, optional `c` / `co` for country
-3. Tune timeout/required/SSL in `config.py`
+## Running behind a reverse proxy (Posit Connect / Workbench / path prefix)
 
-### Per-endpoint behavior
+If the app is served under an external prefix like:
 
-| Action | `DIRECTORY_LOOKUP_REQUIRED=False` | `DIRECTORY_LOOKUP_REQUIRED=True` |
-|--------|-----------------------------------|----------------------------------|
-| `POST /invites` (create) | Lookup optional; 404 → proceed | No match or lookup error → **422** |
-| `POST /register` | Lookup optional; errors swallowed → proceed | No match → **400**; lookup exception → **400** "not found" |
-| Admin HTML invite | Lookup optional | No match → error page |
-| Invite **accept** | Best-effort country from directory | **Not blocked** — accept always validates token/password only |
+- `https://host/connect/app/...`
 
-Lookup errors on **API invite create** return `"directory lookup failed"` (422). Self-registration maps failures to `"Email not found in directory"` (400).
+set:
 
----
+- **`BASE_PATH=/connect/app`**
+- **`PUBLIC_BASE_URL=https://host`** (or `https://host/connect/app` depending on how you build external links; see below)
 
-## Deployment behind a proxy
+### Link generation rule of thumb
 
-Set in **`config.py`**:
+- Invite/reset links are generated from **`PUBLIC_BASE_URL + BASE_PATH + /...`**.
+- For most reverse proxies, set:
+  - `PUBLIC_BASE_URL=https://your-host`
+  - `BASE_PATH=/your/prefix`
 
-- `BASE_PATH` — external prefix (e.g. `/connect/app`)
-- `PUBLIC_BASE_URL` — browser-visible origin for emailed links
+## Local Connect-like proxy (nginx)
 
-For Posit Connect embedded HTML, also consider `AUTH_COOKIE_DEPLOYMENT = "connect"`. See [`docs/SECURITY.md`](docs/SECURITY.md).
+There is a local nginx proxy under `infra/connect-proxy/` to mimic “served behind a prefix”.
 
-### Local nginx proxy
-
-See `infra/connect-proxy/` at repo root. Example:
+Example:
 
 ```bash
-BACKEND_HOST=host.docker.internal BACKEND_PORT=8001 \
-PROXY_PREFIX=/connect/app PROXY_MODE=preserve PROXY_PORT=8080 \
+BACKEND_HOST=host.docker.internal \
+BACKEND_PORT=8001 \
+PROXY_PREFIX=/connect/app \
+PROXY_MODE=preserve \
+PROXY_PORT=8080 \
 docker compose -f infra/connect-proxy/docker-compose.yml up
 ```
 
-API docs: http://127.0.0.1:8080/connect/app/docs
+Then access the API, for example:
 
----
+- `http://127.0.0.1:8080/connect/app/docs`
 
-## Seeding users (migrations)
+Set **`PUBLIC_BASE_URL`** in **`config.py`** to the browser-visible API base URL (for the example above, `http://127.0.0.1:8080/connect/app`) so emailed links and redirects resolve correctly.
 
-**Admin** — requires `SEED_ADMIN_ENABLED=1` and `SEED_ADMIN_PASSWORD` at migrate time.
+If your proxy strips the prefix before proxying:
 
-**Non-admin** — requires `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` at migrate time.
-
-Both migrations are idempotent. See [`README.md`](README.md#seeding-users) and [`CONFIG.md`](CONFIG.md).
-
----
+- `PROXY_MODE=strip` (nginx strips prefix and sets `X-Forwarded-Prefix`)
 
 ## Development checks
 
-See [`README.md`](README.md#development-checks).
+From repo root (using the repo root venv):
 
----
+```bash
+ruff format . && ruff check . && ty check .
+```
+
+Run backend tests:
+
+```bash
+pytest -q user_management_api/tests
+```
+
+Run e2e tests (optional):
+
+```bash
+pytest -q e2e
+```
+
+Proxy-mode e2e:
+
+```bash
+E2E_USE_PROXY=1 E2E_PROXY_MODE=preserve pytest -q e2e
+E2E_USE_PROXY=1 E2E_PROXY_MODE=strip pytest -q e2e
+```
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---------|-----|
-| Cannot log in after install | Database is empty — seed admin per [`README.md`](README.md#first-login-required) |
-| Registration / invite "domain not allowed" | Add your domain to `INVITE_ALLOWED_EMAIL_DOMAINS` in `config.py` |
-| Invite/register returns 503 | Configure SMTP in `.env`; a token row may exist — retry or create new invite |
-| White page / 500 after upgrade | Run `alembic upgrade head` (schema drift, e.g. missing `roles` column) |
-| Invite links wrong host | Set `PUBLIC_BASE_URL` and `BASE_PATH` in `config.py` |
-| Cookies not set on Connect | `AUTH_COOKIE_DEPLOYMENT = "connect"` or use Streamlit UI |
-| Registration unavailable | `SELF_REGISTRATION_ENABLED`, SMTP, and allowed email domains |
-| Weak `JWT_SECRET` rejected | Use 16+ char secret or `JWT_ALLOW_WEAK_SECRET=1` locally |
-| Rate limited | `RATE_LIMIT_*` in `config.py`; trust proxy IPs for XFF |
-| 401 after password change | Expected — re-login; HTML account page re-issues cookie automatically |
-| Directory required but invite fails | Check `DIRECTORY_LOOKUP_URL`, CA bundle, and `DIRECTORY_LOOKUP_VERIFY_SSL` |
+- **Invite/reset links point to the wrong place**: set `PUBLIC_BASE_URL` and `BASE_PATH` correctly for your deployment.
+- **Running behind a proxy**: ensure the proxy forwards `X-Forwarded-*` headers and (for strip mode) sets `X-Forwarded-Prefix`.
+- **Airgapped intranet**: set `OFFLINE_MODE=true` and do not set `AZURE_*`.

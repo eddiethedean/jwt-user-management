@@ -4,17 +4,21 @@ from typing import Any, Dict, Optional
 from jose import jwt
 from passlib.context import CryptContext
 
-from app.core.config import settings
+import app.core.config as app_config
 
 
 # Use PBKDF2 to avoid platform-specific bcrypt backend issues.
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-MIN_PASSWORD_LENGTH = 12
+
+
+def min_password_length() -> int:
+    return int(app_config.settings.min_password_length)
 
 
 def validate_new_password(password: str) -> None:
-    if len(password or "") < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+    n = min_password_length()
+    if len(password or "") < n:
+        raise ValueError(f"Password must be at least {n} characters")
 
 
 def hash_password(password: str) -> str:
@@ -25,23 +29,11 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return pwd_context.verify(password, hashed_password)
 
 
-def bump_token_version(user: Any) -> None:
-    user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
-
-
-def token_extra_claims(user: Any) -> Dict[str, Any]:
-    claims: Dict[str, Any] = {"tv": int(getattr(user, "token_version", 0) or 0)}
-    country = getattr(user, "country", None)
-    if country:
-        claims["country"] = country
-    return claims
-
-
 def create_access_token(
     *, subject: str, extra_claims: Optional[Dict[str, Any]] = None
 ) -> str:
     now = datetime.now(timezone.utc)
-    expire = now + timedelta(minutes=settings.jwt_expires_minutes)
+    expire = now + timedelta(minutes=app_config.settings.jwt_expires_minutes)
     payload: Dict[str, Any] = {
         "sub": subject,
         "iat": int(now.timestamp()),
@@ -49,8 +41,16 @@ def create_access_token(
     }
     if extra_claims:
         payload.update(extra_claims)
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return jwt.encode(
+        payload,
+        app_config.settings.jwt_secret,
+        algorithm=app_config.settings.jwt_algorithm,
+    )
 
 
 def decode_token(token: str) -> Dict[str, Any]:
-    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(
+        token,
+        app_config.settings.jwt_secret,
+        algorithms=[app_config.settings.jwt_algorithm],
+    )
