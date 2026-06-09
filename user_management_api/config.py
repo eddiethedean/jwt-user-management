@@ -101,6 +101,14 @@ DIRECTORY_LOOKUP_VERIFY_SSL: bool = False
 # --- Invite / self-registration email domains (suffix after ``@``) ---
 INVITE_ALLOWED_EMAIL_DOMAINS: tuple[str, ...] = ("example.com", "example.org")
 
+# --- User roles (optional multi-assign on admin edit user page) ---
+USER_ROLES: tuple[str, ...] = ("Admin", "User", "Super")
+# Subset of USER_ROLES that grant admin UI/API access.
+ADMIN_ROLES: tuple[str, ...] = ("Admin", "Super")
+
+# --- SMTP (non-secret port / TLS / legacy port 25) ---
+SMTP_ALLOW_LEGACY_PORT25_FALLBACK: bool = True
+
 # --- Production / Connect preset (uncomment and adjust for your deployment) ---
 # MIN_PASSWORD_LENGTH = 8
 # USER_COMMAND_FIELD_ENABLED = True

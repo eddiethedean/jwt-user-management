@@ -11,11 +11,15 @@ from app.auth.jwt_principal import (
     access_token_extra_claims_for_user,
     principal_from_request,
 )
-from app.core.security import create_access_token, verify_password
+from app.core.security import (
+    create_access_token,
+    verify_password,
+)
 from app.db import get_db
 from app.models import User
 from app.services.self_registration import register_email_for_setup
-from app.web.csrf import set_csrf_cookie, verify_csrf
+import app.core.config as app_config
+from app.web.csrf import issue_csrf_token, set_csrf_cookie, verify_csrf
 from app.web.html_urls import html_ctx, html_redirect
 from app.web.session import clear_auth_cookie, set_auth_cookie
 from app.web.templates import templates
@@ -52,7 +56,8 @@ async def register_page(
 async def login_page(
     request: Request, db: AsyncSession = Depends(get_db)
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    csrf = issue_csrf_token(request)
+    resp = templates.TemplateResponse(
         request,
         "login.html",
         html_ctx(
@@ -60,8 +65,11 @@ async def login_page(
             info=(request.query_params.get("msg") or "").strip() or None,
             next=(request.query_params.get("next") or "").strip() or None,
             session_email=_session_email(request),
+            csrf_token=csrf,
         ),
     )
+    set_csrf_cookie(resp, request)
+    return resp
 
 
 @router.post("/login", response_class=HTMLResponse, include_in_schema=False)
@@ -69,6 +77,7 @@ async def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next_path: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     email_n = _norm_email(email)
@@ -95,9 +104,13 @@ async def login_submit(
         )
     token = create_access_token(
         subject=str(user.id),
-        extra_claims=access_token_extra_claims_for_user(user),
+        extra_claims={
+            **access_token_extra_claims_for_user(user),
+        },
     )
-    dest = "/admin" if user.is_admin else "/account"
+    dest = (next_path or "").strip() or ("/admin" if user.is_admin else "/account")
+    if not dest.startswith("/"):
+        dest = "/" + dest
     resp = html_redirect(request, dest, status_code=303)
     set_auth_cookie(resp, request=request, token=token)
     set_csrf_cookie(resp, request)
@@ -144,6 +157,15 @@ async def register_handler(
 
     if _wants_json(request):
         body: dict = {"ok": True, "email_sent": result.email_sent}
+        if (
+            app_config.settings.smtp_host
+            and app_config.settings.smtp_from_email
+            and not result.email_sent
+        ):
+            return JSONResponse(
+                {"detail": "Could not send registration email"},
+                status_code=503,
+            )
         if _expose_setup_url():
             body["setup_url"] = result.setup_url
         return body

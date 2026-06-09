@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 import json
 import logging
 from typing import Any, Optional
@@ -92,44 +93,20 @@ def _attributes_to_record(email: str, attrs: dict[str, Any]) -> DirectoryEmailRe
     )
 
 
-def lookup_email(email: str) -> DirectoryEmailRecord | None:
-    """
-    Lookup an email address in the external directory service.
-
-    Returns None on "not found" or when lookup is disabled.
-    Raises on transport/parse errors only when ``directory_lookup_required`` is True
-    (HTTP client layer); application routes do not use this flag to block invites.
-    """
-    base = (app_config.settings.directory_lookup_url or "").strip()
-    if not base:
-        return None
-
+def _directory_verify() -> bool | str:
     verify: bool | str = bool(app_config.settings.directory_lookup_verify_ssl)
     if verify and (app_config.settings.directory_lookup_ca_bundle or "").strip():
         verify = app_config.settings.directory_lookup_ca_bundle.strip()
+    return verify
 
-    try:
-        log.info(
-            "Directory lookup: start email=%s required=%s url=%s profile=%s",
-            email,
-            bool(app_config.settings.directory_lookup_required),
-            base,
-            app_config.settings.directory_attribute_profile,
-        )
-        resp = httpx.get(
-            base,
-            params={"query": email},
-            timeout=httpx.Timeout(
-                float(app_config.settings.directory_lookup_timeout_s or 5)
-            ),
-            verify=verify,
-        )
-    except Exception:
-        log.exception("Directory lookup: request failed email=%s url=%s", email, base)
-        if app_config.settings.directory_lookup_required:
-            raise
-        return None
 
+def _directory_timeout() -> httpx.Timeout:
+    return httpx.Timeout(float(app_config.settings.directory_lookup_timeout_s or 5))
+
+
+def _handle_directory_response(
+    resp: httpx.Response, *, email: str
+) -> DirectoryEmailRecord | None:
     if resp.status_code == 404:
         log.info("Directory lookup: not found email=%s status=404", email)
         return None
@@ -206,3 +183,46 @@ def lookup_email(email: str) -> DirectoryEmailRecord | None:
         rec.command or "",
     )
     return rec
+
+
+def lookup_email(email: str) -> DirectoryEmailRecord | None:
+    """
+    Lookup an email address in the external directory service.
+
+    Returns None on "not found" or when lookup is disabled.
+    Raises on transport/parse errors only when ``directory_lookup_required`` is True
+    (HTTP client layer); application routes do not use this flag to block invites.
+    """
+    base = (app_config.settings.directory_lookup_url or "").strip()
+    if not base:
+        return None
+
+    verify = _directory_verify()
+    timeout = _directory_timeout()
+
+    try:
+        log.info(
+            "Directory lookup: start email=%s required=%s url=%s profile=%s",
+            email,
+            bool(app_config.settings.directory_lookup_required),
+            base,
+            app_config.settings.directory_attribute_profile,
+        )
+        resp = httpx.get(
+            base,
+            params={"query": email},
+            timeout=timeout,
+            verify=verify,
+        )
+    except Exception:
+        log.exception("Directory lookup: request failed email=%s url=%s", email, base)
+        if app_config.settings.directory_lookup_required:
+            raise
+        return None
+
+    return _handle_directory_response(resp, email=email)
+
+
+async def lookup_email_async(email: str) -> DirectoryEmailRecord | None:
+    """Async directory lookup for route handlers."""
+    return await asyncio.to_thread(lookup_email, email)

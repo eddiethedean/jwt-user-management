@@ -11,14 +11,10 @@ import app.core.config as app_config
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
-def min_password_length() -> int:
-    return int(app_config.settings.min_password_length)
-
-
 def validate_new_password(password: str) -> None:
-    n = min_password_length()
-    if len(password or "") < n:
-        raise ValueError(f"Password must be at least {n} characters")
+    min_len = app_config.settings.min_password_length
+    if len(password or "") < min_len:
+        raise ValueError(f"Password must be at least {min_len} characters")
 
 
 def hash_password(password: str) -> str:
@@ -27,6 +23,18 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed_password: str) -> bool:
     return pwd_context.verify(password, hashed_password)
+
+
+def bump_token_version(user: Any) -> None:
+    user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+
+
+def token_extra_claims(user: Any) -> Dict[str, Any]:
+    claims: Dict[str, Any] = {"tv": int(getattr(user, "token_version", 0) or 0)}
+    country = getattr(user, "country", None)
+    if country:
+        claims["country"] = country
+    return claims
 
 
 def create_access_token(

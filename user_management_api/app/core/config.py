@@ -1,5 +1,6 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+import os
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,6 +59,19 @@ class Secrets(BaseSettings):
         v = (v or "").strip()
         if not v:
             raise ValueError("JWT_SECRET must be set")
+        weak = {"dev-secret", "secret", "changeme", "password", "jwt-secret"}
+        if v.lower() in weak and os.getenv(
+            "JWT_ALLOW_WEAK_SECRET", ""
+        ).strip().lower() not in {"1", "true", "yes", "on"}:
+            raise ValueError(
+                "JWT_SECRET is too weak; set a strong secret or JWT_ALLOW_WEAK_SECRET=1 for local dev"
+            )
+        if len(v) < 16 and os.getenv(
+            "JWT_ALLOW_WEAK_SECRET", ""
+        ).strip().lower() not in {"1", "true", "yes", "on"}:
+            raise ValueError(
+                "JWT_SECRET must be at least 16 characters, or set JWT_ALLOW_WEAK_SECRET=1 for local dev"
+            )
         return v
 
 
@@ -75,6 +89,7 @@ class Settings:
         "directory_lookup_ca_bundle",
         "base_path",
         "public_base_url",
+        "ui_public_base_url",
         "jwt_algorithm",
         "jwt_expires_minutes",
         "min_password_length",
@@ -101,9 +116,16 @@ class Settings:
         "auth_cookie_legacy",
         "smtp_port",
         "smtp_use_tls",
+        "smtp_allow_legacy_port25_fallback",
+        "rate_limit_enabled",
+        "rate_limit_auth_per_minute",
+        "rate_limit_trusted_proxies",
         "directory_lookup_timeout_s",
         "directory_lookup_required",
         "directory_lookup_verify_ssl",
+        "user_roles",
+        "admin_roles",
+        "self_registration_enabled",
     )
 
     def __init__(self) -> None:
@@ -121,6 +143,9 @@ class Settings:
         self.base_path = _normalize_base_path(str(getattr(d, "BASE_PATH", "") or ""))
         self.public_base_url = (
             (str(getattr(d, "PUBLIC_BASE_URL", "") or "")).strip().rstrip("/")
+        )
+        self.ui_public_base_url = (
+            (str(getattr(d, "UI_PUBLIC_BASE_URL", "") or "")).strip().rstrip("/")
         )
         self.jwt_algorithm = (str(getattr(d, "JWT_ALGORITHM", "") or "HS256")).strip()
         self.jwt_expires_minutes = int(getattr(d, "JWT_EXPIRES_MINUTES", 60))
@@ -205,6 +230,19 @@ class Settings:
 
         self.smtp_port = int(getattr(d, "SMTP_PORT", 25))
         self.smtp_use_tls = bool(getattr(d, "SMTP_USE_TLS", False))
+        self.smtp_allow_legacy_port25_fallback = bool(
+            getattr(d, "SMTP_ALLOW_LEGACY_PORT25_FALLBACK", False)
+        )
+
+        self.rate_limit_enabled = bool(getattr(d, "RATE_LIMIT_ENABLED", True))
+        self.rate_limit_auth_per_minute = int(
+            getattr(d, "RATE_LIMIT_AUTH_PER_MINUTE", 20)
+        )
+        self.rate_limit_trusted_proxies = frozenset(
+            str(x).strip()
+            for x in getattr(d, "RATE_LIMIT_TRUSTED_PROXIES", ()) or ()
+            if str(x).strip()
+        )
 
         self.directory_lookup_timeout_s = int(
             getattr(d, "DIRECTORY_LOOKUP_TIMEOUT_S", 5)
@@ -213,7 +251,27 @@ class Settings:
             getattr(d, "DIRECTORY_LOOKUP_REQUIRED", False)
         )
         self.directory_lookup_verify_ssl = bool(
-            getattr(d, "DIRECTORY_LOOKUP_VERIFY_SSL", False)
+            getattr(d, "DIRECTORY_LOOKUP_VERIFY_SSL", True)
+        )
+
+        self.user_roles = tuple(
+            str(x).strip() for x in getattr(d, "USER_ROLES", ()) or () if str(x).strip()
+        )
+        admin_roles = tuple(
+            str(x).strip()
+            for x in getattr(d, "ADMIN_ROLES", ()) or ()
+            if str(x).strip()
+        )
+        unknown_admin = [r for r in admin_roles if r not in self.user_roles]
+        if unknown_admin:
+            raise ValueError(
+                "ADMIN_ROLES must be a subset of USER_ROLES; "
+                f"unknown: {', '.join(unknown_admin)}"
+            )
+        self.admin_roles = admin_roles
+
+        self.self_registration_enabled = bool(
+            getattr(d, "SELF_REGISTRATION_ENABLED", True)
         )
 
     def normalized_invite_email_domains(self) -> frozenset[str]:

@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import app.core.config as app_config
+from app.core.config import settings
+from app.core.roles import display_user_roles
+from app.core.roles import apply_user_roles, roles_for_admin_flag
 from app.models import User
 from app.services.directory import DirectoryEmailRecord
 
@@ -26,6 +29,7 @@ def user_to_api_dict(user: User) -> dict[str, Any]:
         "country": user.country,
         "is_active": user.is_active,
         "is_admin": user.is_admin,
+        "roles": display_user_roles(user, settings.user_roles),
         "created_at": user.created_at.isoformat(),
     }
     if user_command_field_enabled():
@@ -101,7 +105,18 @@ def new_user_from_invite(
         full_name=_strip_opt(full_name),
         country=_strip_opt(country),
         hashed_password=password_hash,
-        is_admin=is_admin,
+        is_admin=False,
+        roles=None,
+    )
+    apply_user_roles(
+        user,
+        roles_for_admin_flag(
+            is_admin,
+            allowed_roles=settings.user_roles,
+            admin_roles=settings.admin_roles,
+        ),
+        allowed_roles=settings.user_roles,
+        admin_roles=settings.admin_roles,
     )
     if user_command_field_enabled():
         user.command = _strip_opt(command)

@@ -11,7 +11,7 @@ from jose import JWTError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import decode_token
+from app.core.security import decode_token, token_extra_claims
 from app.models import User
 from app.web.session import get_auth_token
 
@@ -89,6 +89,7 @@ def access_token_extra_claims_for_user(user: User) -> dict[str, Any]:
     claims: dict[str, Any] = {
         "is_admin": bool(getattr(user, "is_admin", False)),
         "email": user.email,
+        **token_extra_claims(user),
     }
     if getattr(user, "country", None):
         claims["country"] = user.country

@@ -12,3 +12,4 @@ class AdminUpdateUserRequest(BaseModel):
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
     roles: Optional[list[str]] = Field(default=None)
+    command: Optional[str] = None

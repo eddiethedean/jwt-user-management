@@ -6,11 +6,22 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.auth.jwt_principal import load_user_by_id, require_cookie_principal
-from app.core.security import hash_password, validate_new_password, verify_password
+from app.auth.jwt_principal import (
+    access_token_extra_claims_for_user,
+    load_user_by_id,
+    require_cookie_principal,
+)
+from app.core.security import (
+    bump_token_version,
+    create_access_token,
+    hash_password,
+    validate_new_password,
+    verify_password,
+)
 from app.db import get_db
 from app.web.csrf import set_csrf_cookie, verify_csrf
 from app.web.html_urls import html_ctx, html_redirect
+from app.web.session import set_auth_cookie
 from app.web.templates import templates
 
 
@@ -128,12 +139,20 @@ async def account_change_password(
         )
 
     user.hashed_password = hash_password(new_password)
+    bump_token_version(user)
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    return templates.TemplateResponse(
+    access_token = create_access_token(
+        subject=str(user.id),
+        extra_claims=access_token_extra_claims_for_user(user),
+    )
+    resp = templates.TemplateResponse(
         request,
         "account.html",
         {**ctx_base, "success": "Password updated."},
     )
+    set_auth_cookie(resp, request=request, token=access_token)
+    set_csrf_cookie(resp, request)
+    return resp

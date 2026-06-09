@@ -15,7 +15,11 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.models import User
+from app.services.email import send_self_registration_email
 from app.services.self_registration import register_email_for_setup
+
+# Re-export for tests that patch ``app.routes.auth.send_self_registration_email``.
+__all__ = ["send_self_registration_email"]
 
 
 router = APIRouter(tags=["auth"])
@@ -41,6 +45,12 @@ async def register_submit(
         raise HTTPException(
             status_code=400, detail=result.error or "Registration failed"
         )
+    if (
+        app_config.settings.smtp_host
+        and app_config.settings.smtp_from_email
+        and not result.email_sent
+    ):
+        raise HTTPException(status_code=503, detail="Could not send registration email")
     body: dict = {"ok": True, "email_sent": result.email_sent}
     if result.setup_url:
         body["setup_url"] = result.setup_url

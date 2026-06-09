@@ -29,6 +29,8 @@ class InviteAcceptRequest(BaseModel):
     token: str
     password: str
     full_name: Optional[str] = None
+    country: Optional[str] = None
+    command: Optional[str] = None
 
 
 class InviteLookupRequest(BaseModel):

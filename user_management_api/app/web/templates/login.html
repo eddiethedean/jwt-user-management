@@ -16,6 +16,10 @@
     {% endif %}
 
     <form method="post" action="{{ base_path }}/login">
+      {% if next %}
+      <input type="hidden" name="next_path" value="{{ next }}" />
+      {% endif %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <label for="email">Email</label>
       <input
         id="email"

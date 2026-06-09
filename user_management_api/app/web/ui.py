@@ -24,14 +24,10 @@ def include_html_ui(app: FastAPI) -> None:
     from app.routes.html_account import router as html_account_router
     from app.routes.html_admin import router as html_admin_router
     from app.routes.html_auth import router as html_auth_router
-    from app.routes.html_invites import router as html_invites_router
-    from app.routes.html_password import router as html_password_router
 
     for r in (
         html_auth_router,
         html_account_router,
         html_admin_router,
-        html_invites_router,
-        html_password_router,
     ):
         app.include_router(r)
