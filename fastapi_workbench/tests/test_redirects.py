@@ -102,3 +102,18 @@ def test_safe_redirect_workbench_forced_env(app: FastAPI, monkeypatch) -> None:
     c = TestClient(app)
     r = c.get("/forced", follow_redirects=False)
     assert r.headers["location"] == "."
+
+
+def test_safe_redirect_relative_after_workbench_path_strip(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RS_SERVER_URL", "http://wb")
+    monkeypatch.delenv("WORKBENCH_FORCE", raising=False)
+
+    @app.post("/login")
+    def login(request: Request):
+        return safe_redirect(request, "/admin")
+
+    c = TestClient(app, root_path="/s/abc/p/proj")
+    r = c.post("/login", follow_redirects=False)
+    assert r.headers["location"] == "../admin"

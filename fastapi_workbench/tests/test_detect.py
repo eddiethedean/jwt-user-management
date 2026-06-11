@@ -54,3 +54,13 @@ def test_is_workbench_request_true_for_workbench_force(
     monkeypatch.setenv("WORKBENCH_FORCE", "1")
     request = Request(_scope(path="/login"))
     assert is_workbench_request(request)
+
+
+def test_is_workbench_request_true_when_path_stripped_but_root_path_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After middleware, ``path`` is app-relative while ``root_path`` stays mounted."""
+    monkeypatch.setenv("RS_SERVER_URL", "http://wb")
+    monkeypatch.delenv("WORKBENCH_FORCE", raising=False)
+    request = Request(_scope(path="/login", root_path="/s/abc/p/proj"))
+    assert is_workbench_request(request)

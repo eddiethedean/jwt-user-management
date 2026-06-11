@@ -59,8 +59,23 @@ def is_workbench_scope(scope: Scope) -> bool:
 
 
 def is_workbench_request(request: Request) -> bool:
-    """Per-request Workbench signals only (not bare mount or global env)."""
-    return is_workbench_scope(request.scope) or is_workbench_forced()
+    """
+    Per-request Workbench signals for redirects and URL helpers.
+
+    After path normalization the ASGI ``path`` may no longer include
+    ``root_path`` (e.g. ``/login`` with ``root_path=/s/.../p/...``). In that
+    case :func:`is_workbench_scope` is false, but a non-empty ``root_path`` in a
+    Workbench process still means responses must use mount-relative redirects.
+    """
+    if is_workbench_forced():
+        return True
+    if is_workbench_scope(request.scope):
+        return True
+    if is_workbench_env():
+        root_path = str(request.scope.get("root_path") or "").strip()
+        if root_path:
+            return True
+    return False
 
 
 def workbench_mode(mode: str) -> str:
