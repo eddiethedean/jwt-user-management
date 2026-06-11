@@ -109,4 +109,4 @@ async def admin_api_delete_user(
     return {"ok": True}
 
 
-## HTML admin UI routes live in ``html_admin.py`` when ``HTML_UI_ENABLED`` is true.
+## HTML admin UI routes live in ``html_admin.py``.

@@ -9,7 +9,7 @@ This guide explains how to **run**, **use**, and **deploy** the FastAPI backend 
 - **Invites** (admin generates invite links; users accept invites)
 - **Password resets** (request reset link; set a new password)
 
-The browser UI is **built into this service** (login, register, admin, invites, password reset). Set **`HTML_UI_ENABLED`** in **`config.py`** (on by default).
+The browser UI is **always built into this service** (login, register, admin, invites, password reset).
 
 ## Prerequisites
 
@@ -41,9 +41,6 @@ Copy **`.env.example`** to **`.env`** for secrets and deployment endpoints (**`D
 
 - **`PUBLIC_BASE_URL`**: used to generate invite/reset links (e.g. `http://127.0.0.1:8001`)
 - **`BASE_PATH`**: optional external path prefix when behind a reverse proxy (e.g. `/connect/app`)
-- **`HTML_UI_ENABLED`**: serve built-in HTML pages and static assets (default `true`)
-
-### Core settings (`.env`)
 
 - **`DATABASE_URL`**: default `sqlite:///./app.db`
 
@@ -107,11 +104,9 @@ Admin routes require a JWT whose claims include **`is_admin: true`** (set at log
 
 ## HTML UI
 
-With **`HTML_UI_ENABLED`** (default), open `/login`, `/register`, `/users`, `/admin`, and related pages on the same origin as the API. Emailed invite and reset links use **`PUBLIC_BASE_URL`** with paths such as `/invites/accept?token=...`.
+Open `/login`, `/register`, `/users`, `/admin`, and related pages on the same origin as the API. Emailed invite and reset links use **`PUBLIC_BASE_URL`** with paths such as `/invites/accept?token=...`.
 
 On **Posit Connect**, set **`AUTH_COOKIE_DEPLOYMENT = "connect"`** in **`config.py`** so auth cookies work in embedded contexts.
-
-Set **`HTML_UI_ENABLED = False`** for JSON API only (no `/login` or static files).
 
 ### Seeding an initial admin user (optional)
 

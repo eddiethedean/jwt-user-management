@@ -7,7 +7,7 @@ from test_directory_lookup import _load_wrapped_app
 
 def test_register_page_renders_configurable_branding(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'brand.db'}"
-    app = _load_wrapped_app(db_url=db_url, enable_directory=False, html_ui_enabled=True)
+    app = _load_wrapped_app(db_url=db_url, enable_directory=False)
     import app.core.config as config_mod
 
     monkeypatch.setattr(config_mod._defaults, "UI_BRAND_TITLE", "Acme Portal")
@@ -37,7 +37,7 @@ def test_register_page_renders_configurable_branding(tmp_path, monkeypatch) -> N
 
 def test_ui_brand_tag_hidden_when_empty(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 'brand2.db'}"
-    app = _load_wrapped_app(db_url=db_url, enable_directory=False, html_ui_enabled=True)
+    app = _load_wrapped_app(db_url=db_url, enable_directory=False)
     import app.core.config as config_mod
 
     monkeypatch.setattr(config_mod._defaults, "UI_BRAND_TAG", "")

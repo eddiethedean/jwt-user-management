@@ -141,8 +141,4 @@ async def meta(request: Request) -> JSONResponse:
 
 @app.get("/", include_in_schema=False)
 async def root(request: Request) -> Response:
-    from app.core.config import settings
-
-    if settings.html_ui_enabled:
-        return safe_redirect(request, "/register", status_code=303)
-    return JSONResponse({"ok": True, "service": "user_management_api", "docs": "/docs"})
+    return safe_redirect(request, "/register", status_code=303)

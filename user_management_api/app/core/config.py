@@ -101,7 +101,6 @@ class Settings:
         "invite_accept_directory_enrich",
         "postgres_async_enabled",
         "postgres_ssl_relaxed",
-        "html_ui_enabled",
         "ui_brand_title",
         "ui_brand_tag",
         "ui_brand_tag_tooltip",
@@ -186,8 +185,6 @@ class Settings:
 
         self.postgres_async_enabled = bool(getattr(d, "POSTGRES_ASYNC_ENABLED", True))
         self.postgres_ssl_relaxed = bool(getattr(d, "POSTGRES_SSL_RELAXED", True))
-
-        self.html_ui_enabled = bool(getattr(d, "HTML_UI_ENABLED", False))
 
         self.ui_brand_title = (
             str(getattr(d, "UI_BRAND_TITLE", "User Management") or "User Management")

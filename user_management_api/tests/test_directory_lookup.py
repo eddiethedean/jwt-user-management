@@ -41,7 +41,6 @@ def _load_wrapped_app(
     db_url: str,
     enable_directory: bool = True,
     invite_allowed_email_domains: tuple[str, ...] | None = None,
-    html_ui_enabled: bool = False,
 ) -> ASGIApp:
     os.environ["DATABASE_URL"] = db_url
     os.environ["JWT_SECRET"] = "test-secret"
@@ -79,7 +78,6 @@ def _load_wrapped_app(
     import app.core.config as config
 
     importlib.reload(config)
-    config._defaults.HTML_UI_ENABLED = html_ui_enabled  # ty: ignore[unresolved-attribute]
     _apply_test_invite_config(
         config, invite_allowed_email_domains=invite_allowed_email_domains
     )

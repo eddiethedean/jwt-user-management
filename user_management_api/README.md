@@ -8,8 +8,6 @@ FastAPI + SQLModel + Alembic service with:
 - **JSON API** — JWT Bearer auth for programmatic clients (`/docs`)
 - **SQLite** (or PostgreSQL) persistence
 
-Set **`HTML_UI_ENABLED = False`** in **`config.py`** for API-only mode (no `/login`, `/register`, or static assets).
-
 ## Run locally
 
 Prereqs: **Python 3.10+**.
@@ -29,7 +27,7 @@ uvicorn app.asgi:app --reload --port 8001
 
 ## HTML UI (browser app)
 
-The built-in HTML app runs on the **same port** as the JSON API. It is **on by default** (`HTML_UI_ENABLED = True` in **`config.py`**).
+The built-in HTML app runs on the **same port** as the JSON API.
 
 1. Start the server (see [Run locally](#run-locally) above).
 2. Open a browser at **`http://127.0.0.1:8001/`** — you are redirected to **`/register`**.
@@ -75,11 +73,13 @@ Notes:
 - Override the port with `PORT=8001` (otherwise a free port is chosen).
 - Set **`PUBLIC_BASE_URL`** in **`config.py`** so emailed invite/reset links use a browser-routable host.
 
+**`/login` returns `{"detail":"Not Found"}` but `/docs` works?** You are likely on an older build (before HTML routes lived in this API) or started the app without the Workbench entrypoint. **`git pull`**, restart with **`python run_workbench.py`** (or **`uvicorn app.asgi:app`**, not `app.main:app` alone), then open **`/login`** on the same prefixed URL as **`/docs`**. **`/`** should redirect to **`/register`**.
+
 ## JSON API
 
 - JWT token: `POST /auth/token` (form-encoded: `username` = email, `password`)
 - Current user: `GET /users/me` (Bearer)
-- List users: `GET /users` (admin Bearer or admin cookie when HTML UI is enabled)
+- List users: `GET /users` (admin Bearer or admin cookie session)
 - Create invite (admin only): `POST /invites` (Bearer; body: `{ "email": "..." }`)
 - Accept invite: `POST /invites/accept` (body: `{ "token": "...", "password": "..." }`)
 
@@ -95,7 +95,7 @@ curl -H \"Authorization: Bearer $TOKEN\" http://127.0.0.1:8001/users/me
 
 ## Environment
 
-- **Tunables (no secrets):** `PUBLIC_BASE_URL`, `HTML_UI_ENABLED`, `INVITE_ALLOWED_EMAIL_DOMAINS`, `BASE_PATH`, cookie flags, JWT/password policy, directory attribute profile, registration LDAP gate, Postgres async flags, and optional user profile fields — edit **`config.py`** only. Do not duplicate these keys in **`.env`**.
+- **Tunables (no secrets):** `PUBLIC_BASE_URL`, `INVITE_ALLOWED_EMAIL_DOMAINS`, `BASE_PATH`, cookie flags, JWT/password policy, directory attribute profile, registration LDAP gate, Postgres async flags, and optional user profile fields — edit **`config.py`** only. Do not duplicate these keys in **`.env`**.
 
   For production or Posit Connect, uncomment and adjust the preset block at the bottom of **`config.py`**.
 

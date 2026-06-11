@@ -15,24 +15,9 @@ from mock_workbench import MockWorkbenchProxy  # noqa: E402
 from test_directory_lookup import _load_wrapped_app, _seed_admin  # noqa: E402
 
 
-def test_html_ui_api_only_mode(tmp_path) -> None:
-    db_url = f"sqlite:///{tmp_path / 'html_off.db'}"
-    app = _load_wrapped_app(
-        db_url=db_url, enable_directory=False, html_ui_enabled=False
-    )
-    client = TestClient(app)
-
-    r = client.get("/")
-    assert r.status_code == 200
-    assert r.json()["service"] == "user_management_api"
-
-    r = client.get("/login", follow_redirects=False)
-    assert r.status_code == 404
-
-
 def test_html_ui_workbench_redirects_use_prefix(tmp_path) -> None:
     db_url = f"sqlite:///{tmp_path / 'html_wb.db'}"
-    app = _load_wrapped_app(db_url=db_url, enable_directory=False, html_ui_enabled=True)
+    app = _load_wrapped_app(db_url=db_url, enable_directory=False)
     prefix = "/s/test/p/proj"
     proxy = MockWorkbenchProxy(upstream=app, external_prefix=prefix)
     client = TestClient(proxy, base_url="http://testserver")
@@ -59,9 +44,9 @@ def test_html_ui_workbench_redirects_use_prefix(tmp_path) -> None:
     assert "admin" in loc
 
 
-def test_html_ui_enabled_by_default(tmp_path) -> None:
+def test_html_ui_pages_available(tmp_path) -> None:
     db_url = f"sqlite:///{tmp_path / 'html_on.db'}"
-    app = _load_wrapped_app(db_url=db_url, enable_directory=False, html_ui_enabled=True)
+    app = _load_wrapped_app(db_url=db_url, enable_directory=False)
     client = TestClient(app)
 
     r = client.get("/", follow_redirects=False)

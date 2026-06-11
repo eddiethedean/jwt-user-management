@@ -33,7 +33,12 @@ def _norm_email(v: str) -> str:
 
 
 def _wants_json(request: Request) -> bool:
-    return "application/json" in (request.headers.get("accept") or "").lower()
+    accept = (request.headers.get("accept") or "").lower()
+    if "application/json" in accept:
+        return True
+    if "text/html" in accept:
+        return False
+    return True
 
 
 def _session_email(request: Request) -> str | None:
@@ -145,7 +150,7 @@ async def register_handler(
     if not result.ok:
         if _wants_json(request):
             return JSONResponse(
-                {"ok": False, "error": result.error or "Registration failed"},
+                {"detail": result.error or "Registration failed"},
                 status_code=400,
             )
         return templates.TemplateResponse(

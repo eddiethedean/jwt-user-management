@@ -53,12 +53,7 @@ POSTGRES_SSL_RELAXED: bool = True
 # (intended for local dev without SMTP). Keep False in production.
 EXPOSE_SETUP_URLS_IN_RESPONSE: bool = False
 
-# --- Built-in HTML UI (login, register, admin, account, invites, password reset) ---
-# When True, mounts ``/static``, serves pages under ``/login``, ``/register``, etc.,
-# and redirects ``/`` to ``/register``. API JSON routes remain available.
-HTML_UI_ENABLED: bool = True
-
-# Masthead branding (``app/web/templates/base.html`` top bar).
+# --- Built-in HTML UI branding (``app/web/templates/base.html`` top bar) ---
 UI_BRAND_TITLE: str = "User Management"
 # Shown next to the title; leave empty to hide the tag pill.
 UI_BRAND_TAG: str = "Demo"

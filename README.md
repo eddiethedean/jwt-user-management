@@ -61,7 +61,7 @@ cp .env.example .env
 ```
 
 1. Edit **`user_management_api/.env`** and set **`JWT_SECRET`** (required in production; the example file includes a dev placeholder).
-2. Non-sensitive tunables (cookie flags, SMTP port/TLS, directory timeouts, `BASE_PATH`, `PUBLIC_BASE_URL`, `HTML_UI_ENABLED`, JWT algorithm/lifetime, invite email domains, etc.) live only in **`user_management_api/config.py`**. Use **`.env`** for secrets and deployment endpoints: **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials, **`DIRECTORY_LOOKUP_URL`**, optional **`DIRECTORY_LOOKUP_CA_BUNDLE`**, and **`SEED_*`** if you customize seeding.
+2. Non-sensitive tunables (cookie flags, SMTP port/TLS, directory timeouts, `BASE_PATH`, `PUBLIC_BASE_URL`, JWT algorithm/lifetime, invite email domains, etc.) live only in **`user_management_api/config.py`**. Use **`.env`** for secrets and deployment endpoints: **`DATABASE_URL`**, **`JWT_SECRET`**, SMTP credentials, **`DIRECTORY_LOOKUP_URL`**, optional **`DIRECTORY_LOOKUP_CA_BUNDLE`**, and **`SEED_*`** if you customize seeding.
 
 | Override (`.env`) | When you need it |
 |---------------------|------------------|
@@ -125,7 +125,7 @@ BACKEND_URL=http://127.0.0.1:8001
 
 Use the same host and port as Step A4. The Streamlit **server** must be able to reach this URL (not only your browser). Fallback pieces for local dev when `BACKEND_URL` is unset (`PORT`, `BASE_PATH`) and the default for **`DEBUG`** are defined in **`user_management_streamlit/config.py`**.
 
-Invite and password-reset emails use **`PUBLIC_BASE_URL`** in **`user_management_api/config.py`** with API HTML paths (`/invites/accept?token=...`, `/password/reset?token=...`). Enable the built-in HTML UI with **`HTML_UI_ENABLED`** (default `true`).
+Invite and password-reset emails use **`PUBLIC_BASE_URL`** in **`user_management_api/config.py`** with HTML paths (`/invites/accept?token=...`, `/password/reset?token=...`). The built-in HTML UI is always served on the same port as the API.
 
 #### Step A7 — Start the Streamlit app
 

@@ -9,7 +9,6 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import app.core.config as app_config
 from app.auth.jwt_principal import (
     principal_from_bearer,
     require_admin_principal,
@@ -80,14 +79,7 @@ async def users(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Response:
-    if app_config.settings.html_ui_enabled:
-        return await _users_html_or_json(request=request, db=db, creds=creds)
-
-    if not creds:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    require_admin_principal(principal_from_bearer(creds))
-    all_users = (await db.exec(select(User).order_by(text("id")))).all()
-    return JSONResponse(content=[user_to_api_dict(u) for u in all_users])
+    return await _users_html_or_json(request=request, db=db, creds=creds)
 
 
 async def _users_html_or_json(

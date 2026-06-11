@@ -1,6 +1,6 @@
 # Built-in HTML UI
 
-When **`HTML_UI_ENABLED`** is true in **`config.py`**, this package serves:
+This package serves:
 
 - **`templates/`** — Jinja2 pages (login, register, admin, invites, password reset, …)
 - **`static/`** — CSS and admin JS
