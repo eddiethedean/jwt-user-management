@@ -27,6 +27,34 @@ uvicorn app.asgi:app --reload --port 8001
 - HTML UI: `http://127.0.0.1:8001/` (redirects to `/register`)
 - OpenAPI: `http://127.0.0.1:8001/docs`
 
+## HTML UI (browser app)
+
+The built-in HTML app runs on the **same port** as the JSON API. It is **on by default** (`HTML_UI_ENABLED = True` in **`config.py`**).
+
+1. Start the server (see [Run locally](#run-locally) above).
+2. Open a browser at **`http://127.0.0.1:8001/`** — you are redirected to **`/register`**.
+3. Sign in at **`http://127.0.0.1:8001/login`**.
+
+After seeding (`alembic upgrade head`), use the default admin account:
+
+- Email: `admin@example.com`
+- Password: `admin123`
+
+| Page | URL | Who |
+|------|-----|-----|
+| Register | `/register` | Guest (self-registration) |
+| Sign in | `/login` | Guest |
+| Account | `/account` | Signed-in user |
+| Admin | `/admin` | Admin |
+| Accept invite | `/invites/accept?token=…` | Guest (from email link) |
+| Reset password | `/password/reset?token=…` | Guest (from email link) |
+
+Admins land on `/admin` after login; everyone else goes to `/account`. Static assets (CSS/JS) are at `/static`.
+
+Behind Workbench or a path prefix, prepend your mount path (for example `/s/<service>/p/<project>/login`). See [Run on Workbench](#run-on-workbench-behind-a-proxy-prefix) and set **`BASE_PATH`** / **`PUBLIC_BASE_URL`** in **`config.py`** so links and redirects stay correct.
+
+More detail: [`HTML_UI.md`](HTML_UI.md) and [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
+
 For **Posit Connect** embedded HTML, set **`AUTH_COOKIE_DEPLOYMENT = "connect"`** in **`config.py`** (see the production preset block).
 
 ## Run on Workbench (behind a proxy prefix)
