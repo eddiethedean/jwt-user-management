@@ -35,10 +35,16 @@ def _import_db_module(db_url: str, monkeypatch) -> _DbModule:
     return cast(_DbModule, db_mod)
 
 
-def test_async_db_url_uses_rapsqlite_for_sqlite(tmp_path, monkeypatch) -> None:
+def test_async_db_url_uses_aiosqlite_for_sqlite(tmp_path, monkeypatch) -> None:
     db_url = f"sqlite:///{tmp_path / 't.db'}"
     db_mod = _import_db_module(db_url, monkeypatch)
-    assert db_mod._async_db_url(db_url).startswith("sqlite+rapsqlite:///")
+    assert db_mod._async_db_url(db_url).startswith("sqlite+aiosqlite:///")
+
+
+def test_async_db_url_migrates_legacy_rapsqlite_url(tmp_path, monkeypatch) -> None:
+    db_url = f"sqlite+rapsqlite:///{tmp_path / 't.db'}"
+    db_mod = _import_db_module("sqlite:///ignored.db", monkeypatch)
+    assert db_mod._async_db_url(db_url).startswith("sqlite+aiosqlite:///")
 
 
 def test_async_db_url_uses_asyncpg_for_postgres_when_enabled(monkeypatch) -> None:

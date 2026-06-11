@@ -2,7 +2,7 @@ fastapi[standard]
 uvicorn[standard]
 sqlmodel
 alembic
-rapsqlite==0.3.0
+aiosqlite
 greenlet
 python-dotenv
 python-jose[cryptography]

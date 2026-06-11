@@ -13,20 +13,15 @@ def _reload_db_for_url(*, db_url: str):
     os.environ["DATABASE_URL"] = db_url
     os.environ["JWT_SECRET"] = "test-secret"
 
-    # Reset SQLModel global state for repeatable reloads.
     SQLModel.metadata.clear()
     import sqlmodel.main as sqlmodel_main
 
     sqlmodel_main.default_registry.dispose()
 
-    # Force a clean import of app.* modules that read env at import time.
     for k in list(sys.modules.keys()):
         if k == "app" or k.startswith("app."):
             sys.modules.pop(k, None)
 
-    # Streamlit (and AppTest) can create a non-package module named `app`. To make
-    # backend imports robust, force-load the backend `app/` directory as the `app`
-    # package explicitly.
     here = os.path.dirname(__file__)
     api_root = os.path.abspath(os.path.join(here, ".."))
     if api_root not in sys.path:
@@ -52,17 +47,16 @@ def _reload_db_for_url(*, db_url: str):
     return db
 
 
-def test_async_engine_uses_rapsqlite_driver() -> None:
+def test_async_engine_uses_aiosqlite_driver() -> None:
     db = _reload_db_for_url(db_url="sqlite:///:memory:")
-    assert str(db.async_engine.url).startswith("sqlite+rapsqlite:")
-    assert db.async_engine.url.drivername == "sqlite+rapsqlite"
+    assert str(db.async_engine.url).startswith("sqlite+aiosqlite:")
+    assert db.async_engine.url.drivername == "sqlite+aiosqlite"
 
 
 def test_async_session_can_exec_select() -> None:
     db = _reload_db_for_url(db_url="sqlite:///:memory:")
 
     async def run() -> None:
-        # Ensure schema exists for async path.
         from app.models import User
 
         async with db.async_engine.begin() as conn:

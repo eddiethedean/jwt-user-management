@@ -3,23 +3,11 @@ from __future__ import annotations
 import ssl
 from collections.abc import AsyncGenerator, Generator
 
-import sqlite3
-
-import rapsqlite.sqlalchemy as rapsqlalchemy
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlmodel import Session, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.core.config as app_config
-
-# SQLAlchemy's SQLite base dialect expects the DBAPI module to expose sqlite_version_info.
-# rapsqlite's dialect module doesn't provide it, so we bridge it from stdlib sqlite3.
-if not hasattr(rapsqlalchemy._RapsqliteDialectModule, "sqlite_version_info"):
-    rapsqlalchemy._RapsqliteDialectModule.sqlite_version_info = (
-        sqlite3.sqlite_version_info
-    )  # type: ignore[attr-defined]
-if not hasattr(rapsqlalchemy._RapsqliteDialectModule, "sqlite_version"):
-    rapsqlalchemy._RapsqliteDialectModule.sqlite_version = sqlite3.sqlite_version  # type: ignore[attr-defined]
 
 
 def _is_postgres_url(url: str) -> bool:
@@ -38,10 +26,12 @@ engine = create_engine(
 def _async_db_url(url: str) -> str:
     """
     Keep DATABASE_URL as a sync URL for Alembic/tests (sqlite:///...),
-    but use rapsqlite or asyncpg for the async app engine.
+    but use aiosqlite or asyncpg for the async app engine.
     """
-    if url.startswith("sqlite://") and "+rapsqlite" not in url:
-        return url.replace("sqlite://", "sqlite+rapsqlite://", 1)
+    if url.startswith("sqlite+rapsqlite://"):
+        return url.replace("sqlite+rapsqlite://", "sqlite+aiosqlite://", 1)
+    if url.startswith("sqlite://") and "+aiosqlite" not in url:
+        return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
     if _is_postgres_url(url):
         if not app_config.settings.postgres_async_enabled:
             raise RuntimeError(
