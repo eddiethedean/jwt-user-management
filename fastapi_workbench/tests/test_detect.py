@@ -31,10 +31,10 @@ def test_is_workbench_scope_no_partial_suffix_false_positive() -> None:
     )
 
 
-def test_is_workbench_request_false_for_bare_root_path() -> None:
+def test_is_workbench_request_true_for_non_empty_root_path() -> None:
     scope = _scope(path="/login", root_path="/api")
     request = Request(scope)
-    assert not is_workbench_request(request)
+    assert is_workbench_request(request)
 
 
 def test_is_workbench_request_false_for_rs_server_url_only(
@@ -56,11 +56,13 @@ def test_is_workbench_request_true_for_workbench_force(
     assert is_workbench_request(request)
 
 
-def test_is_workbench_request_true_when_path_stripped_but_root_path_set(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_is_workbench_request_true_when_path_stripped_but_root_path_set() -> None:
     """After middleware, ``path`` is app-relative while ``root_path`` stays mounted."""
-    monkeypatch.setenv("RS_SERVER_URL", "http://wb")
-    monkeypatch.delenv("WORKBENCH_FORCE", raising=False)
     request = Request(_scope(path="/login", root_path="/s/abc/p/proj"))
+    assert is_workbench_request(request)
+
+
+def test_is_workbench_request_true_when_scope_path_partially_stripped() -> None:
+    """``path`` may still include mount segments that middleware failed to strip."""
+    request = Request(_scope(path="/proj/login", root_path="/s/abc/p/proj"))
     assert is_workbench_request(request)

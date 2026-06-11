@@ -62,20 +62,16 @@ def is_workbench_request(request: Request) -> bool:
     """
     Per-request Workbench signals for redirects and URL helpers.
 
-    After path normalization the ASGI ``path`` may no longer include
-    ``root_path`` (e.g. ``/login`` with ``root_path=/s/.../p/...``). In that
-    case :func:`is_workbench_scope` is false, but a non-empty ``root_path`` in a
-    Workbench process still means responses must use mount-relative redirects.
+    A non-empty ASGI ``root_path`` (uvicorn ``--root-path`` / Workbench mount)
+    is sufficient — including after middleware strips ``path`` to an app-relative
+    value such as ``/login``. This restores pre-0.3.2 behavior that 0.3.2 removed.
     """
     if is_workbench_forced():
         return True
-    if is_workbench_scope(request.scope):
+    root_path = str(request.scope.get("root_path") or "").rstrip("/")
+    if root_path:
         return True
-    if is_workbench_env():
-        root_path = str(request.scope.get("root_path") or "").strip()
-        if root_path:
-            return True
-    return False
+    return is_workbench_scope(request.scope)
 
 
 def workbench_mode(mode: str) -> str:

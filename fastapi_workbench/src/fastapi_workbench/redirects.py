@@ -51,15 +51,22 @@ def safe_redirect(
 
     if prefer_relative_in_workbench and is_workbench_request(request):
         root_path = str(request.scope.get("root_path") or "").rstrip("/")
-        if root_path and not safe_path.startswith("../"):
+        if safe_path.startswith("../"):
+            rel = workbench_relative_redirect_url(
+                str(request.scope.get("path") or "/"), safe_path
+            )
+            return RedirectResponse(url=rel, status_code=status_code)
+        if root_path:
             return RedirectResponse(
                 url=workbench_mount_redirect_url(root_path, safe_path),
                 status_code=status_code,
             )
-        rel = workbench_relative_redirect_url(
-            str(request.scope.get("path") or "/"), safe_path
+        if safe_path == "/":
+            return RedirectResponse(url=".", status_code=status_code)
+        return RedirectResponse(
+            url=safe_path.lstrip("/") or ".",
+            status_code=status_code,
         )
-        return RedirectResponse(url=rel, status_code=status_code)
 
     return RedirectResponse(url=safe_path, status_code=status_code)
 

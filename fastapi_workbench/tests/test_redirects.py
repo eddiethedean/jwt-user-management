@@ -107,7 +107,6 @@ def test_safe_redirect_workbench_forced_env(app: FastAPI, monkeypatch) -> None:
 def test_safe_redirect_relative_after_workbench_path_strip(
     app: FastAPI, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("RS_SERVER_URL", "http://wb")
     monkeypatch.delenv("WORKBENCH_FORCE", raising=False)
 
     @app.post("/login")
@@ -117,3 +116,30 @@ def test_safe_redirect_relative_after_workbench_path_strip(
     c = TestClient(app, root_path="/s/abc/p/proj")
     r = c.post("/login", follow_redirects=False)
     assert r.headers["location"] == "/s/abc/p/proj/admin"
+
+
+def test_safe_redirect_mount_absolute_ignores_partial_scope_path(app: FastAPI) -> None:
+    """Mount-prefixed redirects must not depend on ``scope['path']`` depth."""
+
+    @app.post("/login")
+    def login(request: Request):
+        request.scope["path"] = "/proj/login"
+        return safe_redirect(request, "/admin")
+
+    c = TestClient(app, root_path="/s/abc/p/proj")
+    r = c.post("/login", follow_redirects=False)
+    assert r.headers["location"] == "/s/abc/p/proj/admin"
+
+
+def test_safe_redirect_forced_without_root_path_uses_sibling_relative(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WORKBENCH_FORCE", "1")
+
+    @app.post("/login")
+    def login(request: Request):
+        return safe_redirect(request, "/admin")
+
+    c = TestClient(app)
+    r = c.post("/login", follow_redirects=False)
+    assert r.headers["location"] == "admin"

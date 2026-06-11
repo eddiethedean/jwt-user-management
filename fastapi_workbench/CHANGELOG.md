@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.4 (2026-06-11)
+
+Fix Workbench login redirects regressed in 0.3.2.
+
+- **Detection:** Restore pre-0.3.2 ``is_workbench_request`` — any non-empty ASGI ``root_path`` counts (not only when ``path`` still contains the mount prefix). ``RS_SERVER_URL`` alone still does not enable Workbench redirect mode.
+- **Redirects:** When ``root_path`` is set, always emit mount-prefixed ``Location`` headers (``/s/.../p/.../admin``). Do not derive ``../`` depth from ``scope['path']``, which Workbench middleware may only partially strip and which dropped the project segment (``/p/<project>``).
+- **Fallback:** Without ``root_path``, keep pre-0.3.2 sibling-relative redirects (``/admin`` → ``admin``) for ``WORKBENCH_FORCE`` local repro.
+- **Note:** 0.3.2 narrowed detection and switched to depth-based ``../`` relatives; 0.3.3 partially addressed this — prefer **0.3.4** on Posit Workbench.
+
 ## 0.3.3 (2026-06-09)
 
 Workbench login redirect fixes for apps mounted under `/s/<session>/p/<project>`.
