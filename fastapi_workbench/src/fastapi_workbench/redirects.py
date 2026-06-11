@@ -6,7 +6,11 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 
 from .detect import is_workbench_request
-from .path_safety import normalize_safe_path, workbench_relative_redirect_url
+from .path_safety import (
+    normalize_safe_path,
+    workbench_mount_redirect_url,
+    workbench_relative_redirect_url,
+)
 from .urls import external_workbench_url
 
 
@@ -46,6 +50,12 @@ def safe_redirect(
         )
 
     if prefer_relative_in_workbench and is_workbench_request(request):
+        root_path = str(request.scope.get("root_path") or "").rstrip("/")
+        if root_path and not safe_path.startswith("../"):
+            return RedirectResponse(
+                url=workbench_mount_redirect_url(root_path, safe_path),
+                status_code=status_code,
+            )
         rel = workbench_relative_redirect_url(
             str(request.scope.get("path") or "/"), safe_path
         )

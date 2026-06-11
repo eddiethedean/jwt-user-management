@@ -20,7 +20,7 @@ from .urls import (
 try:
     __version__ = version("fastapi-workbench")
 except PackageNotFoundError:  # pragma: no cover — editable run without metadata
-    __version__ = "0.3.2"
+    __version__ = "0.3.3"
 
 __all__ = [
     "__version__",

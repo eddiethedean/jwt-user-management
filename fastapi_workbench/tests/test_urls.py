@@ -176,13 +176,16 @@ def test_public_base_includes_mount_segment_dedup(app: FastAPI) -> None:
 
 
 def test_package_version_matches_release() -> None:
-    import tomllib
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    expected = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))[
-        "project"
-    ]["version"]
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    expected = None
+    for line in pyproject.splitlines():
+        if line.startswith("version = "):
+            expected = line.split('"', 2)[1]
+            break
+    assert expected, "version not found in pyproject.toml"
     init_src = (root / "src" / "fastapi_workbench" / "__init__.py").read_text(
         encoding="utf-8"
     )

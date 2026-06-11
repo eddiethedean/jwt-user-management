@@ -44,7 +44,7 @@ def test_html_ui_workbench_redirects_use_prefix(tmp_path, monkeypatch) -> None:
         follow_redirects=False,
     )
     assert login.status_code in (303, 307)
-    assert login.headers.get("location") == "../admin"
+    assert login.headers.get("location") == f"{prefix}/admin"
 
 
 def test_html_ui_pages_available(tmp_path) -> None:

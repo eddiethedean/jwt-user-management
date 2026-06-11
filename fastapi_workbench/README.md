@@ -2,14 +2,14 @@
 
 Small utilities to make FastAPI apps behave correctly behind Posit Workbench / RStudio Server proxy prefixes, while still behaving normally in non-Workbench deployments.
 
-**Version:** 0.3.2 · [Changelog](CHANGELOG.md)
+**Version:** 0.3.3 · [Changelog](CHANGELOG.md)
 
 ## Install
 
 From [PyPI](https://pypi.org/project/fastapi-workbench/) (when published):
 
 ```bash
-pip install fastapi-workbench==0.3.2
+pip install fastapi-workbench==0.3.3
 ```
 
 From this monorepo (editable):

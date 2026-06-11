@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3 (2026-06-09)
+
+Workbench login redirect fixes for apps mounted under `/s/<session>/p/<project>`.
+
+- **Detection:** Treat `RS_SERVER_URL` plus a non-empty `root_path` as a Workbench request after path normalization (when `scope["path"]` is app-relative, e.g. `/login`).
+- **Redirects:** Prefer mount-prefixed `Location` headers (`/s/.../p/.../admin`) instead of depth-based `../` relatives when `root_path` is set, so partially stripped paths do not drop the project segment.
+- **Tests:** Regression coverage for post-normalization redirects and mount URL building.
+
 ## 0.3.2 (2026-06-08)
 
 Security and correctness fixes from a full package audit (16 defects).

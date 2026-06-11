@@ -25,7 +25,7 @@ def test_safe_redirect_root_uses_dot_in_workbench_scope(
     c = TestClient(app, root_path="/content/app")
     r = c.get("/wb", follow_redirects=False)
     assert r.status_code in (301, 302, 303, 307, 308)
-    assert r.headers["location"] == "."
+    assert r.headers["location"] == "/content/app"
 
 
 def test_safe_redirect_rejects_parent_segments_by_default(app: FastAPI) -> None:
@@ -59,7 +59,7 @@ def test_safe_redirect_depth_aware_from_nested_path(
 
     c = TestClient(app, root_path="/prefix/app")
     r = c.get("/admin/users/5", follow_redirects=False)
-    assert r.headers["location"] == "../../../login"
+    assert r.headers["location"] == "/prefix/app/login"
 
 
 def test_safe_redirect_not_workbench_with_rs_server_url_only(
@@ -116,4 +116,4 @@ def test_safe_redirect_relative_after_workbench_path_strip(
 
     c = TestClient(app, root_path="/s/abc/p/proj")
     r = c.post("/login", follow_redirects=False)
-    assert r.headers["location"] == "../admin"
+    assert r.headers["location"] == "/s/abc/p/proj/admin"

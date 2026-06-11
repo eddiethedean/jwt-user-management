@@ -127,6 +127,22 @@ def encode_raw_path(path: str) -> bytes:
     return quote(path, safe="/:@!$&'()*+,;=").encode("utf-8")
 
 
+def workbench_mount_redirect_url(root_path: str, safe_path: str) -> str:
+    """
+    Host-absolute redirect under the Workbench mount (``root_path``).
+
+    Prefer this over depth-based ``../`` relatives when ``root_path`` is known:
+    partial path normalization can leave ``scope['path']`` shorter than the browser
+    URL, which drops path segments (e.g. ``/p/<project>``) from ``../`` redirects.
+    """
+    mount = (root_path or "").rstrip("/")
+    if safe_path == "/":
+        return mount or "/"
+    if not mount:
+        return safe_path
+    return f"{mount}{safe_path}"
+
+
 def workbench_relative_redirect_url(request_path: str, safe_path: str) -> str:
     """
     Build a proxy-relative redirect target rooted at the app mount, not the
