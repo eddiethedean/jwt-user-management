@@ -11,6 +11,11 @@ from app.auth.jwt_principal import (
     load_user_by_id,
     require_cookie_principal,
 )
+from app.core.audit import (
+    log_password_change,
+    log_profile_update,
+    require_user_id,
+)
 from app.core.security import (
     bump_token_version,
     create_access_token,
@@ -77,6 +82,11 @@ async def account_update(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    log_profile_update(
+        email=user.email,
+        user_id=require_user_id(user.id),
+        method="html_account",
+    )
 
     return templates.TemplateResponse(
         request,
@@ -155,4 +165,9 @@ async def account_change_password(
     )
     set_auth_cookie(resp, request=request, token=access_token)
     set_csrf_cookie(resp, request)
+    log_password_change(
+        email=user.email,
+        user_id=require_user_id(user.id),
+        method="html_account",
+    )
     return resp

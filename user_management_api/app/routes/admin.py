@@ -7,6 +7,11 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit import (
+    log_admin_user_deleted,
+    log_admin_user_updated,
+    require_user_id,
+)
 from app.core.config import settings
 from app.core.roles import (
     apply_user_roles,
@@ -89,6 +94,15 @@ async def admin_api_update_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    changed = ",".join(sorted(fields_set)) or "none"
+    log_admin_user_updated(
+        actor_email=admin.email,
+        actor_id=require_user_id(admin.id),
+        target_user_id=require_user_id(user.id),
+        target_email=user.email,
+        fields=changed,
+        method="api_admin",
+    )
     return {"ok": True, "user": user_to_api_dict(user)}
 
 
@@ -104,8 +118,16 @@ async def admin_api_delete_user(
     user = (await db.exec(select(User).where(User.id == user_id))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    target_email = user.email
     await db.delete(user)
     await db.commit()
+    log_admin_user_deleted(
+        actor_email=admin.email,
+        actor_id=require_user_id(admin.id),
+        target_user_id=user_id,
+        target_email=target_email,
+        method="api_admin",
+    )
     return {"ok": True}
 
 

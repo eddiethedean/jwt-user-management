@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -13,7 +12,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.web.html_urls import html_base_path, html_redirect
 import app.core.config as app_config
+from app.core.audit import (
+    log_invite_accept_failed,
+    log_invite_accepted,
+    log_invite_created,
+    require_user_id,
+)
 from app.core.email_validation import validate_email_format
+from app.core.logging import get_logger
 from app.core.rate_limit import check_rate_limit
 from app.core.security import validate_new_password
 from app.db import get_db
@@ -40,7 +46,7 @@ from app.web.templates import templates
 
 
 router = APIRouter(prefix="/invites", tags=["invites"])
-log = logging.getLogger("uvicorn.error")
+log = get_logger(__name__)
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -86,7 +92,7 @@ async def create_invite(
     db: AsyncSession = Depends(get_db),
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    await admin_from_bearer(db=db, creds=creds)
+    admin = await admin_from_bearer(db=db, creds=creds)
     try:
         email = validate_email_format(payload.email)
     except ValueError as e:
@@ -134,6 +140,12 @@ async def create_invite(
     ).first()
     expires_at = invite_row.expires_at if invite_row else datetime.now(timezone.utc)
 
+    log_invite_created(
+        email=email,
+        grant_admin=bool(payload.grant_admin),
+        actor_email=admin.email,
+        method="api_invite",
+    )
     return {
         "ok": True,
         "invite_url": invite_url,
@@ -240,17 +252,22 @@ async def _accept(
         await db.exec(select(InviteToken).where(InviteToken.token_hash == token_hash))
     ).first()
     if not invite:
+        log_invite_accept_failed(reason="invite_not_found")
         raise HTTPException(status_code=404, detail="Invite not found")
     now = datetime.now(timezone.utc)
     if invite.used_at is not None:
+        log_invite_accept_failed(reason="invite_already_used")
         raise HTTPException(status_code=400, detail="Invite already used")
     if _as_utc_aware(invite.expires_at) < now:
+        log_invite_accept_failed(reason="invite_expired")
         raise HTTPException(status_code=400, detail="Invite expired")
     if not invite_email_domain_allowed(invite.email):
+        log_invite_accept_failed(reason="domain_not_allowed")
         raise HTTPException(status_code=400, detail="Email domain is not allowed")
 
     existing = (await db.exec(select(User).where(User.email == invite.email))).first()
     if existing:
+        log_invite_accept_failed(reason="user_already_exists")
         raise HTTPException(
             status_code=400,
             detail="An account with this email already exists",
@@ -258,10 +275,12 @@ async def _accept(
 
     consumed = await try_consume_invite_token(db, token_hash=token_hash, now=now)
     if consumed != 1:
+        log_invite_accept_failed(reason="invite_already_used")
         raise HTTPException(status_code=400, detail="Invite already used")
 
     dup = (await db.exec(select(User).where(User.email == invite.email))).first()
     if dup:
+        log_invite_accept_failed(reason="user_already_exists")
         raise HTTPException(
             status_code=400,
             detail="An account with this email already exists",
@@ -290,12 +309,19 @@ async def _accept(
     db.add(user)
     try:
         await db.commit()
+        await db.refresh(user)
     except IntegrityError:
         await db.rollback()
+        log_invite_accept_failed(reason="user_already_exists")
         raise HTTPException(
             status_code=400,
             detail="An account with this email already exists",
         )
+    log_invite_accepted(
+        email=invite.email,
+        user_id=require_user_id(user.id),
+        grant_admin=bool(invite.grant_admin),
+    )
 
 
 @router.post("/accept-form", response_class=HTMLResponse, include_in_schema=False)
@@ -314,6 +340,7 @@ async def accept_invite_form(
         validate_new_password(password)
         await _accept(db=db, token=token, password=password, full_name=full_name)
     except HTTPException as e:
+        log_invite_accept_failed(reason=str(e.detail))
         csrf = issue_csrf_token(request)
         token_hash = InviteToken.hash_token(token)
         invite: Optional[InviteToken] = (

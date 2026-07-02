@@ -11,6 +11,12 @@ from app.auth.jwt_principal import (
     access_token_extra_claims_for_user,
     principal_from_request,
 )
+from app.core.audit import (
+    log_auth_failure,
+    log_auth_success,
+    log_logout,
+    require_user_id,
+)
 from app.core.security import (
     create_access_token,
     verify_password,
@@ -90,6 +96,9 @@ async def login_submit(
         await db.exec(select(User).where(User.email == email_n))
     ).first()
     if not user or not verify_password(password, user.hashed_password):
+        log_auth_failure(
+            method="html_login", email=email_n, reason="invalid_credentials"
+        )
         return templates.TemplateResponse(
             request,
             "login.html",
@@ -97,6 +106,7 @@ async def login_submit(
             status_code=400,
         )
     if not getattr(user, "is_active", True):
+        log_auth_failure(method="html_login", email=email_n, reason="account_disabled")
         return templates.TemplateResponse(
             request,
             "login.html",
@@ -119,6 +129,12 @@ async def login_submit(
     resp = html_redirect(request, dest, status_code=303)
     set_auth_cookie(resp, request=request, token=token)
     set_csrf_cookie(resp, request)
+    log_auth_success(
+        method="html_login",
+        email=user.email,
+        user_id=require_user_id(user.id),
+        is_admin=bool(user.is_admin),
+    )
     return resp
 
 
@@ -127,9 +143,15 @@ async def logout(
     request: Request,
     csrf_token: str = Form(default=""),
 ) -> Response:
+    principal = principal_from_request(request)
     verify_csrf(request, csrf_token)
     resp = html_redirect(request, "/login", status_code=303, external=True)
     clear_auth_cookie(resp, request=request)
+    log_logout(
+        method="html_logout",
+        email=principal.email if principal else None,
+        user_id=principal.user_id if principal else None,
+    )
     return resp
 
 

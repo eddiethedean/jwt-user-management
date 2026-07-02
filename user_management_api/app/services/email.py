@@ -1,10 +1,13 @@
-import logging
 import smtplib
 from email.message import EmailMessage
 from smtplib import SMTPConnectError
 
+from app.core.audit import log_email_sent
 from app.core.config import settings
 from app.core.email_validation import validate_email_format
+from app.core.logging import get_logger
+
+log = get_logger(__name__)
 
 
 def _brand_name() -> str:
@@ -88,7 +91,6 @@ def _send_via_smtp(msg: EmailMessage) -> None:
             server.starttls()
         return server
 
-    log = logging.getLogger("uvicorn.error")
     primary_port: int | None = settings.smtp_port
     has_creds = bool(settings.smtp_username and settings.smtp_password)
     try:
@@ -165,6 +167,7 @@ def send_invite_email(*, to_email: str, invite_url: str) -> None:
     _set_html_and_text(msg, text=text, html=html)
 
     _send_via_smtp(msg)
+    log_email_sent(kind="invite", to_email=to)
 
 
 def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
@@ -205,6 +208,7 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> None:
     )
     _set_html_and_text(msg, text=text, html=html)
     _send_via_smtp(msg)
+    log_email_sent(kind="password_reset", to_email=to)
 
 
 def send_self_registration_email(*, to_email: str, setup_url: str) -> None:
@@ -250,3 +254,4 @@ def send_self_registration_email(*, to_email: str, setup_url: str) -> None:
     )
     _set_html_and_text(msg, text=text, html=html)
     _send_via_smtp(msg)
+    log_email_sent(kind="registration", to_email=to)

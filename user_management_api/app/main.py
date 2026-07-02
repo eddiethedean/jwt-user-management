@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal, cast
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
@@ -8,14 +9,13 @@ from fastapi_workbench import (
     safe_redirect,
     workbench_browser_base,
 )
+from app.core.config import settings
+from app.core.logging import configure_logging, get_logger, log_http_request
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
-from app.routes.password_reset import router as password_reset_router
 from app.routes.invites import router as invites_router
+from app.routes.password_reset import router as password_reset_router
 from app.routes.users import router as users_router
-
-from typing import Literal, cast
-
 from app.web.debug_panel import (
     COOKIE_DEBUG_LOG_COOKIE,
     cookie_debug_payload,
@@ -23,9 +23,26 @@ from app.web.debug_panel import (
 )
 from app.web.ui import include_html_ui
 
+configure_logging(fallback=settings.log_level)
+log = get_logger(__name__)
+
 app = FastAPI(title="User Management API")
+log.info(
+    "Starting User Management API (log_level=%s, http_requests=%s)",
+    settings.log_level,
+    settings.log_http_requests,
+)
 
 _APP_ROOT = Path(__file__).resolve().parent
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    return await log_http_request(
+        request,
+        call_next,
+        enabled=settings.log_http_requests,
+    )
 
 
 @app.middleware("http")
@@ -38,8 +55,6 @@ async def csrf_prepare_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def cookie_debug_middleware(request: Request, call_next):
-    from app.core.config import settings
-
     enabled = bool(getattr(settings, "cookie_debug", False))
     init_cookie_debug(request, enabled=enabled)
     if enabled:
@@ -121,8 +136,6 @@ async def meta(request: Request) -> JSONResponse:
     Returns the externally-visible base URL (via fastapi_workbench proxy
     detection) and the normalized base path so UIs can build correct URLs.
     """
-    from app.core.config import settings
-
     bp = wb_base_path(request)
     pub = workbench_browser_base(
         request, public_base_url=settings.public_base_url or None

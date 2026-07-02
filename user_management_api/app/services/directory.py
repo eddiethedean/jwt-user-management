@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 import asyncio
 import json
-import logging
 from typing import Any, Optional
 
 import httpx
 
 import app.core.config as app_config
+from app.core.logging import get_logger
 
-log = logging.getLogger("uvicorn.error")
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)

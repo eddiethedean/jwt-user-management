@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import HTTPException, Request, Response
 
+from app.core.audit import log_csrf_failed
 from app.core.config import settings
 from app.web.session import auth_cookie_path, auth_cookie_secure
 
@@ -90,9 +91,11 @@ def validate_csrf(
     cookie = request.cookies.get(CSRF_COOKIE) or ""
     field = (form_token or request.headers.get(CSRF_HEADER) or "").strip()
     if not field or not cookie or not _verify(cookie):
+        log_csrf_failed(path=request.url.path, method=request.method)
         raise HTTPException(status_code=403, detail="CSRF validation failed")
     cookie_token = cookie.rsplit(".", 1)[0]
     if not hmac.compare_digest(field, cookie_token):
+        log_csrf_failed(path=request.url.path, method=request.method)
         raise HTTPException(status_code=403, detail="CSRF validation failed")
 
 

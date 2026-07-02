@@ -8,11 +8,15 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.core.config as app_config
+from app.core.audit import log_registration, log_registration_denied
+from app.core.logging import get_logger
 from app.invite_email_domains import invite_email_domain_allowed
 from app.models import InviteToken, User
 from app.routes.email_links import external_accept_invite_url
 from app.services.directory import lookup_email
 from app.services.email import send_self_registration_email
+
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -35,13 +39,16 @@ async def register_email_for_setup(
 ) -> RegisterResult:
     email_n = (email or "").strip().lower()
     if not email_n:
+        log_registration_denied(email=email_n, reason="missing_email")
         return RegisterResult(ok=False, error="Email is required")
 
     existing = (await db.exec(select(User).where(User.email == email_n))).first()
     if existing:
+        log_registration(email=email_n, email_sent=False, existing_user=True)
         return RegisterResult(ok=True, email_sent=False)
 
     if not invite_email_domain_allowed(email_n):
+        log_registration_denied(email=email_n, reason="domain_not_allowed")
         return RegisterResult(
             ok=False,
             error="Email domain is not allowed for registration",
@@ -53,9 +60,11 @@ async def register_email_for_setup(
             rec = lookup_email(email_n)
         except Exception:
             if app_config.settings.registration_directory_lookup_required:
+                log_registration_denied(email=email_n, reason="directory_lookup_failed")
                 return RegisterResult(ok=False, error="Directory lookup failed")
             rec = None
         if app_config.settings.registration_directory_lookup_required and not rec:
+            log_registration_denied(email=email_n, reason="directory_not_found")
             return RegisterResult(ok=False, error="Email not found in directory")
 
     now = datetime.now(timezone.utc)
@@ -81,7 +90,8 @@ async def register_email_for_setup(
             send_self_registration_email(to_email=email_n, setup_url=setup_url)
             email_sent = True
         except Exception:
-            pass
+            log.exception("registration_email_send_failed")
 
     exposed_url = setup_url if _expose_setup_url() else ""
+    log_registration(email=email_n, email_sent=email_sent)
     return RegisterResult(ok=True, setup_url=exposed_url, email_sent=email_sent)

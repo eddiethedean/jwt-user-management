@@ -14,6 +14,12 @@ from app.auth.jwt_principal import (
     require_admin_principal,
     require_cookie_principal,
 )
+from app.core.audit import (
+    log_admin_access_denied,
+    log_password_change,
+    log_profile_update,
+    require_user_id,
+)
 from app.core.security import hash_password, validate_new_password, verify_password
 from app.db import get_db
 from app.models import User
@@ -45,6 +51,11 @@ async def update_me(
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
+    log_profile_update(
+        email=current_user.email,
+        user_id=require_user_id(current_user.id),
+        method="api_profile",
+    )
     return {"ok": True, "full_name": current_user.full_name}
 
 
@@ -70,6 +81,11 @@ async def change_my_password(
     current_user.hashed_password = hash_password(new)
     db.add(current_user)
     await db.commit()
+    log_password_change(
+        email=current_user.email,
+        user_id=require_user_id(current_user.id),
+        method="api_password",
+    )
     return {"ok": True}
 
 
@@ -92,6 +108,11 @@ async def _users_html_or_json(
     if cookie_token:
         principal = require_cookie_principal(request)
         if not principal.is_admin:
+            log_admin_access_denied(
+                email=principal.email,
+                user_id=principal.user_id,
+                path=request.url.path,
+            )
             return templates.TemplateResponse(
                 request,
                 "users.html",

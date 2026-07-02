@@ -125,6 +125,8 @@ class Settings:
         "user_roles",
         "admin_roles",
         "self_registration_enabled",
+        "log_level",
+        "log_http_requests",
     )
 
     def __init__(self) -> None:
@@ -270,6 +272,21 @@ class Settings:
         self.self_registration_enabled = bool(
             getattr(d, "SELF_REGISTRATION_ENABLED", True)
         )
+
+        log_level = (str(getattr(d, "LOG_LEVEL", "info") or "info")).strip().lower()
+        if log_level not in {
+            "critical",
+            "error",
+            "warning",
+            "info",
+            "debug",
+            "notset",
+        }:
+            raise ValueError(
+                "LOG_LEVEL must be one of: critical, error, warning, info, debug, notset"
+            )
+        self.log_level = log_level
+        self.log_http_requests = bool(getattr(d, "LOG_HTTP_REQUESTS", True))
 
     def normalized_invite_email_domains(self) -> frozenset[str]:
         return _normalize_suffixes(_defaults.INVITE_ALLOWED_EMAIL_DOMAINS)

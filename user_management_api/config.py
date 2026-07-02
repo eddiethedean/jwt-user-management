@@ -11,6 +11,11 @@ Optional features (directory mapping, command field, registration LDAP gate,
 Postgres async) are **off by default** unless enabled below.
 """
 
+# --- Logging ---
+# ``LOG_LEVEL`` may also be set in the process environment (e.g. by ``run_workbench.py``).
+LOG_LEVEL: str = "info"
+LOG_HTTP_REQUESTS: bool = True
+
 # --- URLs / proxy ---
 BASE_PATH: str = ""
 PUBLIC_BASE_URL: str = "http://127.0.0.1:8001"

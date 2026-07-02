@@ -8,6 +8,7 @@ from jose import JWTError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit import log_token_rejected
 from app.core.security import decode_token
 from app.db import get_db
 from app.models import User
@@ -20,23 +21,28 @@ def _validate_token_version(payload: dict[str, Any], user: User) -> None:
     expected = int(getattr(user, "token_version", 0) or 0)
     if "tv" in payload:
         if int(payload.get("tv") or 0) != expected:
+            log_token_rejected(reason="token_version_mismatch")
             raise HTTPException(status_code=401, detail="Invalid token")
     elif expected != 0:
+        log_token_rejected(reason="token_version_missing")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
 async def _user_from_payload(*, db: AsyncSession, payload: dict[str, Any]) -> User:
     sub = payload.get("sub")
     if not sub:
+        log_token_rejected(reason="missing_subject")
         raise HTTPException(status_code=401, detail="Invalid token subject")
     try:
         user_id = int(sub)
     except (TypeError, ValueError):
+        log_token_rejected(reason="invalid_subject")
         raise HTTPException(status_code=401, detail="Invalid token subject")
     user: Optional[User] = (
         await db.exec(select(User).where(User.id == user_id))
     ).first()
     if not user:
+        log_token_rejected(reason="user_not_found", detail=f"user_id={user_id}")
         raise HTTPException(status_code=401, detail="User not found")
     _validate_token_version(payload, user)
     return user
@@ -50,6 +56,7 @@ async def user_from_bearer(
     try:
         payload: dict[str, Any] = decode_token(creds.credentials)
     except JWTError:
+        log_token_rejected(reason="jwt_decode_failed")
         raise HTTPException(status_code=401, detail="Invalid token")
     return await _user_from_payload(db=db, payload=payload)
 
@@ -62,8 +69,10 @@ async def admin_from_bearer(
     try:
         payload: dict[str, Any] = decode_token(creds.credentials)
     except JWTError:
+        log_token_rejected(reason="jwt_decode_failed")
         raise HTTPException(status_code=401, detail="Invalid token")
     if not bool(payload.get("is_admin", False)):
+        log_token_rejected(reason="admin_required")
         raise HTTPException(status_code=403, detail="Admin access required")
     return await _user_from_payload(db=db, payload=payload)
 
@@ -81,7 +90,9 @@ async def user_from_token(
     try:
         payload: dict[str, Any] = decode_token(token)
     except JWTError:
+        log_token_rejected(reason="jwt_decode_failed")
         raise HTTPException(status_code=401, detail="Invalid token")
     if require_admin and not bool(payload.get("is_admin", False)):
+        log_token_rejected(reason="admin_required")
         raise HTTPException(status_code=403, detail="Admin access required")
     return await _user_from_payload(db=db, payload=payload)

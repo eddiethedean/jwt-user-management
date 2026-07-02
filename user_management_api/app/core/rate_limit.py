@@ -6,6 +6,7 @@ from threading import Lock
 
 from fastapi import HTTPException, Request
 
+from app.core.audit import log_rate_limited
 from app.core.config import settings
 
 _LOCK = Lock()
@@ -62,6 +63,11 @@ def check_rate_limit(
         for key in keys:
             _prune(key, window_s=window_s, now=now)
             if len(_BUCKETS[key]) >= limit:
+                log_rate_limited(
+                    scope=scope,
+                    ip=_client_ip(request),
+                    email=email,
+                )
                 raise HTTPException(
                     status_code=429,
                     detail="Too many requests",

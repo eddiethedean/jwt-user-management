@@ -11,6 +11,7 @@ from jose import JWTError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit import log_token_rejected
 from app.core.security import decode_token, token_extra_claims
 from app.models import User
 from app.web.session import get_auth_token
@@ -26,10 +27,12 @@ class JwtPrincipal:
 def principal_from_payload(payload: dict[str, Any]) -> JwtPrincipal:
     sub = payload.get("sub")
     if not sub:
+        log_token_rejected(reason="missing_subject")
         raise HTTPException(status_code=401, detail="Invalid token subject")
     try:
         user_id = int(sub)
     except (TypeError, ValueError):
+        log_token_rejected(reason="invalid_subject")
         raise HTTPException(status_code=401, detail="Invalid token subject")
     is_admin = bool(payload.get("is_admin", False))
     email_raw = payload.get("email")
@@ -41,6 +44,7 @@ def principal_from_token(token: str) -> JwtPrincipal:
     try:
         payload: dict[str, Any] = decode_token(token)
     except JWTError:
+        log_token_rejected(reason="jwt_decode_failed")
         raise HTTPException(status_code=401, detail="Invalid token")
     return principal_from_payload(payload)
 
@@ -66,12 +70,14 @@ def principal_from_request(request: Request) -> Optional[JwtPrincipal]:
 def require_cookie_principal(request: Request) -> JwtPrincipal:
     token = get_auth_token(request)
     if not token:
+        log_token_rejected(reason="missing_cookie_token")
         raise HTTPException(status_code=401, detail="Not authenticated")
     return principal_from_token(token)
 
 
 def require_admin_principal(principal: JwtPrincipal) -> JwtPrincipal:
     if not principal.is_admin:
+        log_token_rejected(reason="admin_required")
         raise HTTPException(status_code=403, detail="Admin access required")
     return principal
 

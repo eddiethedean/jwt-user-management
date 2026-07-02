@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -12,7 +11,13 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.web.html_urls import html_base_path, html_redirect
+from app.core.audit import (
+    log_password_reset_completed,
+    log_password_reset_requested,
+    require_user_id,
+)
 from app.core.email_validation import validate_email_format
+from app.core.logging import get_logger
 from app.core.rate_limit import check_rate_limit
 from app.core.security import bump_token_version, hash_password, validate_new_password
 from app.db import get_db
@@ -31,7 +36,7 @@ from app.web.templates import templates
 
 
 router = APIRouter(prefix="/password", tags=["password"])
-log = logging.getLogger("uvicorn.error")
+log = get_logger(__name__)
 
 
 def _as_utc_aware(dt: datetime) -> datetime:
@@ -45,9 +50,11 @@ async def _issue_reset_token(
 ) -> None:
     user = (await db.exec(select(User).where(User.email == email_n))).first()
     if not user:
+        log_password_reset_requested(email=email_n, user_found=False)
         return
     raw = await create_reset_token_atomic(db, email=email_n)
     reset_url = external_password_reset_url(request, token=raw)
+    log_password_reset_requested(email=email_n, user_found=True)
     try:
         send_password_reset_email(to_email=email_n, reset_url=reset_url)
     except Exception:
@@ -187,6 +194,7 @@ async def reset_api(
     bump_token_version(user)
     db.add(user)
     await db.commit()
+    log_password_reset_completed(email=user.email, user_id=require_user_id(user.id))
     return {"ok": True}
 
 

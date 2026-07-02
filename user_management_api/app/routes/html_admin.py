@@ -10,6 +10,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.core.config as app_config
+from app.core.audit import (
+    log_admin_access_denied,
+    log_admin_user_deleted,
+    log_admin_user_updated,
+    log_invite_created,
+    require_user_id,
+)
+from app.core.logging import get_logger
 from app.auth.jwt_principal import (
     JwtPrincipal,
     load_user_by_id,
@@ -27,6 +35,7 @@ from app.web.templates import templates
 
 
 router = APIRouter(tags=["html-admin"])
+log = get_logger(__name__)
 
 
 def _norm_email(v: str) -> str:
@@ -121,6 +130,11 @@ async def admin_page(
         )
     principal = require_cookie_principal(request)
     if not principal.is_admin:
+        log_admin_access_denied(
+            email=principal.email,
+            user_id=principal.user_id,
+            path=request.url.path,
+        )
         return templates.TemplateResponse(
             request,
             "users.html",
@@ -297,7 +311,14 @@ async def admin_invite_submit(
     try:
         send_invite_email(to_email=email_n, invite_url=invite_url)
     except Exception:
-        pass
+        log.exception("invite_email_send_failed")
+
+    log_invite_created(
+        email=email_n,
+        grant_admin=make_admin,
+        actor_email=principal.email,
+        method="html_admin",
+    )
 
     if wants_json:
         return JSONResponse({"ok": True, "invite_url": invite_url})
@@ -443,6 +464,14 @@ async def admin_user_update(
         user.command = (command or "").strip() or None
     db.add(user)
     await db.commit()
+    log_admin_user_updated(
+        actor_email=principal.email or "",
+        actor_id=principal.user_id,
+        target_user_id=require_user_id(user.id),
+        target_email=user.email,
+        fields="full_name,country,command,is_admin,is_active",
+        method="html_admin",
+    )
 
     return html_redirect(request, f"/admin/users/{user_id}", status_code=303)
 
@@ -511,6 +540,14 @@ async def admin_user_delete(
         set_csrf_cookie(resp, request)
         return resp
 
+    target_email = user.email
     await db.delete(user)
     await db.commit()
+    log_admin_user_deleted(
+        actor_email=principal.email or admin_user.email,
+        actor_id=principal.user_id,
+        target_user_id=user_id,
+        target_email=target_email,
+        method="html_admin",
+    )
     return html_redirect(request, "/admin", status_code=303, external=True)
